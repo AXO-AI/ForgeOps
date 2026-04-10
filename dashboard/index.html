@@ -7,682 +7,754 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg: #0b0d17; --bg2: #121625; --bg3: #1a1f35; --bg4: #242a45;
-      --teal: #0dbfbf; --teal2: #0a9a9a; --teal-glow: rgba(13,191,191,.15);
-      --green: #22c55e; --red: #ef4444; --yellow: #eab308; --blue: #3b82f6;
-      --purple: #a855f7; --orange: #f97316;
-      --text: #e2e8f0; --text2: #94a3b8; --text3: #64748b;
-      --border: #1e293b; --radius: 8px;
+      --bg: #0b0d17; --card: #141825; --border: #2a3048; --text: #e8eaf0;
+      --text2: #8b93a8; --text3: #5a6380; --teal: #0dbfbf; --teal-dim: rgba(13,191,191,.12);
+      --success: #4cd964; --danger: #f45b69; --warning: #f5a623; --blue: #3b82f6;
+      --purple: #a78bfa; --radius: 8px;
     }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; min-height: 100vh; }
-    a { color: var(--teal); text-decoration: none; }
-    button { font-family: inherit; cursor: pointer; border: none; }
+    html, body { height: 100%; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+    button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
     input { font-family: inherit; }
-    .skeleton { background: linear-gradient(90deg, var(--bg3) 25%, var(--bg4) 50%, var(--bg3) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: var(--radius); }
-    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
-    .fade-in { animation: fadeIn .3s ease; }
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: var(--bg); }
-    ::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
+    a { color: var(--teal); text-decoration: none; }
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+    @keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+    .fade-up { animation: fadeUp .35s ease-out; }
+    .skeleton { background: linear-gradient(90deg, var(--card) 0%, #1c2035 50%, var(--card) 100%); background-size: 800px 100%; animation: shimmer 1.8s infinite linear; border-radius: var(--radius); }
+
+    /* Layout */
+    .app { display: flex; height: 100vh; overflow: hidden; }
+    .sidebar { width: 240px; background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; transition: transform .25s ease; }
+    .sidebar.closed { transform: translateX(-240px); position: absolute; z-index: 100; height: 100%; }
+    .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 99; }
+    .sidebar-overlay.show { display: block; }
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+    .topbar { padding: 12px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12; background: var(--card); flex-shrink: 0; }
+    .content { flex: 1; overflow-y: auto; padding: 24px; }
+
+    /* Sidebar items */
+    .logo { padding: 20px 18px; display: flex; align-items: center; gap: 10; border-bottom: 1px solid var(--border); }
+    .logo-icon { font-size: 22px; }
+    .logo-text { font-size: 17px; font-weight: 700; letter-spacing: -.3px; }
+    .nav-section { padding: 16px 14px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text3); }
+    .nav-item { display: flex; align-items: center; gap: 10; padding: 8px 18px; margin: 1px 8px; border-radius: var(--radius); font-size: 13.5px; color: var(--text2); transition: all .15s; cursor: pointer; position: relative; }
+    .nav-item:hover { background: rgba(255,255,255,.04); color: var(--text); }
+    .nav-item.active { background: var(--teal-dim); color: var(--teal); font-weight: 600; }
+    .nav-item .icon { font-size: 16px; width: 22px; text-align: center; flex-shrink: 0; }
+    .nav-badge { margin-left: auto; background: var(--warning); color: #000; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 10px; min-width: 18px; text-align: center; }
+    .sidebar-footer { margin-top: auto; padding: 14px 18px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text3); }
+    .status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; }
+
+    /* Cards & components */
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+    .card:hover { border-color: #343b58; }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; }
+    .stat-label { font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+    .stat-value { font-size: 28px; font-weight: 700; line-height: 1.2; }
+    .stat-icon { font-size: 20px; float: right; opacity: .6; }
+    .badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+    .btn { padding: 8px 18px; border-radius: var(--radius); font-size: 13px; font-weight: 600; transition: all .15s; }
+    .btn-teal { background: var(--teal); color: #000; }
+    .btn-teal:hover { background: #0ad4d4; }
+    .btn-success { background: var(--success); color: #000; }
+    .btn-danger { background: transparent; color: var(--danger); border: 1px solid rgba(244,91,105,.3); }
+    .btn-danger:hover { background: rgba(244,91,105,.1); }
+    .btn-ghost { background: rgba(255,255,255,.06); color: var(--text2); }
+    .btn-ghost:hover { background: rgba(255,255,255,.1); }
+
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; }
+    .list-row { display: flex; align-items: center; gap: 12; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .list-row:last-child { border-bottom: none; }
+    .env-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+    .env-card { border-radius: var(--radius); background: var(--card); border: 1px solid var(--border); overflow: hidden; }
+    .env-header { padding: 4px; }
+    .env-body { padding: 14px; }
+    .stage-graph { display: flex; align-items: center; gap: 0; overflow-x: auto; padding: 12px 0; }
+    .stage-node { display: flex; flex-direction: column; align-items: center; gap: 4; flex-shrink: 0; }
+    .stage-box { padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; border: 2px solid; min-width: 60px; text-align: center; cursor: pointer; transition: transform .1s; }
+    .stage-box:hover { transform: scale(1.05); }
+    .stage-arrow { width: 28px; height: 2px; background: var(--border); flex-shrink: 0; }
+
+    /* Connect screen */
+    .connect-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .connect-box { width: 100%; max-width: 400px; }
+    .connect-box .card { padding: 36px; }
+    .input { width: 100%; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: 14px; outline: none; transition: border-color .2s; }
+    .input:focus { border-color: var(--teal); }
+    .input-label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 6px; font-weight: 500; }
+
+    .hamburger { display: none; background: none; border: none; color: var(--text2); font-size: 20px; padding: 4px 8px; cursor: pointer; }
+
+    @media (max-width: 768px) {
+      .sidebar { position: fixed; z-index: 100; height: 100%; }
+      .sidebar.closed { transform: translateX(-240px); }
+      .hamburger { display: block; }
+      .stat-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+      .grid-2 { grid-template-columns: 1fr; }
+      .env-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+      .content { padding: 16px; }
+    }
+
+    .error-banner { padding: 10px 16px; background: rgba(244,91,105,.1); border: 1px solid rgba(244,91,105,.25); border-radius: var(--radius); color: var(--danger); font-size: 13px; margin-bottom: 16px; display: flex; align-items: center; gap: 8; }
+    .rate-banner { padding: 10px 16px; background: rgba(245,166,35,.1); border: 1px solid rgba(245,166,35,.25); border-radius: var(--radius); color: var(--warning); font-size: 13px; margin-bottom: 16px; }
   </style>
 </head>
 <body>
-  <div id="root"></div>
+<div id="root"></div>
+<script type="module">
+import React from 'https://esm.sh/react@18';
+import { createRoot } from 'https://esm.sh/react-dom@18/client';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } from 'https://esm.sh/recharts@2.12.7?external=react,react-dom';
 
-  <script type="importmap">
-  {
-    "imports": {
-      "react": "https://esm.sh/react@18.3.1",
-      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
-      "recharts": "https://esm.sh/recharts@2.12.7?external=react,react-dom",
-      "lucide-react": "https://esm.sh/lucide-react@0.453.0?external=react"
+const h = React.createElement;
+const { useState, useEffect, useCallback, useRef, useMemo } = React;
+
+/* ═══════════════════════════════════════════
+   GitHub API Client
+   ═══════════════════════════════════════════ */
+class GH {
+  constructor(token, user) { this.t = token; this.u = user; this.b = 'https://api.github.com'; this.rateLimited = false; this.retryAfter = 0; }
+  async f(path, opts = {}) {
+    if (this.rateLimited && Date.now() < this.retryAfter) throw new Error(`RATE_LIMITED:${Math.ceil((this.retryAfter - Date.now())/1000)}`);
+    const r = await fetch(`${this.b}${path}`, { ...opts, headers: { Authorization: `Bearer ${this.t}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...opts.headers } });
+    if (r.status === 403 && r.headers.get('x-ratelimit-remaining') === '0') {
+      const reset = parseInt(r.headers.get('x-ratelimit-reset') || '0') * 1000;
+      this.rateLimited = true; this.retryAfter = reset;
+      throw new Error(`RATE_LIMITED:${Math.ceil((reset - Date.now())/1000)}`);
     }
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error(`GitHub ${r.status}: ${r.statusText}`);
+    this.rateLimited = false;
+    return r.json();
   }
-  </script>
+  repos()       { return this.f(`/users/${this.u}/repos?per_page=100&sort=updated`); }
+  runs(repo, q) { return this.f(`/repos/${this.u}/${repo}/actions/runs?per_page=30${q||''}`); }
+  jobs(repo,id) { return this.f(`/repos/${this.u}/${repo}/actions/runs/${id}/jobs`); }
+  pending(repo,id) { return this.f(`/repos/${this.u}/${repo}/actions/runs/${id}/pending_deployments`); }
+  actDeploy(repo,id,envIds,state) { return this.f(`/repos/${this.u}/${repo}/actions/runs/${id}/pending_deployments`, { method:'POST', body: JSON.stringify({ environment_ids: envIds, state, comment: `${state} via ForgeOps Dashboard` }) }); }
+  runners() {
+    return this.f(`/orgs/${this.u}/actions/runners`)
+      .then(d => d)
+      .catch(() => this.f(`/repos/${this.u}/ForgeOps/actions/runners`))
+      .catch(() => null);
+  }
+  user() { return this.f('/user'); }
+}
 
-  <script type="module">
-    import React from 'react';
-    import { createRoot } from 'react-dom/client';
-    import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-    import { Shield, GitBranch, Server, Clock, CheckCircle, XCircle, AlertTriangle, Settings as SettingsIcon, LayoutDashboard, Play, Eye, Users, RefreshCw, LogOut, ChevronRight, ChevronDown, ExternalLink, Loader2, Wifi, WifiOff, Monitor } from 'lucide-react';
+/* ═══════════════════════════════════════════
+   Helpers
+   ═══════════════════════════════════════════ */
+const timeAgo = d => {
+  if (!d) return '';
+  const s = Math.floor((Date.now() - new Date(d)) / 1000);
+  if (s < 60) return `${s}s ago`; if (s < 3600) return `${Math.floor(s/60)}m ago`;
+  if (s < 86400) return `${Math.floor(s/3600)}h ago`; return `${Math.floor(s/86400)}d ago`;
+};
+const dur = (a, b) => {
+  if (!a || !b) return '—';
+  const s = Math.round((new Date(b) - new Date(a)) / 1000);
+  if (s < 60) return `${s}s`; if (s < 3600) return `${Math.floor(s/60)}m ${s%60}s`; return `${Math.floor(s/3600)}h ${Math.floor((s%3600)/60)}m`;
+};
+const stEmoji = c => ({ success:'✅', completed:'✅', failure:'❌', cancelled:'🚫', in_progress:'🔄', queued:'⏳', waiting:'⏸️', action_required:'⚠️', skipped:'⏭️', pending:'⏳' }[c] || '⚪');
+const stColor = c => ({ success:'var(--success)', completed:'var(--success)', failure:'var(--danger)', cancelled:'var(--text3)', in_progress:'var(--blue)', queued:'var(--warning)', waiting:'var(--warning)', action_required:'var(--warning)', skipped:'var(--text3)' }[c] || 'var(--text3)');
+const stDot = (c, sz) => h('span', { style: { display:'inline-block', width: sz||8, height: sz||8, borderRadius:'50%', background: stColor(c), flexShrink:0 } });
 
-    const h = React.createElement;
-    const { useState, useEffect, useCallback, useRef, useMemo } = React;
+/* ═══════════════════════════════════════════
+   Connect Screen
+   ═══════════════════════════════════════════ */
+const ConnectScreen = ({ onConnect }) => {
+  const [token, setToken] = useState('');
+  const [user, setUser] = useState('askboppana');
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
 
-    // ── GitHub API ──
-    class GitHubAPI {
-      constructor(token, username) {
-        this.token = token;
-        this.username = username;
-        this.base = 'https://api.github.com';
-      }
-      async fetch(path, opts = {}) {
-        const r = await fetch(`${this.base}${path}`, {
-          ...opts,
-          headers: { Authorization: `Bearer ${this.token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...opts.headers }
-        });
-        if (!r.ok) throw new Error(`GitHub API ${r.status}: ${r.statusText}`);
-        return r.json();
-      }
-      repos() { return this.fetch(`/users/${this.username}/repos?per_page=100&sort=updated`); }
-      runs(repo, opts = '') { return this.fetch(`/repos/${this.username}/${repo}/actions/runs?per_page=30${opts}`); }
-      run(repo, id) { return this.fetch(`/repos/${this.username}/${repo}/actions/runs/${id}`); }
-      jobs(repo, id) { return this.fetch(`/repos/${this.username}/${repo}/actions/runs/${id}/jobs`); }
-      pendingDeployments(repo, id) { return this.fetch(`/repos/${this.username}/${repo}/actions/runs/${id}/pending_deployments`); }
-      approveDeployment(repo, id, envIds) {
-        return this.fetch(`/repos/${this.username}/${repo}/actions/runs/${id}/pending_deployments`, {
-          method: 'POST', body: JSON.stringify({ environment_ids: envIds, state: 'approved', comment: 'Approved via ForgeOps Dashboard' })
-        });
-      }
-      rejectDeployment(repo, id, envIds) {
-        return this.fetch(`/repos/${this.username}/${repo}/actions/runs/${id}/pending_deployments`, {
-          method: 'POST', body: JSON.stringify({ environment_ids: envIds, state: 'rejected', comment: 'Rejected via ForgeOps Dashboard' })
-        });
-      }
-      runners() { return this.fetch(`/users/${this.username}/actions/runners`).catch(() => this.fetch(`/orgs/${this.username}/actions/runners`)).catch(() => ({ runners: [] })); }
-      artifacts(repo) { return this.fetch(`/repos/${this.username}/${repo}/actions/artifacts?per_page=10`); }
-    }
+  const go = async () => {
+    if (!token.trim() || !user.trim()) { setErr('Both fields required'); return; }
+    setLoading(true); setErr('');
+    try {
+      const api = new GH(token.trim(), user.trim());
+      await api.user();
+      sessionStorage.setItem('fo_t', token.trim());
+      sessionStorage.setItem('fo_u', user.trim());
+      onConnect(api);
+    } catch (e) { setErr(`Connection failed: ${e.message}`); }
+    setLoading(false);
+  };
 
-    // ── Utility Components ──
-    const Badge = ({ color, children }) => h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600, background: `${color}22`, color, border: `1px solid ${color}44` } }, children);
-
-    const Card = ({ children, style, onClick }) => h('div', {
-      onClick, style: { background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 20, cursor: onClick ? 'pointer' : 'default', transition: 'border-color .2s, transform .15s', ...style },
-      onMouseEnter: e => { if (onClick) { e.currentTarget.style.borderColor = 'var(--teal)'; e.currentTarget.style.transform = 'translateY(-1px)'; } },
-      onMouseLeave: e => { if (onClick) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.transform = 'none'; } }
-    }, children);
-
-    const MetricCard = ({ icon, label, value, color, sub }) => h(Card, { style: { flex: '1 1 200px', minWidth: 180 } },
-      h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' } },
-        h('div', null,
-          h('div', { style: { fontSize: 13, color: 'var(--text2)', marginBottom: 4 } }, label),
-          h('div', { style: { fontSize: 32, fontWeight: 700, color: color || 'var(--text)' } }, value),
-          sub && h('div', { style: { fontSize: 12, color: 'var(--text3)', marginTop: 4 } }, sub)
+  return h('div', { className: 'connect-wrap fade-up' },
+    h('div', { className: 'connect-box' },
+      h('div', { className: 'card' },
+        h('div', { style: { textAlign: 'center', marginBottom: 28 } },
+          h('div', { style: { fontSize: 40, marginBottom: 8 } }, '⚡'),
+          h('div', { style: { fontSize: 22, fontWeight: 700, marginBottom: 4 } }, 'ForgeOps'),
+          h('div', { style: { color: 'var(--text2)', fontSize: 13 } }, 'Connect to GitHub to view your pipelines')
         ),
-        h('div', { style: { width: 40, height: 40, borderRadius: 'var(--radius)', background: `${color || 'var(--teal)'}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' } },
-          h(icon, { size: 20, color: color || 'var(--teal)' })
+        h('div', { style: { display: 'flex', flexDirection: 'column', gap: 16 } },
+          h('div', null,
+            h('label', { className: 'input-label' }, 'GitHub Username'),
+            h('input', { className: 'input', value: user, onChange: e => setUser(e.target.value), placeholder: 'askboppana' })
+          ),
+          h('div', null,
+            h('label', { className: 'input-label' }, 'Personal Access Token'),
+            h('input', { className: 'input', type: 'password', value: token, onChange: e => setToken(e.target.value), placeholder: 'ghp_...', onKeyDown: e => e.key === 'Enter' && go() })
+          ),
+          h('div', { style: { fontSize: 11, color: 'var(--text3)' } }, 'Needs ', h('code', { style: { background: 'var(--bg)', padding: '1px 5px', borderRadius: 3 } }, 'repo'), ' + ', h('code', { style: { background: 'var(--bg)', padding: '1px 5px', borderRadius: 3 } }, 'actions'), ' scopes. Stored in sessionStorage only.'),
+          err && h('div', { className: 'error-banner' }, '❌ ', err),
+          h('button', { className: 'btn btn-teal', onClick: go, disabled: loading, style: { width: '100%', padding: '11px', fontSize: 14 } }, loading ? '⏳ Connecting...' : 'Connect to GitHub')
         )
       )
-    );
+    )
+  );
+};
 
-    const Skeleton = ({ w, h: height, style }) => React.createElement('div', { className: 'skeleton', style: { width: w || '100%', height: height || 20, ...style } });
+/* ═══════════════════════════════════════════
+   PAGE: Overview
+   ═══════════════════════════════════════════ */
+const OverviewPage = ({ runs }) => {
+  const today = new Date().toISOString().slice(0,10);
+  const runs24h = runs.filter(r => { const d = new Date(r.created_at); return (Date.now() - d) < 86400000; });
+  const completed = runs.filter(r => r.status === 'completed');
+  const rate = completed.length ? Math.round(completed.filter(r => r.conclusion === 'success').length / completed.length * 100) : 0;
+  const failed = runs.filter(r => r.conclusion === 'failure').length;
+  const pending = runs.filter(r => r.status === 'waiting' || r.status === 'action_required').length;
 
-    const StatusIcon = ({ status, size }) => {
-      const s = size || 16;
-      const map = { completed: { icon: CheckCircle, color: 'var(--green)' }, success: { icon: CheckCircle, color: 'var(--green)' }, failure: { icon: XCircle, color: 'var(--red)' }, cancelled: { icon: XCircle, color: 'var(--text3)' }, in_progress: { icon: Loader2, color: 'var(--blue)' }, queued: { icon: Clock, color: 'var(--yellow)' }, waiting: { icon: Clock, color: 'var(--orange)' }, pending: { icon: Clock, color: 'var(--yellow)' }, action_required: { icon: AlertTriangle, color: 'var(--orange)' } };
-      const m = map[status] || map.pending;
-      return h(m.icon, { size: s, color: m.color, style: status === 'in_progress' ? { animation: 'pulse 1.5s infinite' } : {} });
-    };
+  const barData = useMemo(() => {
+    const days = {};
+    for (let i = 6; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate()-i); const k = d.toISOString().slice(5,10); days[k] = { day: k, success: 0, failure: 0, other: 0 }; }
+    runs.forEach(r => { const k = r.created_at?.slice(5,10); if (days[k]) { if (r.conclusion==='success') days[k].success++; else if (r.conclusion==='failure') days[k].failure++; else days[k].other++; }});
+    return Object.values(days);
+  }, [runs]);
 
-    const statusColor = s => ({ completed: 'var(--green)', success: 'var(--green)', failure: 'var(--red)', cancelled: 'var(--text3)', in_progress: 'var(--blue)', queued: 'var(--yellow)', waiting: 'var(--orange)', action_required: 'var(--orange)' }[s] || 'var(--text3)');
-
-    const timeAgo = d => {
-      if (!d) return '';
-      const s = Math.floor((Date.now() - new Date(d)) / 1000);
-      if (s < 60) return `${s}s ago`; if (s < 3600) return `${Math.floor(s/60)}m ago`;
-      if (s < 86400) return `${Math.floor(s/3600)}h ago`; return `${Math.floor(s/86400)}d ago`;
-    };
-
-    // ── Connect Screen ──
-    const ConnectScreen = ({ onConnect }) => {
-      const [token, setToken] = useState('');
-      const [user, setUser] = useState('askboppana');
-      const [error, setError] = useState('');
-      const [loading, setLoading] = useState(false);
-
-      const handleConnect = async () => {
-        if (!token || !user) { setError('Both fields are required'); return; }
-        setLoading(true); setError('');
-        try {
-          const api = new GitHubAPI(token, user);
-          await api.fetch('/user');
-          sessionStorage.setItem('forgeops_token', token);
-          sessionStorage.setItem('forgeops_user', user);
-          onConnect(api);
-        } catch (e) { setError(`Connection failed: ${e.message}`); } finally { setLoading(false); }
-      };
-
-      const inputStyle = { width: '100%', padding: '10px 14px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text)', fontSize: 14, outline: 'none', transition: 'border-color .2s' };
-
-      return h('div', { style: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 } },
-        h('div', { className: 'fade-in', style: { width: '100%', maxWidth: 420, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: 40 } },
-          h('div', { style: { textAlign: 'center', marginBottom: 32 } },
-            h('div', { style: { width: 56, height: 56, borderRadius: 12, background: 'var(--teal-glow)', border: '1px solid var(--teal)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 } }, h(Shield, { size: 28, color: 'var(--teal)' })),
-            h('h1', { style: { fontSize: 24, fontWeight: 700, marginBottom: 4 } }, 'ForgeOps'),
-            h('p', { style: { color: 'var(--text2)', fontSize: 14 } }, 'Connect to GitHub to view your pipelines')
-          ),
-          h('div', { style: { display: 'flex', flexDirection: 'column', gap: 16 } },
-            h('div', null,
-              h('label', { style: { fontSize: 13, color: 'var(--text2)', display: 'block', marginBottom: 6 } }, 'GitHub Username'),
-              h('input', { type: 'text', value: user, onChange: e => setUser(e.target.value), placeholder: 'askboppana', style: inputStyle, onFocus: e => e.target.style.borderColor = 'var(--teal)', onBlur: e => e.target.style.borderColor = 'var(--border)' })
-            ),
-            h('div', null,
-              h('label', { style: { fontSize: 13, color: 'var(--text2)', display: 'block', marginBottom: 6 } }, 'Personal Access Token'),
-              h('input', { type: 'password', value: token, onChange: e => setToken(e.target.value), placeholder: 'ghp_...', style: inputStyle, onKeyDown: e => e.key === 'Enter' && handleConnect(), onFocus: e => e.target.style.borderColor = 'var(--teal)', onBlur: e => e.target.style.borderColor = 'var(--border)' })
-            ),
-            h('p', { style: { fontSize: 12, color: 'var(--text3)' } }, 'Token needs ', h('code', { style: { background: 'var(--bg3)', padding: '1px 5px', borderRadius: 3, fontSize: 11 } }, 'repo'), ' and ', h('code', { style: { background: 'var(--bg3)', padding: '1px 5px', borderRadius: 3, fontSize: 11 } }, 'actions'), ' scopes. Stored in sessionStorage only.'),
-            error && h('div', { style: { padding: '8px 12px', background: 'var(--red)18', border: '1px solid var(--red)44', borderRadius: 'var(--radius)', color: 'var(--red)', fontSize: 13 } }, error),
-            h('button', { onClick: handleConnect, disabled: loading, style: { width: '100%', padding: '10px 20px', background: loading ? 'var(--teal2)' : 'var(--teal)', color: '#000', fontWeight: 600, fontSize: 14, borderRadius: 'var(--radius)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'background .2s' } },
-              loading && h(Loader2, { size: 16, style: { animation: 'pulse 1s infinite' } }),
-              loading ? 'Connecting...' : 'Connect'
-            )
+  return h('div', { className: 'fade-up' },
+    h('h2', { style: { fontSize: 18, fontWeight: 600, marginBottom: 20 } }, 'Overview'),
+    h('div', { className: 'stat-grid' },
+      h('div', { className: 'stat-card' }, h('div', { className: 'stat-icon' }, '🚀'), h('div', { className: 'stat-label' }, 'Total Runs (24h)'), h('div', { className: 'stat-value', style: { color: 'var(--teal)' } }, runs24h.length)),
+      h('div', { className: 'stat-card' }, h('div', { className: 'stat-icon' }, '📊'), h('div', { className: 'stat-label' }, 'Success Rate'), h('div', { className: 'stat-value', style: { color: rate >= 80 ? 'var(--success)' : 'var(--danger)' } }, rate + '%')),
+      h('div', { className: 'stat-card' }, h('div', { className: 'stat-icon' }, '❌'), h('div', { className: 'stat-label' }, 'Failed'), h('div', { className: 'stat-value', style: { color: 'var(--danger)' } }, failed)),
+      h('div', { className: 'stat-card' }, h('div', { className: 'stat-icon' }, '⏸️'), h('div', { className: 'stat-label' }, 'Pending Approvals'), h('div', { className: 'stat-value', style: { color: 'var(--warning)' } }, pending))
+    ),
+    h('div', { className: 'grid-2', style: { marginBottom: 24 } },
+      h('div', { className: 'card' },
+        h('div', { style: { fontSize: 13, color: 'var(--text2)', marginBottom: 14, fontWeight: 500 } }, '📈 Pipeline Activity (7 days)'),
+        h(ResponsiveContainer, { width: '100%', height: 210 },
+          h(BarChart, { data: barData },
+            h(CartesianGrid, { strokeDasharray: '3 3', stroke: 'var(--border)' }),
+            h(XAxis, { dataKey: 'day', tick: { fill: 'var(--text3)', fontSize: 11 }, axisLine: { stroke: 'var(--border)' } }),
+            h(YAxis, { tick: { fill: 'var(--text3)', fontSize: 11 }, axisLine: { stroke: 'var(--border)' }, allowDecimals: false }),
+            h(Tooltip, { contentStyle: { background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: 12 } }),
+            h(Bar, { dataKey: 'success', stackId: 'a', fill: '#4cd964' }),
+            h(Bar, { dataKey: 'failure', stackId: 'a', fill: '#f45b69' }),
+            h(Bar, { dataKey: 'other', stackId: 'a', fill: '#5a6380', radius: [3,3,0,0] })
           )
         )
-      );
-    };
-
-    // ── Page: Overview ──
-    const OverviewPage = ({ api, repos, allRuns }) => {
-      const today = new Date().toISOString().slice(0, 10);
-      const todayRuns = allRuns.filter(r => r.created_at?.startsWith(today));
-      const successRate = allRuns.length > 0 ? Math.round(allRuns.filter(r => r.conclusion === 'success').length / allRuns.filter(r => r.status === 'completed').length * 100) || 0 : 0;
-      const failed = allRuns.filter(r => r.conclusion === 'failure').length;
-      const pending = allRuns.filter(r => r.status === 'waiting' || r.status === 'action_required').length;
-
-      const barData = useMemo(() => {
-        const days = {};
-        for (let i = 6; i >= 0; i--) {
-          const d = new Date(); d.setDate(d.getDate() - i);
-          const key = d.toISOString().slice(5, 10);
-          days[key] = { day: key, success: 0, failure: 0, other: 0 };
-        }
-        allRuns.forEach(r => {
-          const key = r.created_at?.slice(5, 10);
-          if (days[key]) { if (r.conclusion === 'success') days[key].success++; else if (r.conclusion === 'failure') days[key].failure++; else days[key].other++; }
-        });
-        return Object.values(days);
-      }, [allRuns]);
-
-      const pieData = useMemo(() => {
-        const counts = { success: 0, failure: 0, in_progress: 0, other: 0 };
-        allRuns.forEach(r => { if (r.conclusion === 'success') counts.success++; else if (r.conclusion === 'failure') counts.failure++; else if (r.status === 'in_progress') counts.in_progress++; else counts.other++; });
-        return [
-          { name: 'Success', value: counts.success, color: 'var(--green)' },
-          { name: 'Failed', value: counts.failure, color: 'var(--red)' },
-          { name: 'Running', value: counts.in_progress, color: 'var(--blue)' },
-          { name: 'Other', value: counts.other, color: 'var(--text3)' }
-        ].filter(d => d.value > 0);
-      }, [allRuns]);
-
-      return h('div', { className: 'fade-in' },
-        h('h2', { style: { fontSize: 20, fontWeight: 600, marginBottom: 20 } }, 'Overview'),
-        h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 24 } },
-          h(MetricCard, { icon: Play, label: 'Runs Today', value: todayRuns.length, color: 'var(--teal)' }),
-          h(MetricCard, { icon: CheckCircle, label: 'Success Rate', value: `${successRate}%`, color: 'var(--green)', sub: 'last 30 runs per repo' }),
-          h(MetricCard, { icon: XCircle, label: 'Failed', value: failed, color: 'var(--red)' }),
-          h(MetricCard, { icon: Clock, label: 'Pending Approvals', value: pending, color: 'var(--orange)' })
-        ),
-        h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: 16, marginBottom: 24 } },
-          h(Card, null,
-            h('h3', { style: { fontSize: 14, color: 'var(--text2)', marginBottom: 16 } }, 'Pipeline Activity (7 days)'),
-            h(ResponsiveContainer, { width: '100%', height: 220 },
-              h(BarChart, { data: barData },
-                h(CartesianGrid, { strokeDasharray: '3 3', stroke: 'var(--border)' }),
-                h(XAxis, { dataKey: 'day', tick: { fill: 'var(--text3)', fontSize: 12 }, axisLine: { stroke: 'var(--border)' } }),
-                h(YAxis, { tick: { fill: 'var(--text3)', fontSize: 12 }, axisLine: { stroke: 'var(--border)' }, allowDecimals: false }),
-                h(Tooltip, { contentStyle: { background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)' } }),
-                h(Bar, { dataKey: 'success', stackId: 'a', fill: '#22c55e', radius: [0,0,0,0] }),
-                h(Bar, { dataKey: 'failure', stackId: 'a', fill: '#ef4444', radius: [0,0,0,0] }),
-                h(Bar, { dataKey: 'other', stackId: 'a', fill: '#64748b', radius: [4,4,0,0] })
-              )
-            )
-          ),
-          h(Card, null,
-            h('h3', { style: { fontSize: 14, color: 'var(--text2)', marginBottom: 16 } }, 'Status Distribution'),
-            h(ResponsiveContainer, { width: '100%', height: 220 },
-              h(PieChart, null,
-                h(Pie, { data: pieData, cx: '50%', cy: '50%', innerRadius: 55, outerRadius: 85, paddingAngle: 3, dataKey: 'value' },
-                  pieData.map((d, i) => h(Cell, { key: i, fill: d.color }))
-                ),
-                h(Tooltip, { contentStyle: { background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)' } })
-              )
+      ),
+      h('div', { className: 'card' },
+        h('div', { style: { fontSize: 13, color: 'var(--text2)', marginBottom: 14, fontWeight: 500 } }, '🕐 Recent Activity'),
+        h('div', { style: { maxHeight: 210, overflowY: 'auto' } },
+          runs.slice(0, 15).map(r => h('div', { key: r.id, className: 'list-row', style: { padding: '7px 0', gap: 8 } },
+            h('span', { style: { fontSize: 14 } }, stEmoji(r.conclusion || r.status)),
+            h('div', { style: { flex: 1, minWidth: 0 } },
+              h('div', { style: { fontSize: 12.5, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r._repo),
+              h('div', { style: { fontSize: 11, color: 'var(--text3)' } }, r.head_branch, ' · #', r.run_number)
             ),
-            h('div', { style: { display: 'flex', justifyContent: 'center', gap: 16, marginTop: 8 } },
-              pieData.map(d => h('div', { key: d.name, style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 } },
-                h('div', { style: { width: 8, height: 8, borderRadius: '50%', background: d.color } }),
-                h('span', { style: { color: 'var(--text2)' } }, `${d.name} (${d.value})`)
+            h('div', { style: { fontSize: 11, color: 'var(--text3)', textAlign: 'right', flexShrink: 0 } },
+              h('div', null, dur(r.run_started_at, r.updated_at)),
+              h('div', null, timeAgo(r.created_at))
+            )
+          )),
+          runs.length === 0 && h('div', { style: { padding: 20, textAlign: 'center', color: 'var(--text3)', fontSize: 13 } }, 'No runs found')
+        )
+      )
+    )
+  );
+};
+
+/* ═══════════════════════════════════════════
+   PAGE: Pipelines
+   ═══════════════════════════════════════════ */
+const PipelinesPage = ({ api, repos, runs }) => {
+  const [expanded, setExpanded] = useState(null);
+  const [jobsCache, setJobsCache] = useState({});
+  const [selJob, setSelJob] = useState(null);
+
+  const repoLatest = useMemo(() => {
+    const m = {};
+    runs.forEach(r => { if (!m[r._repo]) m[r._repo] = r; });
+    return m;
+  }, [runs]);
+
+  const loadJobs = async (repo, runId) => {
+    const k = `${repo}/${runId}`;
+    if (jobsCache[k]) return;
+    try { const d = await api.jobs(repo, runId); setJobsCache(p => ({ ...p, [k]: d?.jobs || [] })); } catch(e) { console.error(e); }
+  };
+
+  const toggle = (repo, runId) => {
+    const k = `${repo}/${runId}`;
+    if (expanded === k) { setExpanded(null); setSelJob(null); } else { setExpanded(k); setSelJob(null); loadJobs(repo, runId); }
+  };
+
+  const stageBoxColor = c => ({ success:'var(--success)', completed:'var(--success)', failure:'var(--danger)', in_progress:'var(--blue)', queued:'var(--warning)', waiting:'var(--warning)' }[c] || 'var(--text3)');
+
+  return h('div', { className: 'fade-up' },
+    h('h2', { style: { fontSize: 18, fontWeight: 600, marginBottom: 20 } }, 'Pipelines'),
+    repos.filter(r => repoLatest[r.name]).map(repo => {
+      const run = repoLatest[repo.name];
+      const k = `${repo.name}/${run.id}`;
+      const open = expanded === k;
+      const jobs = jobsCache[k] || [];
+
+      return h('div', { key: repo.name, className: 'card', style: { marginBottom: 10 } },
+        h('div', { onClick: () => toggle(repo.name, run.id), style: { display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' } },
+          h('span', { style: { fontSize: 12, color: 'var(--text3)' } }, open ? '▼' : '▶'),
+          stDot(run.conclusion || run.status, 10),
+          h('div', { style: { flex: 1, minWidth: 0 } },
+            h('span', { style: { fontWeight: 600, fontSize: 14 } }, repo.name),
+            h('span', { style: { fontSize: 12, color: 'var(--text3)', marginLeft: 10 } }, run.head_branch, ' · ', run.event)
+          ),
+          h('span', { className: 'badge', style: { background: `${stColor(run.conclusion||run.status)}22`, color: stColor(run.conclusion||run.status) } }, run.conclusion || run.status),
+          h('span', { style: { fontSize: 11, color: 'var(--text3)', marginLeft: 8, flexShrink: 0 } }, dur(run.run_started_at, run.updated_at)),
+          h('span', { style: { fontSize: 11, color: 'var(--text3)', marginLeft: 8, flexShrink: 0 } }, timeAgo(run.created_at))
+        ),
+        open && h('div', { style: { marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)' } },
+          jobs.length > 0 ? h(React.Fragment, null,
+            // Stage graph
+            h('div', { className: 'stage-graph' },
+              jobs.map((j, i) => h(React.Fragment, { key: j.id },
+                h('div', { className: 'stage-node' },
+                  h('div', { className: 'stage-box', onClick: () => setSelJob(selJob === j.id ? null : j.id), style: { borderColor: stageBoxColor(j.conclusion || j.status), color: stageBoxColor(j.conclusion || j.status), background: selJob === j.id ? `${stageBoxColor(j.conclusion || j.status)}22` : 'transparent' } },
+                    stEmoji(j.conclusion || j.status), ' ', j.name.length > 14 ? j.name.slice(0,12)+'…' : j.name
+                  )
+                ),
+                i < jobs.length - 1 && h('div', { className: 'stage-arrow' })
+              ))
+            ),
+            // Selected job steps
+            selJob && (() => {
+              const job = jobs.find(j => j.id === selJob);
+              if (!job) return null;
+              return h('div', { style: { marginTop: 12, padding: 14, background: 'var(--bg)', borderRadius: 'var(--radius)' } },
+                h('div', { style: { fontSize: 13, fontWeight: 600, marginBottom: 10, color: 'var(--teal)' } }, '📋 ', job.name, ' — Steps'),
+                (job.steps || []).map((s, i) => h('div', { key: i, style: { display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 12 } },
+                  h('span', null, stEmoji(s.conclusion || s.status)),
+                  h('span', { style: { flex: 1, color: 'var(--text2)' } }, s.name),
+                  h('span', { style: { color: 'var(--text3)' } }, dur(s.started_at, s.completed_at))
+                ))
+              );
+            })(),
+            // All jobs list
+            h('div', { style: { marginTop: 12 } },
+              jobs.map(j => h('div', { key: j.id, style: { display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', fontSize: 12.5, borderBottom: '1px solid var(--border)' } },
+                h('span', null, stEmoji(j.conclusion || j.status)),
+                h('span', { style: { flex: 1, color: 'var(--text2)' } }, j.name),
+                h('span', { style: { color: 'var(--text3)' } }, dur(j.started_at, j.completed_at))
               ))
             )
-          )
-        ),
-        h(Card, null,
-          h('h3', { style: { fontSize: 14, color: 'var(--text2)', marginBottom: 12 } }, 'Recent Activity'),
-          h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
-            allRuns.slice(0, 12).map(r => h('div', { key: r.id, style: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)' } },
-              h(StatusIcon, { status: r.conclusion || r.status }),
-              h('div', { style: { flex: 1, minWidth: 0 } },
-                h('div', { style: { fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.name || r.display_title),
-                h('div', { style: { fontSize: 12, color: 'var(--text3)' } }, r.repository?.name, ' #', r.run_number)
-              ),
-              h('div', { style: { fontSize: 12, color: 'var(--text3)', whiteSpace: 'nowrap' } }, timeAgo(r.created_at))
-            ))
-          )
+          ) : h('div', { style: { padding: 12, color: 'var(--text3)', fontSize: 13 } }, '⏳ Loading jobs...')
         )
       );
-    };
+    }),
+    repos.filter(r => repoLatest[r.name]).length === 0 && h('div', { className: 'card', style: { textAlign: 'center', padding: 40, color: 'var(--text3)' } }, 'No pipeline runs found across your repos')
+  );
+};
 
-    // ── Page: Pipelines ──
-    const STAGES = ['Build', 'Security', 'Deploy DEV', 'Deploy INT', 'Deploy QA', 'Deploy STAGE', 'DAST', 'Approval', 'Deploy PROD'];
-    const stageColor = (st) => ({ completed: '#22c55e', success: '#22c55e', failure: '#ef4444', in_progress: '#3b82f6', queued: '#eab308', skipped: '#64748b' }[st] || '#64748b');
+/* ═══════════════════════════════════════════
+   PAGE: Security
+   ═══════════════════════════════════════════ */
+const SecurityPage = ({ runs }) => {
+  const secRuns = useMemo(() => runs.filter(r => {
+    const n = (r.name || r.display_title || '').toLowerCase();
+    return n.includes('security') || n.includes('sast') || n.includes('sca') || n.includes('scan');
+  }), [runs]);
 
-    const PipelinesPage = ({ api, repos, allRuns }) => {
-      const [expanded, setExpanded] = useState(null);
-      const [jobsData, setJobsData] = useState({});
+  const passed = secRuns.filter(r => r.conclusion === 'success').length;
+  const failedC = secRuns.filter(r => r.conclusion === 'failure').length;
+  const rate = secRuns.length ? Math.round(passed / secRuns.length * 100) : 0;
 
-      const repoRuns = useMemo(() => {
-        const map = {};
-        allRuns.forEach(r => { const name = r.repository?.name; if (name && !map[name]) map[name] = r; });
-        return map;
-      }, [allRuns]);
+  const types = [
+    { name: 'SAST (SonarQube)', key: 'sast', emoji: '🔍' },
+    { name: 'SCA (Black Duck)', key: 'sca', emoji: '🛡️' },
+    { name: 'Secrets (Gitleaks)', key: 'secret', emoji: '🔑' },
+    { name: 'Container (Trivy)', key: 'container', emoji: '📦' },
+    { name: 'SBOM (Syft)', key: 'sbom', emoji: '📋' },
+  ];
 
-      const loadJobs = async (repo, runId) => {
-        const key = `${repo}/${runId}`;
-        if (jobsData[key]) return;
-        try {
-          const data = await api.jobs(repo, runId);
-          setJobsData(prev => ({ ...prev, [key]: data.jobs || [] }));
-        } catch (e) { console.error(e); }
-      };
-
-      const toggleExpand = (repo, runId) => {
-        const key = `${repo}/${runId}`;
-        if (expanded === key) { setExpanded(null); } else { setExpanded(key); loadJobs(repo, runId); }
-      };
-
-      return h('div', { className: 'fade-in' },
-        h('h2', { style: { fontSize: 20, fontWeight: 600, marginBottom: 20 } }, 'Pipelines'),
-        repos.filter(r => repoRuns[r.name]).map(repo => {
-          const run = repoRuns[repo.name];
-          const key = `${repo.name}/${run.id}`;
-          const isOpen = expanded === key;
-          const jobs = jobsData[key] || [];
-
-          return h(Card, { key: repo.name, style: { marginBottom: 12 } },
-            h('div', { onClick: () => toggleExpand(repo.name, run.id), style: { display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' } },
-              h(isOpen ? ChevronDown : ChevronRight, { size: 16, color: 'var(--text3)' }),
-              h(StatusIcon, { status: run.conclusion || run.status }),
-              h('div', { style: { flex: 1 } },
-                h('div', { style: { fontWeight: 600, fontSize: 14 } }, repo.name),
-                h('div', { style: { fontSize: 12, color: 'var(--text3)' } }, run.display_title || run.name, ' · #', run.run_number, ' · ', run.head_branch)
-              ),
-              h(Badge, { color: statusColor(run.conclusion || run.status) }, run.conclusion || run.status),
-              h('span', { style: { fontSize: 12, color: 'var(--text3)', marginLeft: 8 } }, timeAgo(run.created_at))
+  return h('div', { className: 'fade-up' },
+    h('h2', { style: { fontSize: 18, fontWeight: 600, marginBottom: 20 } }, '🛡️ Security'),
+    h('div', { className: 'stat-grid' },
+      h('div', { className: 'stat-card' }, h('div', { className: 'stat-icon' }, '🔍'), h('div', { className: 'stat-label' }, 'Total Scans'), h('div', { className: 'stat-value', style: { color: 'var(--teal)' } }, secRuns.length)),
+      h('div', { className: 'stat-card' }, h('div', { className: 'stat-icon' }, '✅'), h('div', { className: 'stat-label' }, 'Passed'), h('div', { className: 'stat-value', style: { color: 'var(--success)' } }, passed)),
+      h('div', { className: 'stat-card' }, h('div', { className: 'stat-icon' }, '❌'), h('div', { className: 'stat-label' }, 'Failed'), h('div', { className: 'stat-value', style: { color: 'var(--danger)' } }, failedC)),
+      h('div', { className: 'stat-card' }, h('div', { className: 'stat-icon' }, '📊'), h('div', { className: 'stat-label' }, 'Pass Rate'), h('div', { className: 'stat-value', style: { color: rate >= 80 ? 'var(--success)' : 'var(--danger)' } }, rate + '%'))
+    ),
+    h('div', { className: 'card', style: { marginBottom: 16 } },
+      h('div', { style: { fontSize: 13, fontWeight: 500, color: 'var(--text2)', marginBottom: 14 } }, 'Scan Types Breakdown'),
+      h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 } },
+        types.map(t => {
+          const count = secRuns.filter(r => (r.name||'').toLowerCase().includes(t.key)).length;
+          const p = secRuns.length ? Math.round(count / secRuns.length * 100) : 0;
+          return h('div', { key: t.key, style: { padding: 12, background: 'var(--bg)', borderRadius: 'var(--radius)' } },
+            h('div', { style: { fontSize: 12.5, fontWeight: 500, marginBottom: 6 } }, t.emoji, ' ', t.name),
+            h('div', { style: { height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden', marginBottom: 4 } },
+              h('div', { style: { height: '100%', width: `${p}%`, background: 'var(--teal)', borderRadius: 2, transition: 'width .5s' } })
             ),
-            isOpen && h('div', { style: { marginTop: 20 } },
-              h('div', { style: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, padding: '16px 0', overflowX: 'auto' } },
-                jobs.length > 0 ? jobs.map((job, i) => h(React.Fragment, { key: job.id },
-                  h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }, title: job.name },
-                    h('div', { style: { width: 36, height: 36, borderRadius: '50%', background: `${stageColor(job.conclusion || job.status)}22`, border: `2px solid ${stageColor(job.conclusion || job.status)}`, display: 'flex', alignItems: 'center', justifyContent: 'center' } },
-                      h(StatusIcon, { status: job.conclusion || job.status, size: 16 })
-                    ),
-                    h('div', { style: { fontSize: 10, color: 'var(--text3)', maxWidth: 70, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, job.name)
-                  ),
-                  i < jobs.length - 1 && h('div', { style: { width: 24, height: 2, background: 'var(--border)', flexShrink: 0 } })
-                )) : h('div', { style: { color: 'var(--text3)', fontSize: 13 } }, 'Loading stages...')
-              ),
-              jobs.length > 0 && h('div', { style: { borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 4 } },
-                jobs.map(job => h('div', { key: job.id, style: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', fontSize: 13 } },
-                  h(StatusIcon, { status: job.conclusion || job.status, size: 14 }),
-                  h('span', { style: { flex: 1, color: 'var(--text2)' } }, job.name),
-                  job.started_at && h('span', { style: { fontSize: 12, color: 'var(--text3)' } },
-                    job.completed_at ? `${Math.round((new Date(job.completed_at) - new Date(job.started_at)) / 1000)}s` : 'running...'
-                  )
-                ))
-              )
-            )
+            h('div', { style: { fontSize: 10, color: 'var(--text3)' } }, count, ' runs')
           );
-        }),
-        repos.filter(r => repoRuns[r.name]).length === 0 && h('div', { style: { textAlign: 'center', padding: 40, color: 'var(--text3)' } }, 'No pipeline runs found')
-      );
-    };
-
-    // ── Page: Security ──
-    const SecurityPage = ({ allRuns }) => {
-      const secRuns = allRuns.filter(r => (r.name || '').toLowerCase().includes('security'));
-      const passed = secRuns.filter(r => r.conclusion === 'success').length;
-      const failed = secRuns.filter(r => r.conclusion === 'failure').length;
-      const total = secRuns.length;
-      const passRate = total > 0 ? Math.round(passed / total * 100) : 0;
-
-      const tools = ['SonarQube (SAST)', 'Black Duck (SCA)', 'Gitleaks (Secrets)', 'Trivy (Container)', 'Syft (SBOM)'];
-
-      return h('div', { className: 'fade-in' },
-        h('h2', { style: { fontSize: 20, fontWeight: 600, marginBottom: 20 } }, 'Security'),
-        h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 24 } },
-          h(MetricCard, { icon: Shield, label: 'Security Scans', value: total, color: 'var(--teal)' }),
-          h(MetricCard, { icon: CheckCircle, label: 'Passed', value: passed, color: 'var(--green)' }),
-          h(MetricCard, { icon: XCircle, label: 'Failed', value: failed, color: 'var(--red)' }),
-          h(MetricCard, { icon: Eye, label: 'Pass Rate', value: `${passRate}%`, color: passRate >= 80 ? 'var(--green)' : 'var(--red)' })
+        })
+      )
+    ),
+    h('div', { className: 'card' },
+      h('div', { style: { fontSize: 13, fontWeight: 500, color: 'var(--text2)', marginBottom: 12 } }, 'Recent Security Results'),
+      secRuns.slice(0, 15).map(r => h('div', { key: r.id, className: 'list-row', style: { gap: 8 } },
+        h('span', { style: { fontSize: 14 } }, stEmoji(r.conclusion || r.status)),
+        h('div', { style: { flex: 1 } },
+          h('span', { style: { fontSize: 12.5, fontWeight: 500 } }, r._repo),
+          h('span', { style: { fontSize: 11, color: 'var(--text3)', marginLeft: 8 } }, r.display_title || r.name)
         ),
-        h(Card, { style: { marginBottom: 16 } },
-          h('h3', { style: { fontSize: 14, color: 'var(--text2)', marginBottom: 16 } }, 'Security Tools Coverage'),
-          h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 } },
-            tools.map(tool => h('div', { key: tool, style: { padding: 12, background: 'var(--bg3)', borderRadius: 'var(--radius)' } },
-              h('div', { style: { fontSize: 13, fontWeight: 500, marginBottom: 6 } }, tool),
-              h('div', { style: { height: 4, background: 'var(--bg)', borderRadius: 2, overflow: 'hidden' } },
-                h('div', { style: { height: '100%', width: `${passRate}%`, background: 'var(--teal)', borderRadius: 2, transition: 'width .5s' } })
+        h('span', { className: 'badge', style: { background: `${stColor(r.conclusion||r.status)}22`, color: stColor(r.conclusion||r.status), fontSize: 10 } }, r.conclusion || r.status),
+        h('span', { style: { fontSize: 11, color: 'var(--text3)' } }, timeAgo(r.created_at))
+      )),
+      secRuns.length === 0 && h('div', { style: { padding: 20, textAlign: 'center', color: 'var(--text3)', fontSize: 13 } }, 'No security scan runs found')
+    )
+  );
+};
+
+/* ═══════════════════════════════════════════
+   PAGE: Environments
+   ═══════════════════════════════════════════ */
+const ENVS = [
+  { name: 'DEV', color: 'var(--blue)' },
+  { name: 'INT', color: 'var(--blue)' },
+  { name: 'QA', color: 'var(--blue)' },
+  { name: 'STAGE', color: 'var(--warning)' },
+  { name: 'PROD', color: 'var(--danger)' },
+];
+
+const EnvironmentsPage = ({ runs }) => {
+  const envData = useMemo(() => {
+    return ENVS.map(env => {
+      const deploys = runs.filter(r => {
+        const n = (r.name || r.display_title || '').toUpperCase();
+        return (n.includes(env.name) || n.includes(`→ ${env.name}`)) && (n.includes('DEPLOY') || n.includes('→'));
+      });
+      return { ...env, deploys, latest: deploys[0] || null };
+    });
+  }, [runs]);
+
+  return h('div', { className: 'fade-up' },
+    h('h2', { style: { fontSize: 18, fontWeight: 600, marginBottom: 20 } }, '🌐 Environments'),
+    h('div', { style: { display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 12, alignItems: 'flex-start' } },
+      envData.map((env, i) => h(React.Fragment, { key: env.name },
+        h('div', { className: 'env-card', style: { minWidth: 170, flex: '1 1 170px' } },
+          h('div', { className: 'env-header', style: { background: env.color, borderRadius: '6px 6px 0 0' } }),
+          h('div', { className: 'env-body' },
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 } },
+              h('span', { style: { fontSize: 15, fontWeight: 700 } }, env.name),
+              env.name === 'PROD' && h('span', { className: 'badge', style: { background: 'rgba(244,91,105,.15)', color: 'var(--danger)', fontSize: 9, marginLeft: 4 } }, '🔒 Protected')
+            ),
+            env.latest ? h('div', null,
+              h('div', { style: { display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 } },
+                stDot(env.latest.conclusion || env.latest.status, 7),
+                h('span', { style: { fontSize: 12, fontWeight: 500 } }, env.latest._repo)
               ),
-              h('div', { style: { fontSize: 11, color: 'var(--text3)', marginTop: 4 } }, `${passRate}% pass rate`)
-            ))
+              h('div', { style: { fontSize: 11, color: 'var(--text3)', marginBottom: 2 } }, '#', env.latest.run_number, ' · ', env.latest.head_branch),
+              h('div', { style: { fontSize: 11, color: 'var(--text3)' } }, timeAgo(env.latest.created_at)),
+              h('div', { style: { fontSize: 10, color: 'var(--text3)', marginTop: 6, borderTop: '1px solid var(--border)', paddingTop: 6 } }, env.deploys.length, ' total deploys')
+            ) : h('div', { style: { fontSize: 12, color: 'var(--text3)' } }, 'No deployments')
           )
         ),
-        h(Card, null,
-          h('h3', { style: { fontSize: 14, color: 'var(--text2)', marginBottom: 12 } }, 'Recent Security Scans'),
-          secRuns.slice(0, 15).map(r => h('div', { key: r.id, style: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border)' } },
-            h(StatusIcon, { status: r.conclusion || r.status }),
-            h('div', { style: { flex: 1 } },
-              h('span', { style: { fontSize: 13 } }, r.repository?.name),
-              h('span', { style: { fontSize: 12, color: 'var(--text3)', marginLeft: 8 } }, '#', r.run_number)
-            ),
-            h(Badge, { color: statusColor(r.conclusion || r.status) }, r.conclusion || r.status),
-            h('span', { style: { fontSize: 12, color: 'var(--text3)' } }, timeAgo(r.created_at))
-          )),
-          secRuns.length === 0 && h('div', { style: { padding: 20, color: 'var(--text3)', textAlign: 'center' } }, 'No security scan runs found')
-        )
-      );
-    };
+        i < envData.length - 1 && h('div', { style: { display: 'flex', alignItems: 'center', flexShrink: 0, color: 'var(--teal)', fontSize: 18, alignSelf: 'center', marginTop: 20 } }, '→')
+      ))
+    )
+  );
+};
 
-    // ── Page: Environments ──
-    const ENVS = ['DEV', 'INT', 'QA', 'STAGE', 'PROD'];
-    const EnvironmentsPage = ({ allRuns }) => {
-      const envData = useMemo(() => {
-        const data = {};
-        ENVS.forEach(env => { data[env] = { deploys: [], latest: null }; });
-        allRuns.forEach(r => {
-          const name = (r.name || r.display_title || '').toUpperCase();
-          ENVS.forEach(env => {
-            if (name.includes(env) && (name.includes('DEPLOY') || name.includes('→'))) {
-              data[env].deploys.push(r);
-              if (!data[env].latest || new Date(r.created_at) > new Date(data[env].latest.created_at)) data[env].latest = r;
-            }
-          });
-        });
-        return data;
-      }, [allRuns]);
+/* ═══════════════════════════════════════════
+   PAGE: Approvals
+   ═══════════════════════════════════════════ */
+const ApprovalsPage = ({ api, runs }) => {
+  const [acting, setActing] = useState(null);
+  const [msg, setMsg] = useState('');
+  const waiting = runs.filter(r => r.status === 'waiting' || r.status === 'action_required');
 
-      return h('div', { className: 'fade-in' },
-        h('h2', { style: { fontSize: 20, fontWeight: 600, marginBottom: 20 } }, 'Environments'),
-        h('div', { style: { display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 16 } },
-          ENVS.map((env, i) => {
-            const d = envData[env];
-            const latest = d.latest;
-            return h(React.Fragment, { key: env },
-              h(Card, { style: { minWidth: 180, flex: '1 1 180px' } },
-                h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 } },
-                  h('div', { style: { width: 10, height: 10, borderRadius: '50%', background: latest ? statusColor(latest.conclusion || latest.status) : 'var(--text3)' } }),
-                  h('h3', { style: { fontSize: 16, fontWeight: 700 } }, env),
-                  env === 'PROD' && h(Badge, { color: 'var(--orange)' }, 'Protected')
-                ),
-                latest ? h('div', null,
-                  h('div', { style: { fontSize: 13, color: 'var(--text2)', marginBottom: 4 } }, 'Latest Deploy'),
-                  h('div', { style: { fontSize: 12, color: 'var(--text3)', marginBottom: 8 } }, latest.repository?.name, ' #', latest.run_number),
-                  h('div', { style: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 } },
-                    h(StatusIcon, { status: latest.conclusion || latest.status, size: 14 }),
-                    h(Badge, { color: statusColor(latest.conclusion || latest.status) }, latest.conclusion || latest.status)
-                  ),
-                  h('div', { style: { fontSize: 11, color: 'var(--text3)' } }, timeAgo(latest.created_at)),
-                  h('div', { style: { fontSize: 11, color: 'var(--text3)', marginTop: 4 } }, `${d.deploys.length} total deploys`)
-                ) : h('div', { style: { fontSize: 13, color: 'var(--text3)' } }, 'No deployments')
-              ),
-              i < ENVS.length - 1 && h('div', { style: { display: 'flex', alignItems: 'center', flexShrink: 0, color: 'var(--teal)' } }, h(ChevronRight, { size: 20 }))
-            );
-          })
-        )
-      );
-    };
+  const act = async (run, state) => {
+    setActing(`${run.id}-${state}`); setMsg('');
+    try {
+      const pend = await api.pending(run._repo, run.id);
+      if (!pend || pend.length === 0) { setMsg('No pending deployments found for this run.'); setActing(null); return; }
+      const envIds = pend.map(d => d.environment.id);
+      await api.actDeploy(run._repo, run.id, envIds, state);
+      setMsg(`✅ Run #${run.run_number} ${state} successfully!`);
+    } catch (e) { setMsg(`❌ Action failed: ${e.message}`); }
+    setActing(null);
+  };
 
-    // ── Page: Approvals ──
-    const ApprovalsPage = ({ api, allRuns }) => {
-      const [approving, setApproving] = useState(null);
-      const waiting = allRuns.filter(r => r.status === 'waiting' || r.status === 'action_required');
-
-      const handleAction = async (run, action) => {
-        const key = `${run.repository?.name}/${run.id}/${action}`;
-        setApproving(key);
-        try {
-          const pending = await api.pendingDeployments(run.repository.name, run.id);
-          const envIds = pending.map(d => d.environment.id);
-          if (envIds.length > 0) {
-            if (action === 'approve') await api.approveDeployment(run.repository.name, run.id, envIds);
-            else await api.rejectDeployment(run.repository.name, run.id, envIds);
-          }
-        } catch (e) { console.error(e); alert(`Action failed: ${e.message}`); }
-        setApproving(null);
-      };
-
-      return h('div', { className: 'fade-in' },
-        h('h2', { style: { fontSize: 20, fontWeight: 600, marginBottom: 20 } }, `Approvals (${waiting.length})`),
-        waiting.length === 0 && h(Card, { style: { textAlign: 'center', padding: 40 } },
-          h(CheckCircle, { size: 40, color: 'var(--green)', style: { marginBottom: 12 } }),
-          h('div', { style: { fontSize: 16, fontWeight: 500, marginBottom: 4 } }, 'All clear!'),
-          h('div', { style: { fontSize: 13, color: 'var(--text3)' } }, 'No pending approvals')
+  return h('div', { className: 'fade-up' },
+    h('h2', { style: { fontSize: 18, fontWeight: 600, marginBottom: 20 } }, '⏸️ Approvals (', waiting.length, ')'),
+    msg && h('div', { style: { padding: '10px 14px', background: msg.startsWith('✅') ? 'rgba(76,217,100,.1)' : 'rgba(244,91,105,.1)', border: `1px solid ${msg.startsWith('✅') ? 'rgba(76,217,100,.3)' : 'rgba(244,91,105,.3)'}`, borderRadius: 'var(--radius)', fontSize: 13, marginBottom: 14 } }, msg),
+    waiting.length === 0 && h('div', { className: 'card', style: { textAlign: 'center', padding: 40 } },
+      h('div', { style: { fontSize: 36, marginBottom: 8 } }, '✅'),
+      h('div', { style: { fontWeight: 600, marginBottom: 4 } }, 'All clear!'),
+      h('div', { style: { color: 'var(--text3)', fontSize: 13 } }, 'No pending approvals right now')
+    ),
+    waiting.map(r => h('div', { key: r.id, className: 'card', style: { marginBottom: 10 } },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' } },
+        h('span', { style: { fontSize: 20 } }, '⚠️'),
+        h('div', { style: { flex: 1, minWidth: 200 } },
+          h('div', { style: { fontWeight: 600, fontSize: 14 } }, r._repo),
+          h('div', { style: { fontSize: 12, color: 'var(--text3)' } }, r.display_title || r.name, ' · #', r.run_number, ' · ', r.head_branch),
+          h('div', { style: { fontSize: 11, color: 'var(--text3)', marginTop: 2 } }, 'Triggered by ', r.actor?.login || 'unknown', ' · waiting since ', timeAgo(r.created_at))
         ),
-        waiting.map(run => h(Card, { key: run.id, style: { marginBottom: 12 } },
-          h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' } },
-            h(AlertTriangle, { size: 20, color: 'var(--orange)' }),
-            h('div', { style: { flex: 1, minWidth: 200 } },
-              h('div', { style: { fontWeight: 600, fontSize: 14 } }, run.repository?.name),
-              h('div', { style: { fontSize: 12, color: 'var(--text3)' } }, run.display_title || run.name, ' · #', run.run_number, ' · ', run.head_branch),
-              h('div', { style: { fontSize: 12, color: 'var(--text3)', marginTop: 2 } }, 'Waiting since ', timeAgo(run.created_at))
+        h('div', { style: { display: 'flex', gap: 8 } },
+          h('button', { className: 'btn btn-success', onClick: () => act(r, 'approved'), disabled: !!acting }, acting === `${r.id}-approved` ? '⏳...' : '✅ Approve'),
+          h('button', { className: 'btn btn-danger', onClick: () => act(r, 'rejected'), disabled: !!acting }, acting === `${r.id}-rejected` ? '⏳...' : '❌ Reject')
+        ),
+        h('a', { href: r.html_url, target: '_blank', style: { color: 'var(--text3)', fontSize: 12 } }, '🔗')
+      )
+    ))
+  );
+};
+
+/* ═══════════════════════════════════════════
+   PAGE: Runners
+   ═══════════════════════════════════════════ */
+const RunnersPage = ({ api }) => {
+  const [runners, setRunners] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    api.runners().then(d => {
+      if (d && d.runners) setRunners(d.runners);
+      else setErr('Runners API requires org admin access or no runners configured.');
+      setLoading(false);
+    }).catch(e => { setErr(e.message); setLoading(false); });
+  }, []);
+
+  return h('div', { className: 'fade-up' },
+    h('h2', { style: { fontSize: 18, fontWeight: 600, marginBottom: 20 } }, '🖥️ Runners'),
+    loading ? h('div', null, [1,2,3].map(i => h('div', { key: i, className: 'skeleton', style: { height: 70, marginBottom: 10 } })))
+    : err ? h('div', { className: 'card', style: { textAlign: 'center', padding: 40 } },
+        h('div', { style: { fontSize: 36, marginBottom: 8 } }, '🖥️'),
+        h('div', { style: { fontWeight: 500, marginBottom: 6 } }, 'No runners accessible'),
+        h('div', { style: { color: 'var(--text3)', fontSize: 13 } }, err)
+      )
+    : runners.length === 0 ? h('div', { className: 'card', style: { textAlign: 'center', padding: 40 } },
+        h('div', { style: { fontSize: 36, marginBottom: 8 } }, '🖥️'),
+        h('div', { style: { fontWeight: 500, marginBottom: 4 } }, 'No self-hosted runners'),
+        h('div', { style: { color: 'var(--text3)', fontSize: 13 } }, 'Self-hosted runners will appear here once configured.')
+      )
+    : h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 } },
+        runners.map(r => h('div', { key: r.id, className: 'card' },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 } },
+            h('span', { style: { fontSize: 16 } }, r.status === 'online' ? '🟢' : '🔴'),
+            h('div', { style: { flex: 1 } },
+              h('div', { style: { fontWeight: 600, fontSize: 13.5 } }, r.name),
+              h('div', { style: { fontSize: 11, color: 'var(--text3)' } }, r.os, ' · ', r.status)
             ),
-            h('div', { style: { display: 'flex', gap: 8 } },
-              h('button', { onClick: () => handleAction(run, 'approve'), disabled: !!approving, style: { padding: '6px 16px', background: 'var(--green)', color: '#000', fontWeight: 600, fontSize: 13, borderRadius: 'var(--radius)', display: 'flex', alignItems: 'center', gap: 6 } }, h(CheckCircle, { size: 14 }), 'Approve'),
-              h('button', { onClick: () => handleAction(run, 'reject'), disabled: !!approving, style: { padding: '6px 16px', background: 'var(--bg3)', color: 'var(--red)', fontWeight: 600, fontSize: 13, borderRadius: 'var(--radius)', border: '1px solid var(--red)44', display: 'flex', alignItems: 'center', gap: 6 } }, h(XCircle, { size: 14 }), 'Reject')
-            ),
-            h('a', { href: run.html_url, target: '_blank', style: { color: 'var(--text3)', display: 'flex', alignItems: 'center' } }, h(ExternalLink, { size: 14 }))
+            h('span', { className: 'badge', style: { background: r.busy ? 'rgba(59,130,246,.15)' : 'rgba(76,217,100,.15)', color: r.busy ? 'var(--blue)' : 'var(--success)', fontSize: 10 } }, r.busy ? '🔄 Busy' : '✅ Idle')
+          ),
+          h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 4 } },
+            (r.labels || []).map(l => h('span', { key: l.name || l, style: { padding: '2px 8px', background: 'var(--bg)', borderRadius: 4, fontSize: 10, color: 'var(--text3)' } }, l.name || l))
           )
         ))
-      );
-    };
+      )
+  );
+};
 
-    // ── Page: Runners ──
-    const RunnersPage = ({ api }) => {
-      const [runners, setRunners] = useState([]);
-      const [loading, setLoading] = useState(true);
+/* ═══════════════════════════════════════════
+   PAGE: Settings
+   ═══════════════════════════════════════════ */
+const SettingsPage = ({ onDisconnect, repoCount }) => {
+  const user = sessionStorage.getItem('fo_u') || '';
+  const token = sessionStorage.getItem('fo_t') || '';
+  const masked = token ? token.slice(0, 6) + '•'.repeat(Math.max(0, token.length - 10)) + token.slice(-4) : '';
 
-      useEffect(() => {
-        api.runners().then(d => { setRunners(d.runners || []); setLoading(false); }).catch(() => setLoading(false));
-      }, []);
-
-      return h('div', { className: 'fade-in' },
-        h('h2', { style: { fontSize: 20, fontWeight: 600, marginBottom: 20 } }, 'Runners'),
-        loading ? h('div', { style: { display: 'flex', flexDirection: 'column', gap: 12 } }, [1,2,3].map(i => h(Skeleton, { key: i, h: 70 })))
-        : runners.length === 0 ? h(Card, { style: { textAlign: 'center', padding: 40 } },
-            h(Server, { size: 40, color: 'var(--text3)', style: { marginBottom: 12 } }),
-            h('div', { style: { fontSize: 16, fontWeight: 500, marginBottom: 4 } }, 'No runners found'),
-            h('div', { style: { fontSize: 13, color: 'var(--text3)' } }, 'Self-hosted runners will appear here when configured')
-          )
-        : h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 } },
-            runners.map(r => h(Card, { key: r.id },
-              h('div', { style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 } },
-                h(r.status === 'online' ? Wifi : WifiOff, { size: 18, color: r.status === 'online' ? 'var(--green)' : 'var(--red)' }),
-                h('div', { style: { flex: 1 } },
-                  h('div', { style: { fontWeight: 600, fontSize: 14 } }, r.name),
-                  h('div', { style: { fontSize: 12, color: 'var(--text3)' } }, r.os, ' · ', r.status)
-                ),
-                h(Badge, { color: r.busy ? 'var(--blue)' : 'var(--green)' }, r.busy ? 'Busy' : 'Idle')
-              ),
-              h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 4 } },
-                (r.labels || []).map(l => h('span', { key: l.name || l, style: { padding: '2px 8px', background: 'var(--bg3)', borderRadius: 4, fontSize: 11, color: 'var(--text3)' } }, l.name || l))
-              )
-            ))
-          )
-      );
-    };
-
-    // ── Page: Settings ──
-    const SettingsPage = ({ api, onDisconnect }) => {
-      const user = sessionStorage.getItem('forgeops_user');
-      const integrations = [
-        { name: 'SonarQube', desc: 'SAST scanning', status: 'Configure via SONAR_HOST_URL secret' },
-        { name: 'Black Duck', desc: 'SCA scanning', status: 'Configure via BLACKDUCK_URL secret' },
-        { name: 'Gitleaks', desc: 'Secret scanning', status: 'Always active (no config needed)' },
-        { name: 'Trivy', desc: 'Container scanning', status: 'Active when scan_docker_image is set' },
-        { name: 'Syft', desc: 'SBOM generation', status: 'Always active (no config needed)' },
-        { name: 'Jira', desc: 'Issue tracking', status: 'Configure via JIRA_URL secret' },
-        { name: 'Cherwell/ServiceNow', desc: 'Change management', status: 'Configure via CHERWELL_URL or SERVICENOW_URL' },
-        { name: 'Splunk', desc: 'Centralized logging', status: 'Configure via SPLUNK_HEC_URL secret' },
-        { name: 'Slack', desc: 'Notifications', status: 'Configure via SLACK_WEBHOOK_URL secret' },
-      ];
-
-      return h('div', { className: 'fade-in' },
-        h('h2', { style: { fontSize: 20, fontWeight: 600, marginBottom: 20 } }, 'Settings'),
-        h(Card, { style: { marginBottom: 16 } },
-          h('h3', { style: { fontSize: 14, color: 'var(--text2)', marginBottom: 12 } }, 'Connection'),
-          h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 } },
-            h(Wifi, { size: 18, color: 'var(--green)' }),
-            h('div', null,
-              h('div', { style: { fontSize: 14, fontWeight: 500 } }, `Connected as ${user}`),
-              h('div', { style: { fontSize: 12, color: 'var(--text3)' } }, 'Token stored in sessionStorage (cleared on tab close)')
+  return h('div', { className: 'fade-up' },
+    h('h2', { style: { fontSize: 18, fontWeight: 600, marginBottom: 20 } }, '⚙️ Settings'),
+    h('div', { className: 'card', style: { marginBottom: 16 } },
+      h('div', { style: { fontSize: 13, fontWeight: 500, color: 'var(--text2)', marginBottom: 14 } }, 'Connection'),
+      h('table', { style: { width: '100%', fontSize: 13, borderCollapse: 'collapse' } },
+        h('tbody', null,
+          [['Username', user], ['Token', masked], ['Repos', repoCount], ['Storage', 'sessionStorage (clears on tab close)']].map(([k, v]) =>
+            h('tr', { key: k },
+              h('td', { style: { padding: '8px 0', color: 'var(--text3)', width: 120, borderBottom: '1px solid var(--border)' } }, k),
+              h('td', { style: { padding: '8px 0', borderBottom: '1px solid var(--border)', fontFamily: k === 'Token' ? 'monospace' : 'inherit', fontSize: k === 'Token' ? 12 : 13 } }, v)
             )
-          ),
-          h('button', { onClick: onDisconnect, style: { padding: '6px 14px', background: 'var(--bg3)', color: 'var(--red)', fontSize: 13, borderRadius: 'var(--radius)', display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--red)44' } }, h(LogOut, { size: 14 }), 'Disconnect')
-        ),
-        h(Card, null,
-          h('h3', { style: { fontSize: 14, color: 'var(--text2)', marginBottom: 16 } }, 'Integration Status'),
-          h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
-            integrations.map(int => h('div', { key: int.name, style: { display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--border)' } },
-              h('div', { style: { flex: 1 } },
-                h('div', { style: { fontSize: 14, fontWeight: 500 } }, int.name),
-                h('div', { style: { fontSize: 12, color: 'var(--text3)' } }, int.desc)
-              ),
-              h('div', { style: { fontSize: 12, color: 'var(--text2)' } }, int.status)
-            ))
           )
         )
+      ),
+      h('div', { style: { marginTop: 16, display: 'flex', gap: 10, flexWrap: 'wrap' } },
+        h('button', { className: 'btn btn-danger', onClick: onDisconnect }, '🔌 Disconnect'),
+        h('a', { href: 'https://github.com/settings/tokens', target: '_blank', className: 'btn btn-ghost', style: { display: 'inline-block' } }, '🔑 Manage Tokens'),
+        h('a', { href: 'https://github.com/askboppana/ForgeOps', target: '_blank', className: 'btn btn-ghost', style: { display: 'inline-block' } }, '📖 Docs')
+      )
+    ),
+    h('div', { className: 'card' },
+      h('div', { style: { fontSize: 13, fontWeight: 500, color: 'var(--text2)', marginBottom: 14 } }, 'Integrations'),
+      h('div', null,
+        [
+          { n: 'SonarQube', d: 'SAST scanning', s: 'SONAR_HOST_URL + SONAR_TOKEN' },
+          { n: 'Black Duck', d: 'SCA scanning', s: 'BLACKDUCK_URL + BLACKDUCK_TOKEN' },
+          { n: 'Gitleaks', d: 'Secret scanning', s: 'Always active ✅' },
+          { n: 'Trivy', d: 'Container scanning', s: 'Active when image provided' },
+          { n: 'Syft', d: 'SBOM generation', s: 'Always active ✅' },
+          { n: 'Jira', d: 'Issue tracking', s: 'JIRA_URL + JIRA_TOKEN' },
+          { n: 'Cherwell/ServiceNow', d: 'Change management', s: 'CHERWELL_URL or SERVICENOW_URL' },
+          { n: 'Splunk', d: 'Centralized logging', s: 'SPLUNK_HEC_URL + SPLUNK_HEC_TOKEN' },
+          { n: 'Slack', d: 'Notifications', s: 'SLACK_WEBHOOK_URL' },
+        ].map(i => h('div', { key: i.n, className: 'list-row', style: { gap: 10 } },
+          h('div', { style: { flex: 1 } },
+            h('div', { style: { fontSize: 13, fontWeight: 500 } }, i.n),
+            h('div', { style: { fontSize: 11, color: 'var(--text3)' } }, i.d)
+          ),
+          h('div', { style: { fontSize: 11, color: i.s.includes('✅') ? 'var(--success)' : 'var(--text3)' } }, i.s)
+        ))
+      )
+    )
+  );
+};
+
+/* ═══════════════════════════════════════════
+   MAIN APP
+   ═══════════════════════════════════════════ */
+const NAV = [
+  { section: 'Delivery' },
+  { key: 'overview',     label: 'Overview',      icon: '📊' },
+  { key: 'pipelines',    label: 'Pipelines',     icon: '🔀' },
+  { key: 'security',     label: 'Security',      icon: '🛡️' },
+  { key: 'environments', label: 'Environments',  icon: '🌐' },
+  { key: 'approvals',    label: 'Approvals',     icon: '⏸️' },
+  { section: 'Operations' },
+  { key: 'runners',      label: 'Runners',       icon: '🖥️' },
+  { key: 'settings',     label: 'Settings',      icon: '⚙️' },
+];
+
+const App = () => {
+  const [api, setApi] = useState(null);
+  const [page, setPage] = useState('overview');
+  const [repos, setRepos] = useState([]);
+  const [allRuns, setAllRuns] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [rateLimited, setRateLimited] = useState('');
+  const [lastRefresh, setLastRefresh] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 768);
+  const timerRef = useRef(null);
+
+  // Auto-connect
+  useEffect(() => {
+    const t = sessionStorage.getItem('fo_t'), u = sessionStorage.getItem('fo_u');
+    if (t && u) setApi(new GH(t, u));
+  }, []);
+
+  const fetchData = useCallback(async () => {
+    if (!api) return;
+    setLoading(true); setError(''); setRateLimited('');
+    try {
+      const repoList = await api.repos();
+      if (!repoList) throw new Error('Could not fetch repos');
+      setRepos(repoList);
+      const batches = await Promise.all(
+        repoList.slice(0, 20).map(r =>
+          api.runs(r.name).then(d => (d?.workflow_runs || []).map(run => ({ ...run, _repo: r.name }))).catch(() => [])
+        )
       );
-    };
+      const all = batches.flat().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      setAllRuns(all);
+      setLastRefresh(new Date());
+    } catch (e) {
+      if (e.message.startsWith('RATE_LIMITED:')) {
+        const secs = e.message.split(':')[1];
+        setRateLimited(`Rate limited by GitHub. Retrying in ${secs}s...`);
+      } else {
+        setError(e.message);
+      }
+    }
+    setLoading(false);
+  }, [api]);
 
-    // ── Main App ──
-    const NAV = [
-      { key: 'overview', label: 'Overview', icon: LayoutDashboard },
-      { key: 'pipelines', label: 'Pipelines', icon: GitBranch },
-      { key: 'security', label: 'Security', icon: Shield },
-      { key: 'environments', label: 'Environments', icon: Server },
-      { key: 'approvals', label: 'Approvals', icon: Clock },
-      { key: 'runners', label: 'Runners', icon: Monitor },
-      { key: 'settings', label: 'Settings', icon: SettingsIcon },
-    ];
+  useEffect(() => {
+    if (api) { fetchData(); timerRef.current = setInterval(fetchData, 30000); }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [api, fetchData]);
 
-    const App = () => {
-      const [api, setApi] = useState(null);
-      const [page, setPage] = useState('overview');
-      const [repos, setRepos] = useState([]);
-      const [allRuns, setAllRuns] = useState([]);
-      const [loading, setLoading] = useState(false);
-      const [lastRefresh, setLastRefresh] = useState(null);
-      const [sidebarOpen, setSidebarOpen] = useState(window.innerWidth > 768);
-      const refreshRef = useRef(null);
+  const disconnect = () => {
+    sessionStorage.removeItem('fo_t'); sessionStorage.removeItem('fo_u');
+    setApi(null); setRepos([]); setAllRuns([]);
+  };
 
-      // Auto-connect from sessionStorage
-      useEffect(() => {
-        const token = sessionStorage.getItem('forgeops_token');
-        const user = sessionStorage.getItem('forgeops_user');
-        if (token && user) setApi(new GitHubAPI(token, user));
-      }, []);
+  if (!api) return h(ConnectScreen, { onConnect: setApi });
 
-      const fetchData = useCallback(async () => {
-        if (!api) return;
-        setLoading(true);
-        try {
-          const repoList = await api.repos();
-          setRepos(repoList);
-          const runsPromises = repoList.slice(0, 20).map(r =>
-            api.runs(r.name).then(d => (d.workflow_runs || []).map(run => ({ ...run, repository: { name: r.name, full_name: r.full_name } }))).catch(() => [])
+  const pendingCount = allRuns.filter(r => r.status === 'waiting' || r.status === 'action_required').length;
+
+  const renderPage = () => {
+    if (loading && allRuns.length === 0) return h('div', null,
+      h('div', { className: 'stat-grid' }, [1,2,3,4].map(i => h('div', { key: i, className: 'skeleton', style: { height: 90 } }))),
+      h('div', { className: 'skeleton', style: { height: 250, marginTop: 16 } }),
+      h('div', { className: 'skeleton', style: { height: 200, marginTop: 16 } })
+    );
+    switch(page) {
+      case 'overview': return h(OverviewPage, { runs: allRuns });
+      case 'pipelines': return h(PipelinesPage, { api, repos, runs: allRuns });
+      case 'security': return h(SecurityPage, { runs: allRuns });
+      case 'environments': return h(EnvironmentsPage, { runs: allRuns });
+      case 'approvals': return h(ApprovalsPage, { api, runs: allRuns });
+      case 'runners': return h(RunnersPage, { api });
+      case 'settings': return h(SettingsPage, { onDisconnect: disconnect, repoCount: repos.length });
+    }
+  };
+
+  return h('div', { className: 'app' },
+    // Sidebar overlay (mobile)
+    h('div', { className: `sidebar-overlay${sidebarOpen && window.innerWidth <= 768 ? ' show' : ''}`, onClick: () => setSidebarOpen(false) }),
+    // Sidebar
+    h('aside', { className: `sidebar${sidebarOpen ? '' : ' closed'}` },
+      h('div', { className: 'logo' },
+        h('span', { className: 'logo-icon' }, '⚡'),
+        h('span', { className: 'logo-text' }, 'ForgeOps')
+      ),
+      h('nav', { style: { flex: 1, padding: '4px 0' } },
+        NAV.map((n, i) => {
+          if (n.section) return h('div', { key: `s-${i}`, className: 'nav-section' }, n.section);
+          return h('div', { key: n.key, className: `nav-item${page === n.key ? ' active' : ''}`, onClick: () => { setPage(n.key); if (window.innerWidth <= 768) setSidebarOpen(false); } },
+            h('span', { className: 'icon' }, n.icon),
+            n.label,
+            n.key === 'approvals' && pendingCount > 0 && h('span', { className: 'nav-badge' }, pendingCount)
           );
-          const runsArrays = await Promise.all(runsPromises);
-          const all = runsArrays.flat().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-          setAllRuns(all);
-          setLastRefresh(new Date());
-        } catch (e) { console.error('Fetch error:', e); }
-        setLoading(false);
-      }, [api]);
+        })
+      ),
+      h('div', { className: 'sidebar-footer' },
+        h('div', null, h('span', { className: 'status-dot', style: { background: error ? 'var(--danger)' : 'var(--success)' } }), error ? 'Error' : 'Connected'),
+        h('div', { style: { marginTop: 2 } }, sessionStorage.getItem('fo_u')),
+        lastRefresh && h('div', { style: { marginTop: 2 } }, 'Updated ', lastRefresh.toLocaleTimeString())
+      )
+    ),
+    // Main
+    h('div', { className: 'main' },
+      h('header', { className: 'topbar' },
+        h('button', { className: 'hamburger', onClick: () => setSidebarOpen(!sidebarOpen) }, '☰'),
+        h('div', { style: { flex: 1, fontSize: 15, fontWeight: 600 } }, NAV.find(n => n.key === page)?.label || ''),
+        loading && h('span', { style: { fontSize: 14, animation: 'spin 1s linear infinite', display: 'inline-block' } }, '⟳'),
+        h('button', { className: 'btn btn-ghost', onClick: fetchData, style: { fontSize: 12, padding: '5px 12px' } }, '🔄 Refresh')
+      ),
+      h('div', { className: 'content' },
+        error && h('div', { className: 'error-banner' }, '⚠️ ', error),
+        rateLimited && h('div', { className: 'rate-banner' }, '⏳ ', rateLimited),
+        renderPage()
+      )
+    )
+  );
+};
 
-      useEffect(() => {
-        if (api) { fetchData(); refreshRef.current = setInterval(fetchData, 30000); }
-        return () => { if (refreshRef.current) clearInterval(refreshRef.current); };
-      }, [api, fetchData]);
-
-      const handleDisconnect = () => {
-        sessionStorage.removeItem('forgeops_token');
-        sessionStorage.removeItem('forgeops_user');
-        setApi(null); setRepos([]); setAllRuns([]);
-      };
-
-      if (!api) return h(ConnectScreen, { onConnect: setApi });
-
-      const pendingCount = allRuns.filter(r => r.status === 'waiting' || r.status === 'action_required').length;
-
-      const renderPage = () => {
-        if (loading && allRuns.length === 0) return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 16 } },
-          h('div', { style: { display: 'flex', gap: 16 } }, [1,2,3,4].map(i => h(Skeleton, { key: i, h: 100, style: { flex: 1 } }))),
-          h(Skeleton, { h: 300 }), h(Skeleton, { h: 200 })
-        );
-        switch (page) {
-          case 'overview': return h(OverviewPage, { api, repos, allRuns });
-          case 'pipelines': return h(PipelinesPage, { api, repos, allRuns });
-          case 'security': return h(SecurityPage, { allRuns });
-          case 'environments': return h(EnvironmentsPage, { allRuns });
-          case 'approvals': return h(ApprovalsPage, { api, allRuns });
-          case 'runners': return h(RunnersPage, { api });
-          case 'settings': return h(SettingsPage, { api, onDisconnect: handleDisconnect });
-          default: return null;
-        }
-      };
-
-      return h('div', { style: { display: 'flex', minHeight: '100vh' } },
-        // Sidebar
-        h('aside', { style: {
-          width: sidebarOpen ? 220 : 0, background: 'var(--bg2)', borderRight: '1px solid var(--border)',
-          display: 'flex', flexDirection: 'column', transition: 'width .2s', overflow: 'hidden',
-          position: window.innerWidth <= 768 ? 'fixed' : 'relative', zIndex: 50, height: '100vh', flexShrink: 0
-        } },
-          h('div', { style: { padding: '20px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 } },
-            h('div', { style: { width: 32, height: 32, borderRadius: 8, background: 'var(--teal-glow)', border: '1px solid var(--teal)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 } },
-              h(Shield, { size: 16, color: 'var(--teal)' })
-            ),
-            h('span', { style: { fontWeight: 700, fontSize: 16, whiteSpace: 'nowrap' } }, 'ForgeOps')
-          ),
-          h('nav', { style: { flex: 1, padding: '8px 8px', display: 'flex', flexDirection: 'column', gap: 2 } },
-            NAV.map(n => h('button', {
-              key: n.key, onClick: () => { setPage(n.key); if (window.innerWidth <= 768) setSidebarOpen(false); },
-              style: {
-                display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 'var(--radius)',
-                background: page === n.key ? 'var(--teal-glow)' : 'transparent',
-                color: page === n.key ? 'var(--teal)' : 'var(--text2)',
-                fontSize: 13, fontWeight: page === n.key ? 600 : 400, width: '100%', textAlign: 'left', transition: 'background .15s, color .15s', whiteSpace: 'nowrap', position: 'relative'
-              }
-            },
-              h(n.icon, { size: 16 }),
-              n.label,
-              n.key === 'approvals' && pendingCount > 0 && h('span', { style: { marginLeft: 'auto', background: 'var(--orange)', color: '#000', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, minWidth: 18, textAlign: 'center' } }, pendingCount)
-            ))
-          ),
-          h('div', { style: { padding: '12px 16px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text3)' } },
-            h('div', null, 'Connected: ', sessionStorage.getItem('forgeops_user')),
-            lastRefresh && h('div', null, 'Updated: ', lastRefresh.toLocaleTimeString())
-          )
-        ),
-        // Overlay for mobile sidebar
-        sidebarOpen && window.innerWidth <= 768 && h('div', { onClick: () => setSidebarOpen(false), style: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 40 } }),
-        // Main content
-        h('main', { style: { flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 } },
-          // Top bar
-          h('header', { style: { padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg2)' } },
-            h('button', { onClick: () => setSidebarOpen(!sidebarOpen), style: { padding: 4, background: 'none', color: 'var(--text2)', display: 'flex' } }, h(LayoutDashboard, { size: 18 })),
-            h('h1', { style: { flex: 1, fontSize: 15, fontWeight: 600 } }, NAV.find(n => n.key === page)?.label),
-            loading && h(Loader2, { size: 16, color: 'var(--teal)', style: { animation: 'pulse 1s infinite' } }),
-            h('button', { onClick: fetchData, style: { padding: '4px 10px', background: 'var(--bg3)', color: 'var(--text2)', fontSize: 12, borderRadius: 'var(--radius)', display: 'flex', alignItems: 'center', gap: 4 } }, h(RefreshCw, { size: 12 }), 'Refresh')
-          ),
-          // Page content
-          h('div', { style: { flex: 1, padding: 20, overflowY: 'auto' } }, renderPage())
-        )
-      );
-    };
-
-    createRoot(document.getElementById('root')).render(h(App));
-  </script>
+createRoot(document.getElementById('root')).render(h(App));
+</script>
 </body>
 </html>
