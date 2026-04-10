@@ -1,4 +1,22 @@
-# Copy to your app repo as CODEOWNERS
-/.github/workflows/ @your-org/platform-team
-/scripts/ @your-org/platform-team
-/src/ @your-org/dev-team
+# CODEOWNERS Template for ForgeOps Application Repositories
+#
+# Copy this file to your repository root as "CODEOWNERS"
+# and update the team/user handles below.
+#
+# Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything in the repo
+* @your-team-handle
+
+# CI/CD workflow files
+/.github/ @askboppana @your-tech-lead
+
+# Application source code
+/src/ @your-team-handle
+
+# Configuration files
+/*.json @your-tech-lead
+/*.yml @your-tech-lead
+
+# Documentation
+/docs/ @your-team-handle

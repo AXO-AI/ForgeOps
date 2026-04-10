@@ -3,344 +3,342 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ForgeOps DevSecOps Platform</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='40' y2='40' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%2326c6da'/%3E%3Cstop offset='1' stop-color='%237c4dff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='40' height='40' rx='10' fill='url(%23g)'/%3E%3Cpath d='M20 8L11 22h6.5l-2 10L27 18h-6.5l2-10z' fill='white'/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<title>ForgeOps - DevSecOps Platform</title>
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='40' y2='40' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%234f46e5'/%3E%3Cstop offset='1' stop-color='%237c3aed'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='40' height='40' rx='10' fill='url(%23g)'/%3E%3Cpath d='M20 8L11 22h6.5l-2 10L27 18h-6.5l2-10z' fill='white'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#07090f;--pn:#0c1017;--cd:#111621;--sf:#1a2233;--bd:#1e2940;--tx:#edf2f7;--ts:#8b9dc3;--td:#4a5d80;--cy:#26c6da;--vi:#7c4dff;--ok:#06d6a0;--er:#ef476f;--wa:#ffd166;--r:12px}
-html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'Space Grotesk',sans-serif;font-size:14px}
-a{color:var(--cy);text-decoration:none}
+:root{--bg:#f8f9fb;--pn:#fff;--cd:#fff;--sf:#f1f5f9;--bd:#e2e8f0;--tx:#0f172a;--ts:#475569;--td:#94a3b8;--pr:#4f46e5;--pl:rgba(79,70,229,.08);--ok:#059669;--ol:rgba(5,150,105,.08);--er:#dc2626;--el:rgba(220,38,38,.08);--wa:#d97706;--wl:rgba(217,119,6,.08);--in:#0284c7;--il:rgba(2,132,199,.08);--r:12px;--shadow:0 1px 3px rgba(0,0,0,.06)}
+html,body{height:100%;background:var(--bg);color:var(--tx);font-family:'Inter',system-ui,sans-serif;font-size:14px}
+code,.mono{font-family:'JetBrains Mono',monospace}
+a{color:var(--pr);text-decoration:none}
 button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
-input,select,textarea{font-family:inherit;background:var(--sf);border:1px solid var(--bd);border-radius:8px;color:var(--tx);padding:10px 14px;font-size:13px;outline:none;width:100%}
-input:focus,select:focus{border-color:var(--cy)}
-::-webkit-scrollbar{width:5px}
-::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px}
+input,select,textarea{font-family:inherit;background:var(--pn);border:1px solid var(--bd);border-radius:8px;color:var(--tx);padding:10px 14px;font-size:13px;outline:none;width:100%}
+input:focus,select:focus{border-color:var(--pr);box-shadow:0 0 0 3px var(--pl)}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px}
 @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
-.sk{background:linear-gradient(90deg,var(--cd) 25%,var(--sf) 50%,var(--cd) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:var(--r);height:20px;margin:8px 0}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes logoScale{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+.fu{animation:fadeUp .3s ease-out}
+.sk{background:linear-gradient(90deg,var(--sf) 25%,var(--bd) 50%,var(--sf) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:var(--r);height:20px;margin:8px 0}
 .app{display:flex;height:100vh;overflow:hidden}
-.sb{width:230px;background:var(--pn);border-right:1px solid var(--bd);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+.sb{width:200px;background:var(--pn);border-right:1px solid var(--bd);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
 .mn{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .hd{padding:12px 20px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:12px;background:var(--pn)}
 .ct{flex:1;overflow-y:auto;padding:20px}
-.c{background:var(--cd);border:1px solid var(--bd);border-radius:var(--r);padding:18px;margin-bottom:14px}
-.g4{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:18px}
-.bt{padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:6px}
-.bp{background:linear-gradient(135deg,var(--cy),var(--vi));color:#fff}
-.bg{background:var(--sf);color:var(--ts);border:1px solid var(--bd)}
-.bd{background:none;color:var(--er);border:1px solid rgba(239,71,111,.3)}
-.bs{background:var(--ok);color:#000}
-.lr{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd)}
-.lr:last-child{border-bottom:none}
+.c{background:var(--cd);border:1px solid var(--bd);border-radius:var(--r);padding:18px;margin-bottom:14px;box-shadow:var(--shadow)}
+.g4{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:18px}
+.bt{padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
+.bp{background:var(--pr);color:#fff}.bp:hover{opacity:.9}
+.bg{background:var(--sf);color:var(--ts);border:1px solid var(--bd)}.bg:hover{border-color:var(--pr)}
+.lr{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd)}.lr:last-child{border-bottom:none}
 .tabs{display:flex;border-bottom:1px solid var(--bd);margin-bottom:16px}
 .tab{padding:9px 16px;font-size:13px;font-weight:500;color:var(--ts);cursor:pointer;border-bottom:2px solid transparent}
-.tab.ac{color:var(--cy);border-color:var(--cy)}
+.tab.ac{color:var(--pr);border-color:var(--pr)}
 .badge{display:inline-flex;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:600}
 .fl{display:flex;flex-direction:column;gap:12px}
 .lb{font-size:11px;color:var(--ts);margin-bottom:4px;font-weight:600}
-.toast{position:fixed;bottom:16px;right:16px;z-index:9999;padding:12px 20px;border-radius:8px;font-size:13px;background:var(--cd);border:1px solid var(--bd);color:var(--tx)}
-@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-15px)}}
-@media(max-width:768px){.sb{display:none}.g4{grid-template-columns:1fr 1fr}}
+.ni{display:flex;align-items:center;gap:8px;padding:7px 14px;margin:1px 6px;border-radius:8px;font-size:13px;color:var(--ts);cursor:pointer;border-left:3px solid transparent}
+.ni:hover{background:var(--sf)}.ni.ac{background:var(--pl);color:var(--pr);font-weight:600;border-left-color:var(--pr)}
+.ns{padding:14px 12px 4px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--td)}
+.theme-pills{display:flex;gap:4px}.theme-pill{width:18px;height:18px;border-radius:50%;cursor:pointer;border:2px solid var(--bd)}.theme-pill.ac{border-color:var(--pr);box-shadow:0 0 0 2px var(--pl)}
+.toast{position:fixed;top:16px;right:16px;z-index:9999;padding:12px 20px;border-radius:8px;font-size:13px;background:var(--pn);border:1px solid var(--bd);box-shadow:0 4px 12px rgba(0,0,0,.1);animation:fadeUp .3s}
+@media(max-width:900px){.sb{display:none}.g4{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
-<div id="root"><p style="display:flex;align-items:center;justify-content:center;height:100vh;color:#8b9dc3">Loading ForgeOps...</p></div>
+<div id="root"><div style="display:flex;align-items:center;justify-content:center;height:100vh;gap:8px;color:#94a3b8"><svg width="28" height="28" viewBox="0 0 40 40"><defs><linearGradient id="flg" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop stop-color="#4f46e5"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs><rect width="40" height="40" rx="10" fill="url(#flg)"/><path d="M20 8L11 22h6.5l-2 10L27 18h-6.5l2-10z" fill="white"/></svg>Loading ForgeOps...</div></div>
 <script type="module">
 import{h,render}from'https://esm.sh/preact@10.22.0';
 import{useState,useEffect,useRef}from'https://esm.sh/preact@10.22.0/hooks';
 import htm from'https://esm.sh/htm@3.1.1';
 var html=htm.bind(h);
 
+var ORG='askboppana';
 var cache={};
-function ss(k,v){if(v===undefined)return localStorage.getItem(k)||sessionStorage.getItem(k);localStorage.setItem(k,v)}
-function clearAuth(){['pat','user'].forEach(function(k){localStorage.removeItem(k);sessionStorage.removeItem(k)})}
+function api(path){
+  var key=path;
+  if(cache[key]&&Date.now()-cache[key].t<120000)return Promise.resolve(cache[key].d);
+  return fetch('https://api.github.com'+path,{headers:{Accept:'application/vnd.github.v3+json'}}).then(function(r){
+    if(r.status===403)throw new Error('RATE_LIMITED');
+    if(!r.ok)throw new Error(r.status+' error');
+    return r.json();
+  }).then(function(d){cache[key]={d:d,t:Date.now()};return d});
+}
 
-function api(path,opts){
-  var token=ss('pat');
-  var url='https://api.github.com'+path;
-  var key=url+JSON.stringify(opts||'');
-  var method=(opts&&opts.method)||'GET';
-  if(method==='GET'&&cache[key]&&Date.now()-cache[key].t<60000)return Promise.resolve(cache[key].d);
-  var headers={Authorization:'token '+token,Accept:'application/vnd.github+json'};
-  if(opts&&opts.body)headers['Content-Type']='application/json';
-  return fetch(url,{method:method,headers:headers,body:opts&&opts.body?JSON.stringify(opts.body):undefined}).then(function(r){
-    if(!r.ok)return r.json().then(function(e){throw new Error(e.message||r.statusText)});
-    if(r.status===204)return null;return r.json();
-  }).then(function(d){if(method==='GET')cache[key]={d:d,t:Date.now()};return d});
+var themes={
+  light:{bg:'#f8f9fb',pn:'#fff',cd:'#fff',sf:'#f1f5f9',bd:'#e2e8f0',tx:'#0f172a',ts:'#475569',td:'#94a3b8',pr:'#4f46e5',pl:'rgba(79,70,229,.08)'},
+  ocean:{bg:'#f0f7ff',pn:'#fff',cd:'#fff',sf:'#e0f2fe',bd:'#bae6fd',tx:'#0c4a6e',ts:'#0369a1',td:'#7dd3fc',pr:'#0369a1',pl:'rgba(3,105,161,.08)'},
+  forest:{bg:'#f0fdf4',pn:'#fff',cd:'#fff',sf:'#dcfce7',bd:'#bbf7d0',tx:'#14532d',ts:'#15803d',td:'#86efac',pr:'#15803d',pl:'rgba(21,128,61,.08)'},
+  sunset:{bg:'#fff7ed',pn:'#fff',cd:'#fff',sf:'#ffedd5',bd:'#fed7aa',tx:'#7c2d12',ts:'#c2410c',td:'#fdba74',pr:'#c2410c',pl:'rgba(194,65,12,.08)'}
+};
+function applyTheme(name){
+  var t=themes[name];if(!t)return;
+  var r=document.documentElement;
+  Object.keys(t).forEach(function(k){r.style.setProperty('--'+k,t[k])});
+  localStorage.setItem('fg_theme',name);
 }
 
 function ago(d){if(!d)return'';var s=Math.floor((Date.now()-new Date(d))/1000);if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m';if(s<86400)return Math.floor(s/3600)+'h';return Math.floor(s/86400)+'d'}
 function dur(a,b){if(!a||!b)return'-';var s=Math.round((new Date(b)-new Date(a))/1000);if(s<60)return s+'s';return Math.floor(s/60)+'m'}
-function sColor(s){return{success:'var(--ok)',completed:'var(--ok)',failure:'var(--er)',in_progress:'var(--cy)',queued:'var(--wa)',waiting:'var(--wa)'}[s]||'var(--td)'}
+function sCol(s){return{success:'var(--ok)',completed:'var(--ok)',failure:'var(--er)',in_progress:'var(--in)',queued:'var(--wa)',waiting:'var(--wa)'}[s]||'var(--td)'}
 
-function Logo(){return html`<svg width="36" height="36" viewBox="0 0 40 40"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#26c6da"/><stop offset="1" stop-color="#7c4dff"/></linearGradient></defs><rect width="40" height="40" rx="10" fill="url(#lg)"/><path d="M20 8L11 22h6.5l-2 10L27 18h-6.5l2-10z" fill="white"/></svg>`}
-
+function Logo(p){var s=p&&p.s||32;return html`<svg width=${s} height=${s} viewBox="0 0 40 40" style="animation:logoScale 3s ease-in-out infinite"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4f46e5"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs><rect width="40" height="40" rx="10" fill="url(#lg)"/><path d="M20 8L11 22h6.5l-2 10L27 18h-6.5l2-10z" fill="white"/></svg>`}
 function Skel(){return html`<div class="sk"></div>`}
 
-function LandingPage(p){
-  var features=[
-    {t:'Pipeline Stages',d:'Build, Security, Deploy with live status per job'},
-    {t:'Pull Requests',d:'Create, review, approve, merge from one screen'},
-    {t:'Environments',d:'INT, QA, STAGE, PROD with one-click promotion'},
-    {t:'Security Gate',d:'SAST, SCA, secrets, containers, SBOM scanning'},
-    {t:'Notifications',d:'Email + Teams alerts on every deploy and failure'},
-    {t:'AI Copilot',d:'Code review, autofix, test generation, failure analysis'},
-    {t:'Self-Healing',d:'Auto-fixes script permissions and validates YAML'},
-    {t:'DORA Metrics',d:'Deploy frequency, lead time, change failure rate'}
-  ];
-  var flow=['feature/*','INT','QA','STAGE','PROD'];
-  var colors=['var(--td)','var(--cy)','var(--wa)','var(--wa)','var(--er)'];
+function ThemePills(p){
+  var current=p.current||'light';
+  var colors={light:'#4f46e5',ocean:'#0369a1',forest:'#15803d',sunset:'#c2410c'};
+  return html`<div class="theme-pills">${Object.keys(colors).map(function(name){
+    return html`<div key=${name} class=${'theme-pill'+(current===name?' ac':'')} style=${'background:'+colors[name]} onClick=${function(){p.onChange(name)}} title=${name}></div>`;
+  })}</div>`;
+}
 
-  function doConnect(e){
-    e.preventDefault();
-    var v=e.target.elements.tok.value.trim();
-    if(v)p.onConnect(v);
-  }
+function LandingPage(p){
+  var stages=['Commit','Build','Scan','INT','QA','Stage','Prod'];
+  var stageColors=['#6366f1','#3b82f6','#8b5cf6','#06b6d4','#f59e0b','#f97316','#10b981'];
+  var activeRef=useRef(0);
+  var countRef=useRef(null);
+
+  useEffect(function(){
+    var progress=0;
+    countRef.current=setInterval(function(){
+      progress=(progress+0.5)%100;
+      activeRef.current=Math.floor(progress/100*7);
+    },60);
+    return function(){clearInterval(countRef.current)};
+  },[]);
+
+  var features=[
+    {t:'Pipeline visibility',d:'See every job running across all repos with live status.'},
+    {t:'Environment promotion',d:'One-click promote. Jira status auto-updates at each stage.'},
+    {t:'Security scanning',d:'SAST, SCA, secrets, containers, SBOM on every commit.'},
+    {t:'AI-powered with Copilot',d:'Code review, autofix, test generation, failure analysis.'}
+  ];
+
+  var kb=[
+    {t:'Getting started',items:['Onboarding checklist','Register a repo','Create a pull request','Read pipeline logs']},
+    {t:'Workflow',items:['Promote to production','Rollback a deployment','Security scan results','Request support']},
+    {t:'Configuration',items:['Setup Jira','Setup email','Setup Teams','Setup new repo']}
+  ];
 
   return html`<div style="height:100vh;overflow-y:auto;background:var(--bg)">
-    <div style="min-height:90vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 20px;position:relative;overflow:hidden">
-      <div style="position:absolute;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(38,198,218,.07),transparent);top:-150px;right:-100px;animation:float 8s ease-in-out infinite;pointer-events:none"></div>
-      <${Logo} />
-      <h1 style="font-size:44px;font-weight:700;margin:16px 0 4px;background:linear-gradient(135deg,#fff,var(--cy));-webkit-background-clip:text;-webkit-text-fill-color:transparent">ForgeOps</h1>
-      <div style="font-size:10px;font-weight:700;letter-spacing:4px;color:var(--vi);margin-bottom:20px">DEVSECOPS PLATFORM</div>
-      <p style="color:var(--ts);max-width:480px;line-height:1.7;margin-bottom:28px">Ship code from feature branch to production with zero scripts. Security scanning, Jira sync, email notifications, and approval gates - all automated.</p>
+    <div style="padding:16px 24px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bd);background:var(--pn)">
+      <${Logo} s=${28} /><span style="font-weight:700;font-size:16px">ForgeOps</span>
+      <div style="flex:1"></div>
+      <${ThemePills} current=${p.theme} onChange=${p.onTheme} />
+      <button class="bt bg" onClick=${function(){p.setScreen('kb')}}>Knowledge Base</button>
+      <button class="bt bp" onClick=${function(){p.setScreen('dashboard')}}>Open Dashboard</button>
+    </div>
 
-      <div style="display:flex;align-items:center;gap:0;margin-bottom:12px;flex-wrap:wrap;justify-content:center">
-        ${flow.map(function(label,i){
-          return html`<span key=${i}><span style=${'display:inline-block;padding:8px 16px;border-radius:8px;font-weight:600;font-size:12px;border:2px solid '+colors[i]+';color:'+colors[i]+';background:rgba(0,0,0,.2)'}>${label}</span>${i<flow.length-1?html`<span style="color:var(--td);margin:0 4px;font-size:16px"> > </span>`:null}</span>`;
+    <div class="fu" style="text-align:center;padding:60px 20px 40px">
+      <span class="badge" style="background:var(--pl);color:var(--pr);font-size:11px;padding:4px 14px;margin-bottom:16px;display:inline-block">Enterprise DevSecOps Platform</span>
+      <h1 style="font-size:38px;font-weight:700;line-height:1.2;max-width:580px;margin:0 auto 12px">Ship code safely, from commit to production</h1>
+      <p style="color:var(--ts);max-width:460px;margin:0 auto 32px;line-height:1.7">Replace Jenkins with GitHub Actions. Security scanning, Jira sync, email alerts, and approval gates - fully automated.</p>
+
+      <svg viewBox="0 0 640 80" style="max-width:600px;width:100%;margin:0 auto 12px">
+        ${stages.map(function(name,i){
+          var x=i*92+46;var active=i<=3;
+          return html`<g key=${i}>
+            ${i>0?html`<line x1=${(i-1)*92+46+18} y1="40" x2=${x-18} y2="40" stroke=${active?stageColors[i]:'#e2e8f0'} stroke-width="2"/>`:null}
+            <circle cx=${x} cy="40" r="16" fill=${active?stageColors[i]:'#f1f5f9'} stroke=${stageColors[i]} stroke-width="2"/>
+            <text x=${x} y="44" text-anchor="middle" fill=${active?'#fff':'#94a3b8'} font-size="8" font-weight="600">${name.substring(0,4)}</text>
+          </g>`;
         })}
+      </svg>
+      <div style="font-size:11px;color:var(--td)">feature/* > INT > QA > STAGE > PROD</div>
+    </div>
+
+    <div style="max-width:800px;margin:0 auto;padding:0 20px 40px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px">
+      ${features.map(function(f){return html`<div key=${f.t} class="c"><div style="font-weight:600;font-size:14px;color:var(--pr);margin-bottom:4px">${f.t}</div><div style="font-size:12px;color:var(--ts);line-height:1.6">${f.d}</div></div>`})}
+    </div>
+
+    <div style="text-align:center;padding:20px">
+      <button class="bt bp" style="padding:14px 32px;font-size:15px" onClick=${function(){p.setScreen('dashboard')}}>Open Dashboard</button>
+      <div style="font-size:11px;color:var(--td);margin-top:8px">No login required. Public read-only access via GitHub API.</div>
+    </div>
+
+    <div style="max-width:700px;margin:0 auto;padding:40px 20px">
+      <h2 style="font-size:20px;font-weight:700;margin-bottom:16px;text-align:center">Knowledge Base</h2>
+      ${kb.map(function(section){return html`<div key=${section.t} style="margin-bottom:20px"><div style="font-size:11px;font-weight:700;color:var(--td);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${section.t}</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">${section.items.map(function(item){return html`<a key=${item} href=${'https://github.com/'+ORG+'/ForgeOps/tree/main/docs/knowledge'} target="_blank" rel="noopener" class="c" style="text-decoration:none;font-size:13px;font-weight:500;color:var(--tx);padding:12px">${item}</a>`})}</div></div>`})}
+    </div>
+
+    <div style="text-align:center;padding:20px 20px 40px;font-size:11px;color:var(--td)">
+      <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:8px">
+        ${['GitHub Actions','Copilot','SonarQube','OWASP DC','Gitleaks','Trivy','Syft','Jira','Splunk','Teams','Email','Cherwell'].map(function(t){return html`<span key=${t} style="background:var(--sf);border:1px solid var(--bd);border-radius:16px;padding:4px 12px;font-size:10px">${t}</span>`})}
       </div>
-      <div style="font-size:11px;color:var(--td);margin-bottom:24px">Tech Lead reviews > Release Eng promotes > 2 approvals for prod</div>
-
-      <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-bottom:32px">
-        ${[['53','Deploys/wk'],['94%','Success'],['2.4h','Lead Time'],['<6%','Fail Rate']].map(function(s){
-          return html`<div key=${s[1]} style="background:var(--sf);border:1px solid var(--bd);border-radius:16px;padding:10px 20px;text-align:center"><div style="font-size:20px;font-weight:700;background:linear-gradient(135deg,var(--cy),var(--vi));-webkit-background-clip:text;-webkit-text-fill-color:transparent">${s[0]}</div><div style="font-size:9px;color:var(--td);text-transform:uppercase;letter-spacing:1px">${s[1]}</div></div>`;
-        })}
-      </div>
-    </div>
-
-    <div style="padding:40px 20px;max-width:900px;margin:0 auto">
-      <h2 style="font-size:22px;font-weight:700;margin-bottom:16px;text-align:center">Platform Features</h2>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px">
-        ${features.map(function(f){
-          return html`<div key=${f.t} class="c" style="transition:transform .2s;cursor:default"><div style="font-weight:600;font-size:14px;margin-bottom:4px;color:var(--cy)">${f.t}</div><div style="font-size:12px;color:var(--ts);line-height:1.6">${f.d}</div></div>`;
-        })}
-      </div>
-    </div>
-
-    <div style="padding:40px 20px;max-width:900px;margin:0 auto">
-      <h2 style="font-size:22px;font-weight:700;margin-bottom:8px;text-align:center">AI-Powered DevSecOps</h2>
-      <p style="text-align:center;color:var(--ts);font-size:13px;margin-bottom:20px">GitHub Copilot integrates at every step of the pipeline.</p>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px">
-        ${[
-          ['Code Review','Copilot reviews PRs, catches bugs, explains changes'],
-          ['Autofix','Security findings get auto-fix suggestions'],
-          ['Test Generation','Copilot writes unit tests for your code'],
-          ['Failure Analysis','Copilot analyzes pipeline failures and suggests fixes']
-        ].map(function(a){
-          return html`<div key=${a[0]} class="c"><div style="font-weight:600;margin-bottom:4px">${a[0]}</div><div style="font-size:12px;color:var(--ts);line-height:1.5">${a[1]}</div></div>`;
-        })}
-      </div>
-    </div>
-
-    <div style="padding:20px 20px;text-align:center">
-      <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:8px">
-        ${['GitHub Actions','Copilot','SonarQube','OWASP DC','Gitleaks','Trivy','Syft','Jira','Splunk','Teams','Email','Cherwell'].map(function(t){
-          return html`<span key=${t} style="background:var(--sf);border:1px solid var(--bd);border-radius:16px;padding:5px 14px;font-size:11px;color:var(--ts)">${t}</span>`;
-        })}
-      </div>
-      <p style="font-size:10px;color:var(--td)">All integrations skip gracefully when not configured.</p>
-    </div>
-
-    <form onSubmit=${doConnect} style="background:var(--pn);border-top:1px solid var(--bd);padding:18px 20px;display:flex;align-items:center;justify-content:center;gap:10px;position:sticky;bottom:0">
-      <${Logo} />
-      <input name="tok" type="password" placeholder="Paste GitHub token to connect..." style="width:300px;max-width:50vw;font-family:'JetBrains Mono',monospace" />
-      <button type="submit" class="bt bp" style="padding:10px 24px;font-size:14px">Connect</button>
-    </form>
-  </div>`;
-}
-
-function OverviewPage(p){
-  var d=p.data;var runs=p.runs||[];
-  var active=runs.filter(function(r){return r.status==='in_progress'}).length;
-  var total=runs.filter(function(r){return r.status==='completed'});
-  var rate=total.length?Math.round(total.filter(function(r){return r.conclusion==='success'}).length/total.length*100):0;
-  var prs=p.prs||[];var openPr=prs.filter(function(x){return x.state==='open'}).length;
-  return html`<div>
-    <div class="g4">
-      <div class="c" style="text-align:center"><div style="font-size:10px;color:var(--ts);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Active</div><div style="font-size:28px;font-weight:700;color:var(--cy)">${active}</div></div>
-      <div class="c" style="text-align:center"><div style="font-size:10px;color:var(--ts);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Success</div><div style="font-size:28px;font-weight:700;color:${rate>=80?'var(--ok)':'var(--er)'}">${rate}%</div></div>
-      <div class="c" style="text-align:center"><div style="font-size:10px;color:var(--ts);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Open PRs</div><div style="font-size:28px;font-weight:700;color:var(--vi)">${openPr}</div></div>
-      <div class="c" style="text-align:center"><div style="font-size:10px;color:var(--ts);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Repos</div><div style="font-size:28px;font-weight:700">${d?d.length:0}</div></div>
-    </div>
-    <div class="c"><div style="font-size:12px;font-weight:600;color:var(--ts);margin-bottom:8px">Recent Activity</div>
-      ${runs.slice(0,15).map(function(r){return html`<div class="lr" key=${r.id}><span class="badge" style=${'background:'+sColor(r.conclusion||r.status).replace('var(','rgba(').replace(')',',.12)')+';color:'+sColor(r.conclusion||r.status)}>${r.conclusion||r.status}</span><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.repository?r.repository.full_name:r._repo||''}</div><div style="font-size:10px;color:var(--td);font-family:'JetBrains Mono',monospace">${r.head_branch||''} #${r.run_number||''}</div></div><span style="font-size:10px;color:var(--td)">${ago(r.created_at)}</span></div>`})}
-      ${runs.length===0&&html`<div style="text-align:center;padding:24px;color:var(--td)">No runs yet</div>`}
+      All integrations skip gracefully when not configured.
     </div>
   </div>`;
 }
 
-function PipelinesPage(p){
-  var runs=p.runs||[];
-  return html`<div>
-    <div class="c">
-      ${runs.slice(0,20).map(function(r){return html`<div class="lr" key=${r.id} style=${'border-left:3px solid '+sColor(r.conclusion||r.status)+';padding-left:10px'}><span class="badge" style=${'background:'+sColor(r.conclusion||r.status).replace('var(','rgba(').replace(')',',.12)')+';color:'+sColor(r.conclusion||r.status)}>${r.conclusion||r.status}</span><div style="flex:1"><div style="font-size:13px;font-weight:500">${r.repository?r.repository.full_name:r._repo||''}</div><div style="font-size:11px;color:var(--td)">${r.name||r.display_title||''} - ${r.head_branch||''}</div></div><span style="font-size:11px;color:var(--td);font-family:'JetBrains Mono',monospace">${dur(r.run_started_at,r.updated_at)}</span><span style="font-size:10px;color:var(--td)">${ago(r.created_at)}</span><a href=${r.html_url||'#'} target="_blank" rel="noopener" class="bt bg" style="font-size:10px;padding:4px 8px">Logs</a></div>`})}
-      ${runs.length===0&&html`<div style="text-align:center;padding:24px;color:var(--td)">No pipeline runs found</div>`}
-    </div>
-  </div>`;
-}
-
-function PRsPage(p){
-  var prs=p.prs||[];var tab=p.tab;
-  var openPrs=prs.filter(function(x){return x.state==='open'});
-  var merged=prs.filter(function(x){return x.merged_at}).slice(0,15);
-  return html`<div>
-    <div class="tabs">
-      <div class=${'tab'+(tab==='open'?' ac':'')} onClick=${function(){p.setTab('open')}}>Open (${openPrs.length})</div>
-      <div class=${'tab'+(tab==='merged'?' ac':'')} onClick=${function(){p.setTab('merged')}}>Merged</div>
-    </div>
-    ${tab==='open'&&html`<div class="c">${openPrs.length===0?html`<div style="text-align:center;padding:20px;color:var(--td)">No open PRs</div>`:openPrs.map(function(pr){return html`<div class="lr" key=${pr.id}><div style="flex:1"><div style="font-size:13px;font-weight:500">${pr.title}</div><div style="font-size:11px;color:var(--td)">${pr._repo||''} - ${(pr.head&&pr.head.ref)||''} > ${(pr.base&&pr.base.ref)||''} - ${ago(pr.created_at)}</div></div><a href=${pr.html_url||'#'} target="_blank" rel="noopener" class="bt bg" style="font-size:10px;padding:4px 8px">View</a></div>`})}</div>`}
-    ${tab==='merged'&&html`<div class="c">${merged.length===0?html`<div style="text-align:center;padding:20px;color:var(--td)">No merged PRs</div>`:merged.map(function(pr){return html`<div class="lr" key=${pr.id}><div style="flex:1"><div style="font-size:12px;font-weight:500">${pr._repo||''}: ${pr.title}</div><div style="font-size:10px;color:var(--td)">merged ${ago(pr.merged_at)}</div></div></div>`})}</div>`}
-  </div>`;
-}
-
-function EnvPage(p){
-  var runs=p.runs||[];
-  var envs=['INT','QA','STAGE','PROD'];
-  var colors=['var(--cy)','var(--wa)','var(--wa)','var(--er)'];
-  return html`<div>
-    <div style="display:flex;gap:8px;overflow-x:auto;align-items:stretch">
-      ${envs.map(function(env,i){
-        var deploys=runs.filter(function(r){var n=(r.name||'').toUpperCase();return n.indexOf(env)>=0&&(n.indexOf('DEPLOY')>=0||n.indexOf('>')>=0)});
-        return html`<div key=${env} style="flex:1;min-width:160px">
-          <div class="c" style="height:100%">
-            <div style=${'padding:3px;background:'+colors[i]+';border-radius:6px;margin:-18px -18px 12px -18px'}></div>
-            <div style="font-weight:700;font-size:15px;margin-bottom:8px">${env}</div>
-            ${deploys.slice(0,3).map(function(r){return html`<div key=${r.id} style="font-size:10px;color:var(--ts);margin-bottom:3px"><span style=${'display:inline-block;width:6px;height:6px;border-radius:50%;background:'+sColor(r.conclusion||r.status)+';margin-right:4px'}></span>${r.repository?r.repository.full_name.split('/')[1]:r._repo||''} ${ago(r.created_at)}</div>`})}
-            ${deploys.length===0&&html`<div style="font-size:11px;color:var(--td)">No deploys</div>`}
-          </div>
-        </div>`;
-      })}
-    </div>
-  </div>`;
-}
-
-function SecurityPage(p){
-  var runs=p.runs||[];
-  var sec=runs.filter(function(r){var n=(r.name||'').toLowerCase();return n.indexOf('security')>=0||n.indexOf('scan')>=0||n.indexOf('sast')>=0||n.indexOf('sca')>=0});
-  var passed=sec.filter(function(r){return r.conclusion==='success'}).length;
-  var failed=sec.filter(function(r){return r.conclusion==='failure'}).length;
-  var rate=sec.length?Math.round(passed/sec.length*100):0;
-  return html`<div>
-    <div class="g4">
-      <div class="c" style="text-align:center"><div style="font-size:10px;color:var(--ts);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Scans</div><div style="font-size:28px;font-weight:700;color:var(--cy)">${sec.length}</div></div>
-      <div class="c" style="text-align:center"><div style="font-size:10px;color:var(--ts);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Passed</div><div style="font-size:28px;font-weight:700;color:var(--ok)">${passed}</div></div>
-      <div class="c" style="text-align:center"><div style="font-size:10px;color:var(--ts);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Failed</div><div style="font-size:28px;font-weight:700;color:var(--er)">${failed}</div></div>
-      <div class="c" style="text-align:center"><div style="font-size:10px;color:var(--ts);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Rate</div><div style="font-size:28px;font-weight:700;color:${rate>=80?'var(--ok)':'var(--er)'}">${rate}%</div></div>
-    </div>
-    ${sec.length===0&&html`<div class="c" style="background:rgba(38,198,218,.04);border-color:rgba(38,198,218,.1)"><div style="font-weight:600;color:var(--cy);margin-bottom:6px">Free Tools Active in Pipelines</div><div style="font-size:12px;color:var(--ts);line-height:1.8">Gitleaks - secret scanning (always active)${'<br/>'}OWASP Dependency-Check - SCA (free)${'<br/>'}Syft - SBOM generation (always active)${'<br/>'}Add SONAR_HOST_URL + SONAR_TOKEN for SAST</div></div>`}
-    <div class="c"><div style="font-size:12px;font-weight:600;color:var(--ts);margin-bottom:8px">Recent Results</div>
-      ${sec.slice(0,10).map(function(r){return html`<div class="lr" key=${r.id}><span class="badge" style=${'background:'+sColor(r.conclusion||r.status).replace('var(','rgba(').replace(')',',.12)')+';color:'+sColor(r.conclusion||r.status)}>${r.conclusion||r.status}</span><div style="flex:1;font-size:11px">${r.repository?r.repository.full_name:r._repo||''} - ${r.name||''}</div><span style="font-size:10px;color:var(--td)">${ago(r.created_at)}</span></div>`})}
-    </div>
-  </div>`;
-}
-
-function SettingsPage(p){
-  var u=p.user;
-  return html`<div>
-    <div class="c" style="background:rgba(38,198,218,.03);border-color:rgba(38,198,218,.1)"><div style="font-size:12px;font-weight:600;color:var(--cy);margin-bottom:4px">Security</div><div style="font-size:11px;color:var(--ts)">Token stored in localStorage. Closing all tabs does not clear it. Click Disconnect to remove.</div></div>
-    <div class="c"><div style="font-size:12px;font-weight:600;color:var(--ts);margin-bottom:8px">Connection</div>
-      <div style="font-size:13px;margin-bottom:4px">User: <strong>${u&&u.login||'unknown'}</strong></div>
-      <div style="font-size:13px;margin-bottom:12px">Repos: <strong>${p.repoCount||0}</strong></div>
-      <button class="bt bd" onClick=${p.onLogout}>Disconnect</button>
-    </div>
-  </div>`;
-}
-
-var PAGES=['overview','pipelines','prs','environments','security','settings'];
-var PAGE_LABELS={overview:'Overview',pipelines:'Pipelines',prs:'Pull Requests',environments:'Environments',security:'Security',settings:'Settings'};
-
-function App(){
-  var st=useState;var ue=useEffect;var ur=useRef;
+function DashboardPage(p){
+  var st=useState;
   var pg=st('overview');var page=pg[0];var setPage=pg[1];
-  var us=st(null);var user=us[0];var setUser=us[1];
   var rs=st([]);var repos=rs[0];var setRepos=rs[1];
   var rn=st([]);var runs=rn[0];var setRuns=rn[1];
   var pr=st([]);var prs=pr[0];var setPrs=pr[1];
-  var pt=st('open');var prTab=pt[0];var setPrTab=pt[1];
   var ld=st(true);var loading=ld[0];var setLoading=ld[1];
-  var timer=ur(null);
 
-  ue(function(){
-    var token=ss('pat');
-    if(!token){setLoading(false);return}
-    api('/user').then(function(u){setUser(u);ss('user',JSON.stringify(u))}).catch(function(){clearAuth();setLoading(false)});
+  useEffect(function(){
+    api('/users/'+ORG+'/repos?per_page=50&sort=updated').then(function(r){
+      setRepos(r||[]);
+      return Promise.all((r||[]).slice(0,8).map(function(repo){
+        return api('/repos/'+repo.full_name+'/actions/runs?per_page=12').catch(function(){return{workflow_runs:[]}});
+      }));
+    }).then(function(results){
+      var all=[];results.forEach(function(r){if(r&&r.workflow_runs)all=all.concat(r.workflow_runs)});
+      all.sort(function(a,b){return new Date(b.created_at)-new Date(a.created_at)});
+      setRuns(all);
+      return Promise.all((repos.length?repos:setRepos).slice(0,8).map(function(repo){
+        return api('/repos/'+(repo.full_name||ORG+'/'+repo.name)+'/pulls?state=all&per_page=10&sort=updated&direction=desc').catch(function(){return[]});
+      }));
+    }).then(function(results){
+      var all=[];results.forEach(function(r){all=all.concat(r||[])});
+      setPrs(all);setLoading(false);
+    }).catch(function(){setLoading(false)});
   },[]);
 
-  ue(function(){
-    if(!user)return;
-    function fetchAll(){
-      api('/user/repos?per_page=100&sort=updated').then(function(r){
-        setRepos(r||[]);
-        return Promise.all((r||[]).slice(0,10).map(function(repo){
-          return api('/repos/'+repo.full_name+'/actions/runs?per_page=15').catch(function(){return{workflow_runs:[]}});
-        }));
-      }).then(function(results){
-        var all=[];
-        results.forEach(function(r){if(r&&r.workflow_runs)all=all.concat(r.workflow_runs)});
-        all.sort(function(a,b){return new Date(b.created_at)-new Date(a.created_at)});
-        setRuns(all);
-        return Promise.all((repos||[]).slice(0,10).map(function(repo){
-          return api('/repos/'+repo.full_name+'/pulls?state=all&per_page=10&sort=updated&direction=desc').then(function(p){
-            return(p||[]).map(function(x){x._repo=repo.name;return x});
-          }).catch(function(){return[]});
-        }));
-      }).then(function(results){
-        var all=[];results.forEach(function(r){all=all.concat(r)});
-        all.sort(function(a,b){return new Date(b.updated_at)-new Date(a.updated_at)});
-        setPrs(all);setLoading(false);
-      }).catch(function(){setLoading(false)});
+  var pages=['overview','pipelines','prs','environments','security','settings'];
+  var labels={overview:'Overview',pipelines:'Pipelines',prs:'Pull Requests',environments:'Environments',security:'Security',settings:'Settings'};
+
+  function renderContent(){
+    if(loading)return html`<${Skel}/><${Skel}/><${Skel}/>`;
+
+    if(page==='overview'){
+      var active=runs.filter(function(r){return r.status==='in_progress'}).length;
+      var comp=runs.filter(function(r){return r.status==='completed'});
+      var rate=comp.length?Math.round(comp.filter(function(r){return r.conclusion==='success'}).length/comp.length*100):0;
+      var openPr=prs.filter(function(x){return x.state==='open'}).length;
+      return html`<div class="fu">
+        <div class="g4">
+          <div class="c" style="border-left:4px solid var(--in);text-align:center"><div style="font-size:10px;color:var(--ts);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Active</div><div style="font-size:26px;font-weight:700;color:var(--in)">${active}</div></div>
+          <div class="c" style="border-left:4px solid var(--ok);text-align:center"><div style="font-size:10px;color:var(--ts);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Success</div><div style="font-size:26px;font-weight:700;color:var(--ok)">${rate}%</div></div>
+          <div class="c" style="border-left:4px solid var(--pr);text-align:center"><div style="font-size:10px;color:var(--ts);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Open PRs</div><div style="font-size:26px;font-weight:700;color:var(--pr)">${openPr}</div></div>
+          <div class="c" style="border-left:4px solid var(--wa);text-align:center"><div style="font-size:10px;color:var(--ts);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Repos</div><div style="font-size:26px;font-weight:700">${repos.length}</div></div>
+        </div>
+        <div class="c"><div style="font-size:12px;font-weight:600;color:var(--ts);margin-bottom:8px">Recent Activity</div>
+          ${runs.slice(0,15).map(function(r){return html`<div class="lr" key=${r.id}><span class="badge" style=${'background:'+sCol(r.conclusion||r.status).replace('var(','rgba(').replace(/\)/,',.1)')+';color:'+sCol(r.conclusion||r.status)}>${r.conclusion||r.status||'pending'}</span><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.repository?r.repository.full_name:''}</div><div class="mono" style="font-size:10px;color:var(--td)">${r.head_branch||''} #${r.run_number||''}</div></div><span style="font-size:10px;color:var(--td)">${ago(r.created_at)}</span></div>`})}
+        </div>
+      </div>`;
     }
-    fetchAll();
-    timer.current=setInterval(fetchAll,20000);
-    return function(){clearInterval(timer.current)};
-  },[user]);
 
-  function connect(token){
-    ss('pat',token);
-    api('/user').then(function(u){setUser(u);ss('user',JSON.stringify(u))}).catch(function(){clearAuth()});
+    if(page==='pipelines'){
+      return html`<div class="fu"><div class="c">
+        ${runs.slice(0,20).map(function(r){return html`<div class="lr" key=${r.id} style=${'border-left:3px solid '+sCol(r.conclusion||r.status)+';padding-left:10px'}>
+          <span class="badge" style=${'background:'+sCol(r.conclusion||r.status).replace('var(','rgba(').replace(/\)/,',.1)')+';color:'+sCol(r.conclusion||r.status)}>${r.conclusion||r.status||'pending'}</span>
+          <div style="flex:1"><div style="font-size:13px;font-weight:500">${r.repository?r.repository.full_name:''}</div><div style="font-size:11px;color:var(--td)">${r.name||''} - ${r.head_branch||''}</div></div>
+          <span class="mono" style="font-size:10px;color:var(--td)">${dur(r.run_started_at,r.updated_at)}</span>
+          <span style="font-size:10px;color:var(--td)">${ago(r.created_at)}</span>
+          <a href=${r.html_url||'#'} target="_blank" rel="noopener" class="bt bg" style="font-size:10px;padding:4px 8px">Logs</a>
+        </div>`})}
+        ${runs.length===0&&html`<div style="text-align:center;padding:24px;color:var(--td)">No pipeline runs found</div>`}
+      </div></div>`;
+    }
+
+    if(page==='prs'){
+      var openPrs=prs.filter(function(x){return x.state==='open'});
+      var merged=prs.filter(function(x){return x.merged_at}).slice(0,15);
+      return html`<div class="fu">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:16px">
+          ${[['Feature > INT','int'],['INT > QA','qa'],['QA > STAGE','stage'],['STAGE > PROD','main']].map(function(f){
+            return html`<a key=${f[0]} href=${'https://github.com/'+ORG+'?tab=repositories'} target="_blank" rel="noopener" class="c" style="text-decoration:none;text-align:center;padding:14px;cursor:pointer"><div style="font-weight:600;font-size:13px;color:var(--pr)">${f[0]}</div><div style="font-size:10px;color:var(--td);margin-top:2px">Open compare on GitHub</div></a>`;
+          })}
+        </div>
+        <div class="c"><div style="font-size:12px;font-weight:600;margin-bottom:8px">Open PRs (${openPrs.length})</div>
+          ${openPrs.map(function(p){return html`<div class="lr" key=${p.id}><div style="flex:1"><div style="font-size:13px;font-weight:500">${p.title||''}</div><div style="font-size:10px;color:var(--td)">${(p.head&&p.head.ref)||''} > ${(p.base&&p.base.ref)||''} - ${ago(p.created_at)}</div></div><a href=${p.html_url||'#'} target="_blank" rel="noopener" class="bt bg" style="font-size:10px;padding:4px 8px">View</a></div>`})}
+          ${openPrs.length===0&&html`<div style="text-align:center;padding:16px;color:var(--td)">No open PRs</div>`}
+        </div>
+      </div>`;
+    }
+
+    if(page==='environments'){
+      var envs=['INT','QA','STAGE','PROD'];
+      var colors=['var(--in)','var(--wa)','var(--wa)','var(--er)'];
+      return html`<div class="fu"><div style="display:flex;gap:8px;overflow-x:auto">
+        ${envs.map(function(env,i){
+          var deploys=runs.filter(function(r){var n=(r.name||'').toUpperCase();return n.indexOf(env)>=0&&(n.indexOf('DEPLOY')>=0||n.indexOf('>')>=0)});
+          return html`<div key=${env} style="flex:1;min-width:150px"><div class="c" style=${'border-top:4px solid '+colors[i]}>
+            <div style="font-weight:700;font-size:15px;margin-bottom:8px">${env}</div>
+            ${deploys.slice(0,3).map(function(r){return html`<div key=${r.id} style="font-size:10px;color:var(--ts);margin-bottom:3px"><span style=${'display:inline-block;width:6px;height:6px;border-radius:50%;background:'+sCol(r.conclusion||r.status)+';margin-right:4px'}></span>${r.repository?r.repository.full_name.split('/')[1]:''} ${ago(r.created_at)}</div>`})}
+            ${deploys.length===0&&html`<div style="font-size:11px;color:var(--td)">No deploys</div>`}
+          </div></div>`;
+        })}
+      </div></div>`;
+    }
+
+    if(page==='security'){
+      var sec=runs.filter(function(r){var n=(r.name||'').toLowerCase();return n.indexOf('security')>=0||n.indexOf('scan')>=0});
+      var passed=sec.filter(function(r){return r.conclusion==='success'}).length;
+      var failed=sec.filter(function(r){return r.conclusion==='failure'}).length;
+      var rate=sec.length?Math.round(passed/sec.length*100):0;
+      return html`<div class="fu">
+        <div class="g4">
+          <div class="c" style="border-left:4px solid var(--in);text-align:center"><div style="font-size:10px;color:var(--ts);text-transform:uppercase;letter-spacing:1px">Scans</div><div style="font-size:26px;font-weight:700;color:var(--in)">${sec.length}</div></div>
+          <div class="c" style="border-left:4px solid var(--ok);text-align:center"><div style="font-size:10px;color:var(--ts);text-transform:uppercase;letter-spacing:1px">Passed</div><div style="font-size:26px;font-weight:700;color:var(--ok)">${passed}</div></div>
+          <div class="c" style="border-left:4px solid var(--er);text-align:center"><div style="font-size:10px;color:var(--ts);text-transform:uppercase;letter-spacing:1px">Failed</div><div style="font-size:26px;font-weight:700;color:var(--er)">${failed}</div></div>
+          <div class="c" style="border-left:4px solid var(--wa);text-align:center"><div style="font-size:10px;color:var(--ts);text-transform:uppercase;letter-spacing:1px">Rate</div><div style="font-size:26px;font-weight:700;color:${rate>=80?'var(--ok)':'var(--er)'}">${rate}%</div></div>
+        </div>
+        ${sec.length===0&&html`<div class="c"><div style="font-weight:600;color:var(--pr);margin-bottom:6px">Free Security Tools</div><div style="font-size:12px;color:var(--ts);line-height:1.8">Gitleaks - secret scanning (always active). OWASP Dependency-Check - SCA (free). Syft - SBOM (always active). Add SONAR_HOST_URL + SONAR_TOKEN for SAST.</div></div>`}
+      </div>`;
+    }
+
+    if(page==='settings'){
+      return html`<div class="fu">
+        <div class="c"><div style="font-weight:600;margin-bottom:8px">About</div><div style="font-size:13px;color:var(--ts)">ForgeOps v6.0 - Enterprise DevSecOps Platform</div><div style="font-size:12px;margin-top:4px"><a href=${'https://github.com/'+ORG+'/ForgeOps'} target="_blank" rel="noopener">GitHub Repository</a></div></div>
+        <div class="c"><div style="font-weight:600;margin-bottom:8px">Integrations</div>
+          ${['GitHub Actions','Jira','SonarQube','Splunk','Teams','Cherwell'].map(function(name){
+            return html`<div class="lr" key=${name}><span style="font-size:13px;font-weight:500;flex:1">${name}</span><a href=${'https://github.com/'+ORG+'/ForgeOps/blob/main/docs/SETUP.md'} target="_blank" rel="noopener" style="font-size:11px">Setup guide</a></div>`;
+          })}
+        </div>
+        <div class="c"><div style="font-weight:600;margin-bottom:8px">Links</div>
+          <div style="display:flex;flex-direction:column;gap:6px;font-size:13px">
+            <a href=${'https://github.com/'+ORG+'/ForgeOps/tree/main/docs/knowledge'} target="_blank" rel="noopener">Knowledge Base</a>
+            <a href=${'https://github.com/'+ORG+'/ForgeOps/blob/main/docs/TROUBLESHOOTING.md'} target="_blank" rel="noopener">Troubleshooting</a>
+            <a href=${'https://github.com/'+ORG+'/ForgeOps/issues/new/choose'} target="_blank" rel="noopener">Create Support Ticket</a>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    return html`<div style="color:var(--td);text-align:center;padding:40px">Select a page</div>`;
   }
-  function logout(){clearAuth();setUser(null);setRepos([]);setRuns([]);setPrs([])}
-  function nav(p){setPage(p)}
-
-  if(!user&&!loading)return html`<${LandingPage} onConnect=${connect} />`;
-  if(!user)return html`<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:var(--ts)">Connecting...</div>`;
 
   return html`<div class="app">
     <div class="sb">
-      <div style="padding:18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--bd)"><${Logo} /><div><div style="font-size:16px;font-weight:700">ForgeOps</div><div style="font-size:9px;font-weight:700;letter-spacing:3px;background:linear-gradient(90deg,var(--cy),var(--vi));-webkit-background-clip:text;-webkit-text-fill-color:transparent">DEVSECOPS</div></div></div>
-      <div style="padding:14px 12px 4px;font-size:9px;font-weight:700;letter-spacing:2px;color:var(--td)">DELIVERY</div>
-      ${['overview','pipelines','prs','environments'].map(function(k){return html`<div key=${k} style=${'display:flex;padding:9px 16px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13px;color:'+(page===k?'var(--cy)':'var(--ts)')+';background:'+(page===k?'var(--sf)':'transparent')+';border-left:3px solid '+(page===k?'var(--cy)':'transparent')} onClick=${function(){nav(k)}}>${PAGE_LABELS[k]}</div>`})}
-      <div style="padding:14px 12px 4px;font-size:9px;font-weight:700;letter-spacing:2px;color:var(--td)">QUALITY</div>
-      <div style=${'display:flex;padding:9px 16px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13px;color:'+(page==='security'?'var(--cy)':'var(--ts)')+';background:'+(page==='security'?'var(--sf)':'transparent')+';border-left:3px solid '+(page==='security'?'var(--cy)':'transparent')} onClick=${function(){nav('security')}}>Security</div>
-      <div style="padding:14px 12px 4px;font-size:9px;font-weight:700;letter-spacing:2px;color:var(--td)">OPERATIONS</div>
-      <div style=${'display:flex;padding:9px 16px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13px;color:'+(page==='settings'?'var(--cy)':'var(--ts)')+';background:'+(page==='settings'?'var(--sf)':'transparent')+';border-left:3px solid '+(page==='settings'?'var(--cy)':'transparent')} onClick=${function(){nav('settings')}}>Settings</div>
-      <div style="margin-top:auto;padding:14px;border-top:1px solid var(--bd);font-size:10px;color:var(--td)"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ok);margin-right:5px"></span>Connected - ${user.login}</div>
+      <div style="padding:14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--bd)"><${Logo} s=${24} /><span style="font-weight:700;font-size:14px">ForgeOps</span></div>
+      <div class="ns">Delivery</div>
+      ${['overview','pipelines','prs','environments'].map(function(k){return html`<div key=${k} class=${'ni'+(page===k?' ac':'')} onClick=${function(){setPage(k)}}>${labels[k]}</div>`})}
+      <div class="ns">Quality</div>
+      <div class=${'ni'+(page==='security'?' ac':'')} onClick=${function(){setPage('security')}}>Security</div>
+      <div class="ns">Operations</div>
+      <div class=${'ni'+(page==='settings'?' ac':'')} onClick=${function(){setPage('settings')}}>Settings</div>
+      <div style="margin-top:auto;padding:12px 14px;border-top:1px solid var(--bd);font-size:10px;color:var(--td)"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--ok);margin-right:4px"></span>ForgeOps v6.0</div>
     </div>
     <div class="mn">
-      <div class="hd"><h2 style="flex:1;font-size:18px">${PAGE_LABELS[page]||''}</h2><button class="bt bg" style="font-size:11px" onClick=${function(){Object.keys(cache).forEach(function(k){delete cache[k]})}}>Refresh</button><div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--cy),var(--vi));display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff">${(user.login||'?')[0].toUpperCase()}</div></div>
-      <div class="ct">
-        ${loading&&html`<div><${Skel} /><${Skel} /><${Skel} /></div>`}
-        ${!loading&&page==='overview'&&html`<${OverviewPage} data=${repos} runs=${runs} prs=${prs} />`}
-        ${!loading&&page==='pipelines'&&html`<${PipelinesPage} runs=${runs} />`}
-        ${!loading&&page==='prs'&&html`<${PRsPage} prs=${prs} tab=${prTab} setTab=${setPrTab} />`}
-        ${!loading&&page==='environments'&&html`<${EnvPage} runs=${runs} />`}
-        ${!loading&&page==='security'&&html`<${SecurityPage} runs=${runs} />`}
-        ${!loading&&page==='settings'&&html`<${SettingsPage} user=${user} repoCount=${repos.length} onLogout=${logout} />`}
+      <div class="hd">
+        <span style="font-size:16px;font-weight:700;flex:1">${labels[page]||''}</span>
+        <${ThemePills} current=${p.theme} onChange=${p.onTheme} />
+        <button class="bt bg" onClick=${function(){p.setScreen('landing')}}>Back</button>
       </div>
+      <div class="ct">${renderContent()}</div>
     </div>
   </div>`;
+}
+
+function App(){
+  var scr=useState('landing');var screen=scr[0];var setScreen=scr[1];
+  var th=useState(localStorage.getItem('fg_theme')||'light');var theme=th[0];var setTheme=th[1];
+
+  function changeTheme(name){setTheme(name);applyTheme(name)}
+
+  useEffect(function(){applyTheme(theme)},[]);
+
+  if(screen==='dashboard')return html`<${DashboardPage} setScreen=${setScreen} theme=${theme} onTheme=${changeTheme} />`;
+  return html`<${LandingPage} setScreen=${setScreen} theme=${theme} onTheme=${changeTheme} />`;
 }
 
 render(html`<${App} />`,document.getElementById('root'));

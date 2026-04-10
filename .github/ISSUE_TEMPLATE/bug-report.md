@@ -1,23 +1,29 @@
 ---
-name: "🐛 Bug report"
-about: Report a bug in ForgeOps
+name: "Bug report"
+about: "Report a bug in the platform"
 title: "[BUG] "
 labels: bug
 assignees: askboppana
 ---
 
 ## Description
+<!-- Describe the bug -->
 
-## Steps to reproduce
+## Steps to Reproduce
 1.
 2.
 3.
 
-## Expected behavior
+## Expected Behavior
+<!-- What should happen? -->
 
-## Actual behavior
+## Actual Behavior
+<!-- What actually happens? -->
 
-## Browser (for dashboard)
-- [ ] Chrome
-- [ ] Edge
-- [ ] Safari
+## Environment
+- Pipeline:
+- Branch:
+- Runner:
+
+## Screenshots / Logs
+<!-- Paste relevant logs or screenshots -->

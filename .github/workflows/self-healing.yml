@@ -1,4 +1,4 @@
-name: Self-Healing Checks
+name: Self-Healing
 
 on:
   schedule:
@@ -7,53 +7,68 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   self-heal:
-    name: Self-Healing
+    name: Self-Healing Checks
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
-          token: ${{ github.token }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Make scripts executable
+      - name: Set script permissions
         run: chmod +x scripts/*.sh scripts/*.py 2>/dev/null || true
 
-      - name: Validate YAML files
+      - name: Validate workflow YAML files
         id: yaml-check
         run: |
-          FIXED=0
-          pip install --quiet yamllint
-          for f in $(find .github/workflows -name '*.yml' -o -name '*.yaml'); do
-            if ! yamllint -d relaxed "$f" > /dev/null 2>&1; then
-              echo "::warning::YAML lint issue in $f"
+          pip install yamllint pyyaml > /dev/null 2>&1
+          errors=0
+          fixed=0
+
+          echo "Checking workflow YAML files..."
+          for f in .github/workflows/*.yml .github/workflows/*.yaml; do
+            [ -f "$f" ] || continue
+            echo "  Checking: $f"
+            if ! python3 -c "import yaml; yaml.safe_load(open('$f'))" 2>/dev/null; then
+              echo "    FAIL: Invalid YAML syntax in $f"
+              errors=$((errors + 1))
+            else
+              echo "    PASS: Valid YAML"
             fi
           done
-          echo "yaml_fixed=$FIXED" >> "$GITHUB_OUTPUT"
 
-      - name: Fix script permissions
-        id: perms-check
+          echo "yaml_errors=$errors" >> "$GITHUB_OUTPUT"
+          echo "yaml_fixed=$fixed" >> "$GITHUB_OUTPUT"
+
+      - name: Check and fix script permissions
+        id: script-check
         run: |
-          FIXED=0
-          if [ -d scripts ]; then
-            for f in scripts/*.sh scripts/*.py; do
-              [ -f "$f" ] || continue
-              if [ ! -x "$f" ]; then
-                chmod +x "$f"
-                FIXED=$((FIXED + 1))
-                echo "Fixed permissions on $f"
-              fi
-            done
-          fi
-          echo "perms_fixed=$FIXED" >> "$GITHUB_OUTPUT"
+          fixed=0
 
-      - name: Check dependabot config
+          echo "Checking script permissions..."
+          for f in scripts/*.sh scripts/*.py; do
+            [ -f "$f" ] || continue
+            if [ ! -x "$f" ]; then
+              echo "  Fixing: $f (not executable)"
+              chmod +x "$f"
+              fixed=$((fixed + 1))
+            else
+              echo "  PASS: $f"
+            fi
+          done
+
+          echo "scripts_fixed=$fixed" >> "$GITHUB_OUTPUT"
+
+      - name: Check dependabot configuration
         id: dependabot-check
         run: |
+          created="false"
           if [ ! -f .github/dependabot.yml ]; then
-            echo "Creating default dependabot.yml"
+            echo "Dependabot config not found - creating default..."
             mkdir -p .github
             cat > .github/dependabot.yml << 'DEPBOT'
           version: 2
@@ -62,48 +77,101 @@ jobs:
               directory: "/"
               schedule:
                 interval: "weekly"
-          DEPBOT
-            echo "dependabot_created=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "dependabot_created=false" >> "$GITHUB_OUTPUT"
-          fi
+                day: "monday"
+              open-pull-requests-limit: 10
+              labels:
+                - "dependencies"
+                - "github-actions"
 
-      - name: Check dashboard accessibility
+            - package-ecosystem: "npm"
+              directory: "/"
+              schedule:
+                interval: "weekly"
+                day: "monday"
+              open-pull-requests-limit: 10
+              labels:
+                - "dependencies"
+                - "npm"
+
+            - package-ecosystem: "pip"
+              directory: "/"
+              schedule:
+                interval: "weekly"
+                day: "monday"
+              open-pull-requests-limit: 5
+              labels:
+                - "dependencies"
+                - "python"
+          DEPBOT
+            created="true"
+            echo "Dependabot config created."
+          else
+            echo "PASS: Dependabot config exists."
+          fi
+          echo "dependabot_created=$created" >> "$GITHUB_OUTPUT"
+
+      - name: Check dashboard directory
         id: dashboard-check
         run: |
-          if [ -d dashboard ]; then
-            if [ -f dashboard/index.html ]; then
-              echo "Dashboard index.html found"
-              echo "dashboard_ok=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "::warning::dashboard directory exists but index.html is missing"
-              echo "dashboard_ok=false" >> "$GITHUB_OUTPUT"
-            fi
+          created="false"
+          if [ ! -d dashboard ]; then
+            echo "Dashboard directory not found - creating scaffold..."
+            mkdir -p dashboard
+            cat > dashboard/index.html << 'HTML'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>ForgeOps Dashboard</title>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 2rem; }
+              h1 { color: #333; }
+              .status { padding: 1rem; border-radius: 8px; background: #f0f0f0; }
+            </style>
+          </head>
+          <body>
+            <h1>ForgeOps Dashboard</h1>
+            <div class="status">
+              <p>Dashboard placeholder - deploy pipeline metrics and status here.</p>
+            </div>
+          </body>
+          </html>
+          HTML
+            created="true"
+            echo "Dashboard scaffold created."
           else
-            echo "No dashboard directory found (optional)"
-            echo "dashboard_ok=skip" >> "$GITHUB_OUTPUT"
+            echo "PASS: Dashboard directory exists."
           fi
+          echo "dashboard_created=$created" >> "$GITHUB_OUTPUT"
 
       - name: Commit auto-fixes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
           git add -A
           if git diff --cached --quiet; then
-            echo "No changes to commit"
+            echo "No changes to commit - everything is healthy."
           else
-            git commit -m "chore: self-healing auto-fix [skip ci]"
+            git commit -m "chore: self-healing auto-fix
+
+          - YAML validation: ${{ steps.yaml-check.outputs.yaml_errors }} errors found
+          - Script permissions fixed: ${{ steps.script-check.outputs.scripts_fixed }}
+          - Dependabot created: ${{ steps.dependabot-check.outputs.dependabot_created }}
+          - Dashboard created: ${{ steps.dashboard-check.outputs.dashboard_created }}"
             git push
+            echo "Auto-fix changes committed and pushed."
           fi
 
-      - name: Summary
+      - name: Write self-healing summary
         if: always()
         run: |
           echo "## Self-Healing Report" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Check | Result |" >> "$GITHUB_STEP_SUMMARY"
           echo "|-------|--------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| YAML validation | Checked |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Script permissions fixed | ${{ steps.perms-check.outputs.perms_fixed }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Dependabot created | ${{ steps.dependabot-check.outputs.dependabot_created }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Dashboard accessible | ${{ steps.dashboard-check.outputs.dashboard_ok }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| YAML Validation Errors | ${{ steps.yaml-check.outputs.yaml_errors }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Script Permissions Fixed | ${{ steps.script-check.outputs.scripts_fixed }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Dependabot Config Created | ${{ steps.dependabot-check.outputs.dependabot_created }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Dashboard Scaffold Created | ${{ steps.dashboard-check.outputs.dashboard_created }} |" >> "$GITHUB_STEP_SUMMARY"

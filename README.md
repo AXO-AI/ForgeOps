@@ -1,59 +1,73 @@
-# ForgeOps — Enterprise DevSecOps Platform
+# ForgeOps - Enterprise DevSecOps Platform
 
-GitHub Actions-based CI/CD replacing CloudBees Jenkins. No Docker, no external servers. Release engineers promote code through environments using buttons — no scripts, no git knowledge needed.
-
-**Dashboard:** [askboppana.github.io/ForgeOps](https://askboppana.github.io/ForgeOps)
+GitHub Actions CI/CD platform replacing legacy Jenkins pipelines. Supports Java/Maven, .NET, Node.js, and Python with reusable workflows, self-healing, and DORA metrics.
 
 ## Quick Start
-1. Create branches in your app repo: `int`, `qa`, `stage`
-2. Copy workflows + scripts from this repo
-3. Edit `APP_NAME` in `ci.yml`
-4. Create GitHub Environments: `int`, `qa`, `stage`, `prod`
-5. Push → pipeline runs. See [Setup Guide](docs/SETUP.md).
+
+1. Clone this repository
+2. Copy `templates/CODEOWNERS.template` to your app repo as `CODEOWNERS`
+3. Register your repo in `forgeops-config.json`
+4. Create a feature branch and push your code
+5. Open a PR -- the pipeline runs automatically
 
 ## Workflow
-```
-feature/* ──PR──► int ──PR──► qa ──PR──► stage ──PR──► main (prod)
-              Tech Lead     Release Eng    Release Eng    2 Approvals
-```
-Each promotion: build → scan → deploy → Jira → email → Teams → Splunk.
 
-## Integrations (all skip gracefully if not configured)
-| Tool | Status | Enable |
-|------|--------|--------|
-| Gitleaks + Syft | ✅ Always active | Free, no setup |
-| OWASP Dep-Check | ✅ Active | Free SCA fallback |
-| SonarQube | ⏭️ Optional | Add SONAR_HOST_URL + SONAR_TOKEN |
-| Jira | ⏭️ Optional | Add JIRA_URL + JIRA_TOKEN |
-| Email | ⏭️ Optional | Add SMTP_SERVER + credentials |
-| Teams | ⏭️ Optional | Add TEAMS_WEBHOOK |
-| Splunk | ⏭️ Optional | Add SPLUNK_HEC_URL + SPLUNK_HEC_TOKEN |
-| Cherwell | ⏭️ Optional | Add CHERWELL_URL + credentials |
+```
+feature --> int --> qa --> stage --> main (production)
+```
+
+Each promotion requires approval from the appropriate role. Rollback is available at every stage.
+
+## Dashboard
+
+[https://askboppana.github.io/ForgeOps](https://askboppana.github.io/ForgeOps)
+
+Light theme by default with 4 switchable themes (light, dark, cobalt, dracula).
 
 ## File Structure
+
 ```
 ForgeOps/
-├── .github/workflows/       # 13 workflow files
-├── .github/ISSUE_TEMPLATE/  # 4 support templates
-├── dashboard/index.html     # Preact dashboard (GitHub Pages)
-├── scripts/                 # 7 automation scripts
-├── docs/                    # 10 docs + 12 knowledge articles
-├── templates/               # App repo templates
-└── README.md
+  .github/
+    ISSUE_TEMPLATE/       # Issue templates (support, bug, feature, security)
+    PULL_REQUEST_TEMPLATE.md
+    dependabot.yml
+  docs/
+    knowledge/            # 12 how-to articles
+    VISION.md
+    WORKFLOW.md
+    ENVIRONMENTS.md
+    SETUP.md
+    TROUBLESHOOTING.md
+    ROLLBACK.md
+    MIGRATION-TO-SELF-HOSTED.md
+    CHERWELL-SETUP.md
+    BACKLOG.md
+  templates/
+    CODEOWNERS.template
+  forgeops-config.json
+  CHANGELOG.md
+  CODEOWNERS
+  SECURITY.md
 ```
 
-## Documentation
-| Doc | For |
-|-----|-----|
-| [Vision](docs/VISION.md) | What ForgeOps is |
-| [Workflow](docs/WORKFLOW.md) | 10-step dev-to-prod |
-| [Setup](docs/SETUP.md) | How to onboard a repo |
-| [Environments](docs/ENVIRONMENTS.md) | Branch → env mapping |
-| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues |
-| [Knowledge Base](docs/knowledge/) | 12 how-to articles |
+## Integrations
+
+| Integration | Purpose                  | Status  |
+|-------------|--------------------------|---------|
+| Jira        | Ticket linking           | Active  |
+| Teams       | Chat notifications       | Active  |
+| Email       | Deploy/failure alerts    | Active  |
+| Splunk      | Log aggregation          | Active  |
+| Cherwell    | Change management        | Active  |
+| Dependabot  | Dependency auto-updates  | Active  |
 
 ## Support
-[Create an issue](https://github.com/askboppana/ForgeOps/issues/new/choose) using the templates.
+
+Open a [Support Request](https://github.com/askboppana/ForgeOps/issues/new?template=support-request.md) issue for help.
+
+Browse the [Knowledge Base](docs/knowledge/) for self-service guides.
 
 ## License
-MIT
+
+MIT -- see [LICENSE](LICENSE).

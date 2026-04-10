@@ -3,38 +3,36 @@ name: Notify (Reusable)
 on:
   workflow_call:
     inputs:
-      job_name:
-        description: "Name of the job that triggered notification"
+      subject:
+        description: "Notification subject"
         required: true
         type: string
-      status:
-        description: "Job status (success, failure, cancelled)"
+      body:
+        description: "Notification body (supports HTML for email)"
         required: true
         type: string
-      app_name:
-        description: "Application name"
-        required: true
-        type: string
-      environment:
-        description: "Target environment"
+      severity:
+        description: "Severity level (info, warning, critical)"
         required: false
         type: string
-        default: ""
-      version:
-        description: "Application version"
+        default: "info"
+      run_url:
+        description: "URL to the workflow run"
         required: false
         type: string
         default: ""
     secrets:
-      MAIL_SERVER:
+      EMAIL_SERVER:
         required: false
-      MAIL_PORT:
+      EMAIL_PORT:
         required: false
-      MAIL_USERNAME:
+      EMAIL_USERNAME:
         required: false
-      MAIL_PASSWORD:
+      EMAIL_PASSWORD:
         required: false
-      MAIL_TO:
+      EMAIL_TO:
+        required: false
+      EMAIL_FROM:
         required: false
       TEAMS_WEBHOOK_URL:
         required: false
@@ -44,99 +42,185 @@ on:
         required: false
 
 jobs:
-  notify:
-    name: Send Notifications
+  email:
+    name: Email Notification
     runs-on: ubuntu-latest
     steps:
-      - name: Send email notification
-        if: env.MAIL_USERNAME != ''
-        uses: dawidd6/action-send-mail@v16
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set script permissions
+        run: chmod +x scripts/*.sh scripts/*.py 2>/dev/null || true
+
+      - name: Check email secrets
+        id: check-email
+        run: |
+          if [ -n "$EMAIL_SERVER_CHECK" ] && [ -n "$EMAIL_USERNAME_CHECK" ] && [ -n "$EMAIL_PASSWORD_CHECK" ] && [ -n "$EMAIL_TO_CHECK" ]; then
+            echo "email_available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "email_available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Email secrets not configured - email notification will be skipped"
+          fi
         env:
-          MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+          EMAIL_SERVER_CHECK: ${{ secrets.EMAIL_SERVER }}
+          EMAIL_USERNAME_CHECK: ${{ secrets.EMAIL_USERNAME }}
+          EMAIL_PASSWORD_CHECK: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_TO_CHECK: ${{ secrets.EMAIL_TO }}
+
+      - name: Send email notification
+        if: steps.check-email.outputs.email_available == 'true'
+        uses: dawidd6/action-send-mail@v3
         with:
-          server_address: ${{ secrets.MAIL_SERVER }}
-          server_port: ${{ secrets.MAIL_PORT }}
-          username: ${{ secrets.MAIL_USERNAME }}
-          password: ${{ secrets.MAIL_PASSWORD }}
-          subject: "[${{ inputs.status }}] ${{ inputs.app_name }} - ${{ inputs.job_name }}"
-          to: ${{ secrets.MAIL_TO }}
-          from: ${{ secrets.MAIL_USERNAME }}
-          body: |
-            Workflow: ${{ inputs.job_name }}
-            Application: ${{ inputs.app_name }}
-            Environment: ${{ inputs.environment }}
-            Version: ${{ inputs.version }}
-            Status: ${{ inputs.status }}
-            Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          server_address: ${{ secrets.EMAIL_SERVER }}
+          server_port: ${{ secrets.EMAIL_PORT || '587' }}
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: "[${{ inputs.severity }}] ${{ inputs.subject }}"
+          to: ${{ secrets.EMAIL_TO }}
+          from: ${{ secrets.EMAIL_FROM || secrets.EMAIL_USERNAME }}
+          html_body: |
+            <h2>${{ inputs.subject }}</h2>
+            <p><strong>Severity:</strong> ${{ inputs.severity }}</p>
+            <div>${{ inputs.body }}</div>
+            <p><strong>Repository:</strong> ${{ github.repository }}</p>
+            <p><strong>Run:</strong> <a href="${{ inputs.run_url || format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}">View workflow run</a></p>
+
+      - name: Skip email notification
+        if: steps.check-email.outputs.email_available != 'true'
+        run: |
+          echo "SKIP: Email notification skipped - secrets not configured"
+          echo "Required secrets: EMAIL_SERVER, EMAIL_USERNAME, EMAIL_PASSWORD, EMAIL_TO"
+
+  teams:
+    name: Teams Notification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set script permissions
+        run: chmod +x scripts/*.sh scripts/*.py 2>/dev/null || true
+
+      - name: Check Teams secrets
+        id: check-teams
+        run: |
+          if [ -n "$TEAMS_WEBHOOK_CHECK" ]; then
+            echo "teams_available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "teams_available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Teams webhook not configured - Teams notification will be skipped"
+          fi
+        env:
+          TEAMS_WEBHOOK_CHECK: ${{ secrets.TEAMS_WEBHOOK_URL }}
 
       - name: Send Teams notification
-        if: env.TEAMS_WEBHOOK_URL != ''
-        env:
-          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+        if: steps.check-teams.outputs.teams_available == 'true'
         run: |
-          STATUS_COLOR="default"
-          if [ "${{ inputs.status }}" = "success" ]; then STATUS_COLOR="good"; fi
-          if [ "${{ inputs.status }}" = "failure" ]; then STATUS_COLOR="attention"; fi
+          severity="${{ inputs.severity }}"
+          case "$severity" in
+            critical) color="FF0000" ;;
+            warning)  color="FFA500" ;;
+            *)        color="0078D4" ;;
+          esac
 
-          cat <<CARD > /tmp/teams-card.json
+          run_url="${{ inputs.run_url }}"
+          if [ -z "$run_url" ]; then
+            run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          fi
+
+          payload=$(cat <<PAYLOAD
           {
-            "type": "message",
-            "attachments": [{
-              "contentType": "application/vnd.microsoft.card.adaptive",
-              "content": {
-                "type": "AdaptiveCard",
-                "version": "1.4",
-                "body": [
-                  {
-                    "type": "TextBlock",
-                    "size": "Medium",
-                    "weight": "Bolder",
-                    "text": "${{ inputs.app_name }} - ${{ inputs.job_name }}",
-                    "style": "heading"
-                  },
-                  {
-                    "type": "FactSet",
-                    "facts": [
-                      { "title": "Status", "value": "${{ inputs.status }}" },
-                      { "title": "Environment", "value": "${{ inputs.environment }}" },
-                      { "title": "Version", "value": "${{ inputs.version }}" }
-                    ]
-                  }
-                ],
-                "actions": [
-                  {
-                    "type": "Action.OpenUrl",
-                    "title": "View Run",
-                    "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-                  }
-                ]
-              }
+            "@type": "MessageCard",
+            "@context": "http://schema.org/extensions",
+            "themeColor": "${color}",
+            "summary": "${{ inputs.subject }}",
+            "sections": [{
+              "activityTitle": "${{ inputs.subject }}",
+              "facts": [
+                { "name": "Severity", "value": "${severity}" },
+                { "name": "Repository", "value": "${{ github.repository }}" },
+                { "name": "Branch", "value": "${{ github.ref_name }}" }
+              ],
+              "text": "${{ inputs.body }}",
+              "markdown": true
+            }],
+            "potentialAction": [{
+              "@type": "OpenUri",
+              "name": "View Run",
+              "targets": [{ "os": "default", "uri": "${run_url}" }]
             }]
           }
-          CARD
+          PAYLOAD
+          )
 
-          curl -sSf -H "Content-Type: application/json" -d @/tmp/teams-card.json "$TEAMS_WEBHOOK_URL"
+          curl -sSf -X POST "$TEAMS_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "$payload"
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+
+      - name: Skip Teams notification
+        if: steps.check-teams.outputs.teams_available != 'true'
+        run: |
+          echo "SKIP: Teams notification skipped - webhook not configured"
+          echo "Required secrets: TEAMS_WEBHOOK_URL"
+
+  splunk:
+    name: Splunk Event
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set script permissions
+        run: chmod +x scripts/*.sh scripts/*.py 2>/dev/null || true
+
+      - name: Check Splunk secrets
+        id: check-splunk
+        run: |
+          if [ -n "$SPLUNK_URL_CHECK" ] && [ -n "$SPLUNK_TOKEN_CHECK" ]; then
+            echo "splunk_available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "splunk_available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Splunk HEC not configured - Splunk event will be skipped"
+          fi
+        env:
+          SPLUNK_URL_CHECK: ${{ secrets.SPLUNK_HEC_URL }}
+          SPLUNK_TOKEN_CHECK: ${{ secrets.SPLUNK_HEC_TOKEN }}
 
       - name: Send Splunk event
-        if: env.SPLUNK_HEC_TOKEN != ''
-        env:
-          SPLUNK_HEC_URL: ${{ secrets.SPLUNK_HEC_URL }}
-          SPLUNK_HEC_TOKEN: ${{ secrets.SPLUNK_HEC_TOKEN }}
+        if: steps.check-splunk.outputs.splunk_available == 'true'
         run: |
-          curl -sSf -k \
+          timestamp=$(date +%s)
+          run_url="${{ inputs.run_url }}"
+          if [ -z "$run_url" ]; then
+            run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          fi
+
+          curl -sSf -X POST "$SPLUNK_HEC_URL" \
             -H "Authorization: Splunk $SPLUNK_HEC_TOKEN" \
             -H "Content-Type: application/json" \
             -d "{
+              \"time\": ${timestamp},
+              \"sourcetype\": \"github:actions\",
+              \"source\": \"${{ github.repository }}\",
               \"event\": {
-                \"job_name\": \"${{ inputs.job_name }}\",
-                \"status\": \"${{ inputs.status }}\",
-                \"app_name\": \"${{ inputs.app_name }}\",
-                \"environment\": \"${{ inputs.environment }}\",
-                \"version\": \"${{ inputs.version }}\",
+                \"subject\": \"${{ inputs.subject }}\",
+                \"severity\": \"${{ inputs.severity }}\",
+                \"body\": \"${{ inputs.body }}\",
                 \"repository\": \"${{ github.repository }}\",
+                \"ref\": \"${{ github.ref_name }}\",
                 \"run_id\": \"${{ github.run_id }}\",
-                \"ref\": \"${{ github.ref }}\"
-              },
-              \"sourcetype\": \"github:actions\"
-            }" \
-            "$SPLUNK_HEC_URL/services/collector/event"
+                \"run_url\": \"${run_url}\",
+                \"actor\": \"${{ github.actor }}\"
+              }
+            }"
+        env:
+          SPLUNK_HEC_URL: ${{ secrets.SPLUNK_HEC_URL }}
+          SPLUNK_HEC_TOKEN: ${{ secrets.SPLUNK_HEC_TOKEN }}
+
+      - name: Skip Splunk event
+        if: steps.check-splunk.outputs.splunk_available != 'true'
+        run: |
+          echo "SKIP: Splunk event skipped - HEC not configured"
+          echo "Required secrets: SPLUNK_HEC_URL, SPLUNK_HEC_TOKEN"

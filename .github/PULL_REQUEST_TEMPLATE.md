@@ -1,12 +1,13 @@
 ## Description
+<!-- What does this PR do? -->
 
 ## Jira Ticket
+<!-- Link to the Jira ticket -->
 
 ## Type of Change
 - [ ] Feature
 - [ ] Bug Fix
 - [ ] Hotfix
-- [ ] Refactor
 
 ## Testing
 - [ ] Unit tests pass
@@ -15,4 +16,5 @@
 ## Checklist
 - [ ] PR title includes Jira ticket
 - [ ] No secrets in code
-- [ ] Self-review done
+- [ ] Documentation updated (if applicable)
+- [ ] CODEOWNERS reviewed

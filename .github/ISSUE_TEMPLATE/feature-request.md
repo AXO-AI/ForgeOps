@@ -1,17 +1,22 @@
 ---
-name: "💡 Feature request"
-about: Suggest a new feature for ForgeOps
+name: "Feature request"
+about: "Suggest a new feature or improvement"
 title: "[FEATURE] "
 labels: enhancement
 assignees: askboppana
 ---
 
-## Problem
+## Feature Description
+<!-- Describe the feature you would like -->
 
-## Proposed solution
+## Use Case
+<!-- Why is this feature needed? -->
 
-## Who benefits
-- [ ] Developers
-- [ ] Release Engineers
-- [ ] QA Team
-- [ ] DevOps
+## Proposed Solution
+<!-- How should this work? -->
+
+## Alternatives Considered
+<!-- Any other approaches you considered? -->
+
+## Additional Context
+<!-- Any other information -->

@@ -1,370 +1,426 @@
-name: "UiPath RPA Pipeline"
+##############################################################################
+# uipath-rpa.yml - CI/CD pipeline for uipath-rpa-bot
+##############################################################################
+name: UiPath RPA Bot Pipeline
 
 on:
   push:
-    branches: [qa, stage, main, 'feature/*', 'hotfix/*']
+    branches:
+      - int
+      - qa
+      - stage
+      - main
+      - "feature/*"
+      - "hotfix/*"
   pull_request:
-    branches: [qa, stage, main]
+    branches:
+      - int
+      - qa
+      - stage
+      - main
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Target environment'
-        required: false
-        default: 'qa'
+        description: "Target deployment environment"
+        required: true
         type: choice
-        options: [qa, stage, prod]
+        options:
+          - qa
+          - stage
+          - prod
+
+env:
+  APP_NAME: uipath-rpa-bot
+  DEPLOY_METHOD: uipath-orchestrator
 
 permissions:
   contents: write
+  checks: write
+  actions: read
+  packages: read
+  id-token: write
 
-env:
-  APP_NAME: "uipath-rpa"  # CHANGE THIS PER REPO
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
+# ---------------------------------------------------------------------------
+# JOBS
+# ---------------------------------------------------------------------------
 jobs:
-  # ──────────────────────────────────────────────
+  # -------------------------------------------------------------------------
   # Validate Secrets
-  # ──────────────────────────────────────────────
+  # -------------------------------------------------------------------------
   validate-secrets:
     name: Validate Secrets
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - name: Check required secrets
+        shell: pwsh
         run: |
-          MISSING=0
-          for SECRET_NAME in DEPLOY_TOKEN NOTIFY_WEBHOOK UIPATH_ORCHESTRATOR_URL UIPATH_ORCHESTRATOR_TENANT; do
-            echo "Checking secret: $SECRET_NAME"
-          done
+          $missing = @()
+          if ("${{ secrets.UIPATH_ACCOUNT_NAME }}" -eq "") { $missing += "UIPATH_ACCOUNT_NAME" }
+          if ("${{ secrets.UIPATH_TENANT_NAME }}" -eq "") { $missing += "UIPATH_TENANT_NAME" }
+          if ("${{ secrets.UIPATH_CLIENT_ID }}" -eq "") { $missing += "UIPATH_CLIENT_ID" }
+          if ("${{ secrets.UIPATH_CLIENT_SECRET }}" -eq "") { $missing += "UIPATH_CLIENT_SECRET" }
+          if ("${{ secrets.UIPATH_ORCHESTRATOR_URL }}" -eq "") { $missing += "UIPATH_ORCHESTRATOR_URL" }
+          if ("${{ secrets.SLACK_WEBHOOK_URL }}" -eq "") { $missing += "SLACK_WEBHOOK_URL" }
+          if ($missing.Count -gt 0) {
+            Write-Error "Missing required secrets: $($missing -join ', ')"
+            exit 1
+          }
+          Write-Host "All required secrets are configured."
 
-          echo "## Secrets Validation" >> "$GITHUB_STEP_SUMMARY"
-          echo "All required secrets are configured." >> "$GITHUB_STEP_SUMMARY"
-
-  # ──────────────────────────────────────────────
+  # -------------------------------------------------------------------------
   # Build
-  # ──────────────────────────────────────────────
+  # -------------------------------------------------------------------------
   build:
-    name: Build & Package
-    needs: [validate-secrets]
+    name: Build & Analyze
     runs-on: windows-latest
+    needs: validate-secrets
     outputs:
       version: ${{ steps.version.outputs.version }}
-      artifact_name: ${{ steps.version.outputs.artifact_name }}
+      package_name: ${{ steps.version.outputs.package_name }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Determine version
+      - name: Set up UiPath CLI
+        shell: pwsh
+        run: |
+          $cliUrl = "https://uipath.pkgs.visualstudio.com/Public.Feeds/_packaging/UiPath-Official/nuget/v3/index.json"
+          dotnet nuget add source $cliUrl --name UiPath 2>$null
+          dotnet tool install UiPath.CLI --global --add-source $cliUrl || dotnet tool update UiPath.CLI --global --add-source $cliUrl
+
+      - name: Analyze project
+        shell: pwsh
+        run: |
+          uipcli package analyze "${{ github.workspace }}" --output-type json
+
+      - name: Build NuGet package
+        shell: pwsh
+        run: |
+          uipcli package pack "${{ github.workspace }}" `
+            --output "${{ github.workspace }}\output" `
+            --autoVersion
+
+      - name: Compute version
         id: version
         shell: pwsh
         run: |
-          if ("${{ github.ref }}" -like "refs/heads/release/*") {
-            $version = "${{ github.ref_name }}" -replace "^release/", ""
-          } else {
-            $version = "dev.${{ github.run_number }}"
-          }
-          echo "version=$version" >> $env:GITHUB_OUTPUT
-          echo "artifact_name=${{ env.APP_NAME }}-$version" >> $env:GITHUB_OUTPUT
-          Write-Host "Version: $version"
+          $shortSha = "${{ github.sha }}".Substring(0, 8)
+          $branch = "${{ github.ref_name }}" -replace '/', '-'
+          $version = "${branch}-${shortSha}"
+          echo "version=${version}" >> $env:GITHUB_OUTPUT
+          $pkg = Get-ChildItem -Path "${{ github.workspace }}\output\*.nupkg" | Select-Object -First 1
+          echo "package_name=$($pkg.Name)" >> $env:GITHUB_OUTPUT
 
-      - name: Package UiPath project
-        shell: pwsh
-        run: |
-          $version = "${{ steps.version.outputs.version }}"
-          $outputDir = "output"
-          New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
-
-          # Attempt UiPath CLI pack
-          $uipcli = Get-Command "uipcli" -ErrorAction SilentlyContinue
-          if ($uipcli) {
-            Write-Host "Using UiPath CLI to pack project..."
-            uipcli package pack `
-              --project-path . `
-              --output $outputDir `
-              --version $version `
-              --autoVersion
-          } else {
-            Write-Host "UiPath CLI not found. Falling back to zip packaging..."
-            $zipName = "${{ env.APP_NAME }}-${version}.nupkg"
-            Compress-Archive -Path @(
-              "*.xaml",
-              "*.json",
-              "*.uipath",
-              "project.json"
-            ) -DestinationPath "$outputDir/$zipName" -Force -ErrorAction SilentlyContinue
-
-            if (-not (Test-Path "$outputDir/$zipName")) {
-              Write-Host "Packaging specific files failed, packaging entire directory..."
-              Compress-Archive -Path "./*" -DestinationPath "$outputDir/$zipName" -Force
-            }
-          }
-
-          Write-Host "Package contents:"
-          Get-ChildItem -Path $outputDir -Recurse | Format-Table Name, Length
-
-      - name: Run UiPath Analyzer
-        shell: pwsh
-        run: |
-          Write-Host "Running UiPath Workflow Analyzer..."
-          $analyzer = Get-Command "UiPath.Studio.CommandLine" -ErrorAction SilentlyContinue
-          if ($analyzer) {
-            UiPath.Studio.CommandLine analyze --project-path .
-          } else {
-            Write-Host "UiPath Analyzer not available. Skipping static analysis."
-          }
-        continue-on-error: true
-
-      - name: Build summary
-        if: always()
-        shell: pwsh
-        run: |
-          $summary = @"
-          ## Build Summary
-
-          | Property | Value |
-          |----------|-------|
-          | App Name | ${{ env.APP_NAME }} |
-          | Version | ${{ steps.version.outputs.version }} |
-          | Branch | ${{ github.ref_name }} |
-          | Commit | ${{ github.sha }} |
-          | Runner | ${{ runner.os }} |
-          "@
-          $summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
-
-      - name: Upload build artifacts
+      - name: Upload package artifact
         uses: actions/upload-artifact@v4
         with:
-          name: build-artifacts
-          path: |
-            output/*.nupkg
-            output/*.zip
+          name: uipath-package
+          path: output/*.nupkg
           retention-days: 30
 
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: |
-            TestResults/
-          retention-days: 30
-        continue-on-error: true
-
-  # ──────────────────────────────────────────────
-  # Security
-  # ──────────────────────────────────────────────
+  # -------------------------------------------------------------------------
+  # Security Scan
+  # -------------------------------------------------------------------------
   security:
     name: Security Scan
-    needs: [build]
-    uses: ./.github/workflows/_security-scan.yml
-    with:
-      app_name: "uipath-rpa"
-      scan_path: "."
-    secrets: inherit
+    runs-on: windows-latest
+    needs: build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-  # ──────────────────────────────────────────────
-  # Deploy - QA
-  # ──────────────────────────────────────────────
+      - name: Scan project files
+        shell: pwsh
+        run: |
+          Write-Host "Running security analysis on UiPath project artifacts..."
+          # Verify no secrets or credentials are embedded in XAML workflows
+          $patterns = @("password", "secret", "apikey", "connectionstring")
+          $found = $false
+          foreach ($pattern in $patterns) {
+            $matches = Get-ChildItem -Recurse -Include *.xaml | Select-String -Pattern $pattern -CaseSensitive:$false
+            if ($matches) {
+              Write-Warning "Potential credential found matching pattern: $pattern"
+              $found = $true
+            }
+          }
+          if ($found) {
+            Write-Error "Security scan detected potential embedded credentials."
+            exit 1
+          }
+          Write-Host "Security scan passed - no embedded credentials detected."
+
+  # -------------------------------------------------------------------------
+  # Deploy - QA (INT is skipped for UiPath)
+  # -------------------------------------------------------------------------
   deploy-qa:
     name: Deploy to QA
+    runs-on: windows-latest
     needs: [build, security]
-    if: github.ref == 'refs/heads/qa'
-    uses: ./.github/workflows/_deploy.yml
-    with:
-      environment: qa
-      app_name: "uipath-rpa"
-      version: ${{ needs.build.outputs.version }}
-      deploy_method: uipath-orchestrator
-    secrets: inherit
+    if: >-
+      github.ref == 'refs/heads/qa'
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'qa')
+    environment:
+      name: qa
+      url: ${{ secrets.UIPATH_ORCHESTRATOR_URL }}
+    steps:
+      - name: Download package artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: uipath-package
+          path: package
 
-  # ──────────────────────────────────────────────
+      - name: Deploy to QA via UiPath Orchestrator
+        shell: pwsh
+        run: |
+          $cliUrl = "https://uipath.pkgs.visualstudio.com/Public.Feeds/_packaging/UiPath-Official/nuget/v3/index.json"
+          dotnet tool install UiPath.CLI --global --add-source $cliUrl 2>$null
+
+          $pkg = Get-ChildItem -Path "package\*.nupkg" | Select-Object -First 1
+          Write-Host "Deploying $($pkg.Name) to QA via ${{ env.DEPLOY_METHOD }}"
+
+          uipcli package deploy "$($pkg.FullName)" `
+            "${{ secrets.UIPATH_ORCHESTRATOR_URL }}" `
+            --accountName "${{ secrets.UIPATH_ACCOUNT_NAME }}" `
+            --tenantName "${{ secrets.UIPATH_TENANT_NAME }}-qa" `
+            --clientId "${{ secrets.UIPATH_CLIENT_ID }}" `
+            --clientSecret "${{ secrets.UIPATH_CLIENT_SECRET }}"
+
+  notify-qa:
+    name: Notify - QA Deployment
+    runs-on: ubuntu-latest
+    needs: deploy-qa
+    if: always()
+    steps:
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "${{ env.APP_NAME }} deployed to QA via ${{ env.DEPLOY_METHOD }} - Status: ${{ needs.deploy-qa.result }} - Version: ${{ needs.build.outputs.version || 'N/A' }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # -------------------------------------------------------------------------
   # Deploy - STAGE
-  # ──────────────────────────────────────────────
+  # -------------------------------------------------------------------------
   deploy-stage:
     name: Deploy to STAGE
+    runs-on: windows-latest
     needs: [build, security]
-    if: github.ref == 'refs/heads/stage'
-    uses: ./.github/workflows/_deploy.yml
-    with:
-      environment: stage
-      app_name: "uipath-rpa"
-      version: ${{ needs.build.outputs.version }}
-      deploy_method: uipath-orchestrator
-    secrets: inherit
+    if: >-
+      github.ref == 'refs/heads/stage'
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'stage')
+    environment:
+      name: stage
+      url: ${{ secrets.UIPATH_ORCHESTRATOR_URL }}
+    steps:
+      - name: Download package artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: uipath-package
+          path: package
 
-  # ──────────────────────────────────────────────
+      - name: Deploy to STAGE via UiPath Orchestrator
+        shell: pwsh
+        run: |
+          $cliUrl = "https://uipath.pkgs.visualstudio.com/Public.Feeds/_packaging/UiPath-Official/nuget/v3/index.json"
+          dotnet tool install UiPath.CLI --global --add-source $cliUrl 2>$null
+
+          $pkg = Get-ChildItem -Path "package\*.nupkg" | Select-Object -First 1
+          Write-Host "Deploying $($pkg.Name) to STAGE via ${{ env.DEPLOY_METHOD }}"
+
+          uipcli package deploy "$($pkg.FullName)" `
+            "${{ secrets.UIPATH_ORCHESTRATOR_URL }}" `
+            --accountName "${{ secrets.UIPATH_ACCOUNT_NAME }}" `
+            --tenantName "${{ secrets.UIPATH_TENANT_NAME }}-stage" `
+            --clientId "${{ secrets.UIPATH_CLIENT_ID }}" `
+            --clientSecret "${{ secrets.UIPATH_CLIENT_SECRET }}"
+
+  notify-stage:
+    name: Notify - STAGE Deployment
+    runs-on: ubuntu-latest
+    needs: deploy-stage
+    if: always()
+    steps:
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "${{ env.APP_NAME }} deployed to STAGE via ${{ env.DEPLOY_METHOD }} - Status: ${{ needs.deploy-stage.result }} - Version: ${{ needs.build.outputs.version || 'N/A' }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # -------------------------------------------------------------------------
   # Deploy - PROD
-  # ──────────────────────────────────────────────
+  # -------------------------------------------------------------------------
   deploy-prod:
     name: Deploy to PROD
+    runs-on: windows-latest
     needs: [build, security]
-    if: github.ref == 'refs/heads/main'
-    uses: ./.github/workflows/_deploy.yml
-    with:
-      environment: prod
-      app_name: "uipath-rpa"
-      version: ${{ needs.build.outputs.version }}
-      deploy_method: uipath-orchestrator
-      rollback_on_failure: true
-    secrets: inherit
+    if: >-
+      github.ref == 'refs/heads/main'
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
+    environment:
+      name: prod
+      url: ${{ secrets.UIPATH_ORCHESTRATOR_URL }}
+    steps:
+      - name: Download package artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: uipath-package
+          path: package
 
-  # ──────────────────────────────────────────────
-  # Notify - QA
-  # ──────────────────────────────────────────────
-  notify-qa:
-    needs: [deploy-qa, build]
-    if: always() && needs.deploy-qa.result != 'skipped'
-    uses: ./.github/workflows/_notify.yml
-    with:
-      job_name: "Deploy to QA"
-      status: ${{ needs.deploy-qa.result == 'success' && 'success' || 'failure' }}
-      app_name: ${{ github.event.repository.name }}
-      environment: "qa"
-      version: ${{ needs.build.outputs.version }}
-    secrets: inherit
+      - name: Deploy to PROD via UiPath Orchestrator
+        shell: pwsh
+        run: |
+          $cliUrl = "https://uipath.pkgs.visualstudio.com/Public.Feeds/_packaging/UiPath-Official/nuget/v3/index.json"
+          dotnet tool install UiPath.CLI --global --add-source $cliUrl 2>$null
 
-  # ──────────────────────────────────────────────
-  # Notify - STAGE
-  # ──────────────────────────────────────────────
-  notify-stage:
-    needs: [deploy-stage, build]
-    if: always() && needs.deploy-stage.result != 'skipped'
-    uses: ./.github/workflows/_notify.yml
-    with:
-      job_name: "Deploy to STAGE"
-      status: ${{ needs.deploy-stage.result == 'success' && 'success' || 'failure' }}
-      app_name: ${{ github.event.repository.name }}
-      environment: "stage"
-      version: ${{ needs.build.outputs.version }}
-    secrets: inherit
+          $pkg = Get-ChildItem -Path "package\*.nupkg" | Select-Object -First 1
+          Write-Host "Deploying $($pkg.Name) to PROD via ${{ env.DEPLOY_METHOD }}"
 
-  # ──────────────────────────────────────────────
-  # Notify - PROD
-  # ──────────────────────────────────────────────
+          uipcli package deploy "$($pkg.FullName)" `
+            "${{ secrets.UIPATH_ORCHESTRATOR_URL }}" `
+            --accountName "${{ secrets.UIPATH_ACCOUNT_NAME }}" `
+            --tenantName "${{ secrets.UIPATH_TENANT_NAME }}" `
+            --clientId "${{ secrets.UIPATH_CLIENT_ID }}" `
+            --clientSecret "${{ secrets.UIPATH_CLIENT_SECRET }}"
+
   notify-prod:
-    needs: [deploy-prod, build]
-    if: always() && needs.deploy-prod.result != 'skipped'
-    uses: ./.github/workflows/_notify.yml
-    with:
-      job_name: "Deploy to PROD"
-      status: ${{ needs.deploy-prod.result == 'success' && 'success' || 'failure' }}
-      app_name: ${{ github.event.repository.name }}
-      environment: "prod"
-      version: ${{ needs.build.outputs.version }}
-    secrets: inherit
+    name: Notify - PROD Deployment
+    runs-on: ubuntu-latest
+    needs: deploy-prod
+    if: always()
+    steps:
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "${{ env.APP_NAME }} deployed to PROD via ${{ env.DEPLOY_METHOD }} - Status: ${{ needs.deploy-prod.result }} - Version: ${{ needs.build.outputs.version || 'N/A' }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-  # ──────────────────────────────────────────────
-  # Notify - Build/Security Failure
-  # ──────────────────────────────────────────────
+  # -------------------------------------------------------------------------
+  # Notify Failure
+  # -------------------------------------------------------------------------
   notify-failure:
-    needs: [build, security]
+    name: Notify - Pipeline Failure
+    runs-on: ubuntu-latest
+    needs: [validate-secrets, build, security]
     if: failure()
-    uses: ./.github/workflows/_notify.yml
-    with:
-      job_name: "Build/Security"
-      status: "failure"
-      app_name: ${{ github.event.repository.name }}
-      environment: "build"
-      version: "unknown"
-    secrets: inherit
+    steps:
+      - name: Send failure notification
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "PIPELINE FAILED: ${{ env.APP_NAME }} on branch ${{ github.ref_name }} - Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-  # ──────────────────────────────────────────────
-  # Release Tag (main only)
-  # ──────────────────────────────────────────────
+  # -------------------------------------------------------------------------
+  # Release Tag (main branch only)
+  # -------------------------------------------------------------------------
   release-tag:
     name: Create Release Tag
-    needs: [build, deploy-prod]
-    if: success() && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    needs: deploy-prod
+    if: github.ref == 'refs/heads/main'
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Create git tag
-        run: |
-          VERSION="${{ needs.build.outputs.version }}"
-          TAG="v${VERSION}"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "${TAG}" -m "Release ${TAG} - ${{ env.APP_NAME }}"
-          git push origin "${TAG}"
-          echo "TAG=${TAG}" >> "$GITHUB_ENV"
 
       - name: Generate changelog
         id: changelog
         run: |
-          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          if [ -n "$PREVIOUS_TAG" ]; then
-            CHANGELOG=$(git log "${PREVIOUS_TAG}..HEAD" --pretty=format:"- %s (%h)" --no-merges)
-          else
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$PREVIOUS_TAG" ]; then
             CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges -20)
+          else
+            CHANGELOG=$(git log "${PREVIOUS_TAG}..HEAD" --pretty=format:"- %s (%h)" --no-merges)
           fi
           echo "changelog<<EOF" >> "$GITHUB_OUTPUT"
           echo "$CHANGELOG" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
+      - name: Determine next version tag
+        id: tag
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0 --match "v*" 2>/dev/null || echo "v0.0.0")
+          MAJOR=$(echo "$LATEST_TAG" | sed 's/v//' | cut -d. -f1)
+          MINOR=$(echo "$LATEST_TAG" | sed 's/v//' | cut -d. -f2)
+          PATCH=$(echo "$LATEST_TAG" | sed 's/v//' | cut -d. -f3)
+          PATCH=$((PATCH + 1))
+          NEW_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "new_tag=${NEW_TAG}" >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.TAG }}
-          name: "${{ env.APP_NAME }} ${{ env.TAG }}"
+          tag_name: ${{ steps.tag.outputs.new_tag }}
+          name: "${{ env.APP_NAME }} ${{ steps.tag.outputs.new_tag }}"
           body: |
-            ## Release ${{ env.TAG }}
+            ## Release ${{ steps.tag.outputs.new_tag }}
 
-            **Application:** ${{ env.APP_NAME }}
-            **Environment:** Production
-            **Commit:** ${{ github.sha }}
-
-            ### Changes
+            ### Changelog
             ${{ steps.changelog.outputs.changelog }}
-          generate_release_notes: true
 
-  # ──────────────────────────────────────────────
+            ### Artifacts
+            - Package: `${{ needs.build.outputs.package_name }}`
+            - Deploy method: `${{ env.DEPLOY_METHOD }}`
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # -------------------------------------------------------------------------
   # Pipeline Summary
-  # ──────────────────────────────────────────────
+  # -------------------------------------------------------------------------
   pipeline-summary:
     name: Pipeline Summary
-    needs: [validate-secrets, build, security, deploy-qa, deploy-stage, deploy-prod, notify-qa, notify-stage, notify-prod, notify-failure, release-tag]
-    if: always()
     runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - validate-secrets
+      - build
+      - security
+      - deploy-qa
+      - deploy-stage
+      - deploy-prod
+      - release-tag
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v8
-        with:
-          path: forgeops-artifacts
-        continue-on-error: true
-
       - name: Generate pipeline summary
         run: |
-          if [ -f "./scripts/forgeops-summary.sh" ]; then
-            chmod +x ./scripts/forgeops-summary.sh
-            ./scripts/forgeops-summary.sh
-          else
-            echo "## Pipeline Summary" >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "| Job | Status |" >> "$GITHUB_STEP_SUMMARY"
-            echo "|-----|--------|" >> "$GITHUB_STEP_SUMMARY"
-            echo "| Validate Secrets | ${{ needs.validate-secrets.result }} |" >> "$GITHUB_STEP_SUMMARY"
-            echo "| Build | ${{ needs.build.result }} |" >> "$GITHUB_STEP_SUMMARY"
-            echo "| Security | ${{ needs.security.result }} |" >> "$GITHUB_STEP_SUMMARY"
-            echo "| Deploy QA | ${{ needs.deploy-qa.result }} |" >> "$GITHUB_STEP_SUMMARY"
-            echo "| Deploy STAGE | ${{ needs.deploy-stage.result }} |" >> "$GITHUB_STEP_SUMMARY"
-            echo "| Deploy PROD | ${{ needs.deploy-prod.result }} |" >> "$GITHUB_STEP_SUMMARY"
-            echo "| Release Tag | ${{ needs.release-tag.result }} |" >> "$GITHUB_STEP_SUMMARY"
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "**Pipeline Run:** [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
+          ## Pipeline Summary - uipath-rpa-bot
 
-      - name: Upload audit trail
-        uses: actions/upload-artifact@v4
-        with:
-          name: pipeline-audit-trail
-          path: |
-            forgeops-artifacts/
-          retention-days: 90
-        continue-on-error: true
+          | Stage            | Status |
+          |------------------|--------|
+          | Validate Secrets | ${{ needs.validate-secrets.result }} |
+          | Build & Analyze  | ${{ needs.build.result }} |
+          | Security Scan    | ${{ needs.security.result }} |
+          | Deploy QA        | ${{ needs.deploy-qa.result }} |
+          | Deploy STAGE     | ${{ needs.deploy-stage.result }} |
+          | Deploy PROD      | ${{ needs.deploy-prod.result }} |
+          | Release Tag      | ${{ needs.release-tag.result }} |
+
+          **Note:** INT deployment is skipped for UiPath RPA bots.
+
+          **Branch:** `${{ github.ref_name }}`
+          **Commit:** `${{ github.sha }}`
+          **Triggered by:** `${{ github.actor }}`
+          **Run:** [View](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          SUMMARY

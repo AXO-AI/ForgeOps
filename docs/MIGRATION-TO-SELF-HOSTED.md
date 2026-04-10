@@ -1,17 +1,34 @@
-# Migrating to Self-Hosted Runners
+# Migration to Self-Hosted Runners
 
-## When to Migrate
-- Corporate network access needed (Cherwell, SonarQube, deploy servers)
-- Faster builds with dedicated hardware
-- Windows runners for UiPath
+## Why Self-Hosted
+
+- Faster builds with persistent caches
+- Access to internal network resources
+- Custom tooling pre-installed
+- Cost savings at scale
+
+## Prerequisites
+
+- Linux VM (Ubuntu 22.04+) or container host
+- Network access to GitHub and internal registries
+- Service account with appropriate permissions
 
 ## Steps
-1. Linux: `bash scripts/setup-runner.sh --url https://github.com/yourorg --token TOKEN --labels build,security,deploy`
-2. Windows: `.\scripts\setup-runner-windows.ps1 -Url "https://github.com/yourorg" -Token "TOKEN"`
-3. Replace `ubuntu-latest` with `[self-hosted, linux, build]` in workflow files
-4. Replace `windows-latest` with `[self-hosted, windows, uipath]`
 
-## Quick Replace
-```bash
-sed -i 's/runs-on: ubuntu-latest/runs-on: [self-hosted, linux, build]/g' .github/workflows/*.yml
-```
+1. Provision runner VM or container
+2. Install the GitHub Actions runner agent
+3. Register the runner with the ForgeOps organization
+4. Apply labels: `self-hosted`, `linux`, `x64`
+5. Update workflow files to use `runs-on: [self-hosted, linux]`
+6. Test with a non-production workflow first
+7. Roll out to all pipelines
+
+## Runner Maintenance
+
+- Auto-update is enabled by default
+- Monitor runner health via the dashboard
+- Self-healing workflow restarts offline runners every 6 hours
+
+## Rollback to GitHub-Hosted
+
+Change `runs-on` back to `ubuntu-latest` in workflow files and push.

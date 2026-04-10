@@ -1,0 +1,55 @@
+{
+  "version": "6.0.0",
+  "platform": "ForgeOps",
+  "roles": {
+    "admin": {
+      "description": "Full platform access, can manage all workflows and settings",
+      "permissions": ["read", "write", "deploy", "approve", "admin"]
+    },
+    "release_engineer": {
+      "description": "Manages releases and production deployments",
+      "permissions": ["read", "write", "deploy", "approve"]
+    },
+    "developer": {
+      "description": "Develops features and submits pull requests",
+      "permissions": ["read", "write"]
+    },
+    "tech_lead": {
+      "description": "Reviews code and approves promotions",
+      "permissions": ["read", "write", "approve"]
+    },
+    "qa_team": {
+      "description": "Validates builds in QA environment",
+      "permissions": ["read", "deploy:qa"]
+    },
+    "uat_team": {
+      "description": "Validates builds in Stage/UAT environment",
+      "permissions": ["read", "deploy:stage"]
+    }
+  },
+  "users": {
+    "askboppana": {
+      "role": "admin",
+      "email": "askboppana@forgeops.io",
+      "notifications": ["email", "teams"]
+    }
+  },
+  "email_groups": {
+    "platform_alerts": ["askboppana@forgeops.io"],
+    "deploy_notifications": ["askboppana@forgeops.io"],
+    "security_alerts": ["askboppana@forgeops.io"]
+  },
+  "environments": {
+    "int": { "auto_deploy": true, "approval_required": false },
+    "qa": { "auto_deploy": false, "approval_required": true },
+    "stage": { "auto_deploy": false, "approval_required": true },
+    "prod": { "auto_deploy": false, "approval_required": true }
+  },
+  "integrations": {
+    "jira": { "enabled": true, "project_prefix": "FORGE" },
+    "teams": { "enabled": true },
+    "email": { "enabled": true },
+    "splunk": { "enabled": true },
+    "cherwell": { "enabled": true }
+  }
+}

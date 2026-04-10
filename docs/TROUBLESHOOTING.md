@@ -1,25 +1,34 @@
 # Troubleshooting
 
-## Permission denied on scripts
-Run: `chmod +x scripts/*.sh scripts/*.py` and push. Workflows also auto-fix this.
+## Common Issues
 
-## Integration skips everything
-Expected — add secrets to enable. See docs/SETUP.md.
+### Pipeline fails at build step
+- Check that all dependencies are declared in the build file
+- Verify the correct runtime version is specified
+- Review the build logs in the Actions tab
 
-## SonarQube/Jira/email/Teams fails
-Check secrets in GitHub → Org → Settings → Secrets. If not configured, step should skip with "⏭️".
+### Pipeline fails at security scan
+- SAST findings block the PR if severity is High or Critical
+- Review findings in the security scan output
+- See [How to Read Security Results](knowledge/how-to-read-security-results.md)
 
-## Dashboard blank screen
-Open DevTools → Console. Usually a CDN load error. Refresh.
+### Deploy fails with permission error
+- Verify secrets are configured in GitHub Org Secrets
+- Check that the environment protection rules allow the deployer
+- Confirm the service account has target environment access
 
-## Pipeline queued long time
-GitHub free: 20 concurrent jobs. Switch to self-hosted for more.
+### Notifications not sending
+- Check the webhook URL secret is set and valid
+- Verify the SMTP credentials for email
+- Review the notify workflow logs
 
-## Merge button disabled
-CI checks must pass first. Fix failing checks.
+### Self-healing not triggering
+- Confirm the cron schedule is active (every 6 hours)
+- Check that the self-healing workflow is not disabled
+- Review the self-heal workflow run history
 
-## Jira tickets not transitioning
-Check: JIRA_URL + JIRA_TOKEN set, ticket key in commit message (PROJ-123), transition name matches.
+## Getting Help
 
-## Getting help
-Create a [Support Ticket](https://github.com/askboppana/ForgeOps/issues/new?template=support-request.md).
+1. Check this guide and the [Knowledge Base](knowledge/)
+2. Search existing [Issues](https://github.com/askboppana/ForgeOps/issues)
+3. Open a [Support Request](https://github.com/askboppana/ForgeOps/issues/new?template=support-request.md)

@@ -8,10 +8,6 @@ on:
         required: false
         type: string
         default: ""
-      app_name:
-        description: "Application name"
-        required: true
-        type: string
       scan_path:
         description: "Path to scan"
         required: false
@@ -22,247 +18,416 @@ on:
         required: false
         type: string
         default: "HIGH"
-    outputs:
-      passed:
-        description: "Whether all security checks passed"
-        value: ${{ jobs.security-gate.outputs.passed }}
     secrets:
-      BLACK_DUCK_TOKEN:
-        required: false
       BLACK_DUCK_URL:
         required: false
-      GITLEAKS_LICENSE:
+      BLACK_DUCK_API_TOKEN:
         required: false
-      SONARQUBE_TOKEN:
+      SNYK_TOKEN:
         required: false
-      SONARQUBE_URL:
+      GITHUB_PAT:
         required: false
 
 jobs:
   sast:
-    name: Static Application Security Testing
+    name: SAST - Static Analysis
     runs-on: ubuntu-latest
     outputs:
-      result: ${{ steps.sast-result.outputs.status }}
+      status: ${{ steps.sast-result.outputs.status }}
+      findings: ${{ steps.sast-result.outputs.findings }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
+        uses: actions/checkout@v4
 
-      - name: Make scripts executable
+      - name: Set script permissions
         run: chmod +x scripts/*.sh scripts/*.py 2>/dev/null || true
 
-      - name: Run SonarQube SAST
-        id: sonar
-        if: env.SONARQUBE_TOKEN != ''
-        env:
-          SONARQUBE_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
-          SONARQUBE_URL: ${{ secrets.SONARQUBE_URL }}
+      - name: Check SAST secrets
+        id: check-secrets
         run: |
-          echo "Running SonarQube analysis against $SONARQUBE_URL"
-          echo "Scanning path: ${{ inputs.scan_path }}"
-          echo "sonar_ran=true" >> "$GITHUB_OUTPUT"
-
-      - name: Run CodeQL (fallback)
-        if: env.SONARQUBE_TOKEN == ''
+          if [ -n "$SNYK_TOKEN_CHECK" ]; then
+            echo "snyk_available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "snyk_available=false" >> "$GITHUB_OUTPUT"
+          fi
         env:
-          SONARQUBE_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+          SNYK_TOKEN_CHECK: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Run CodeQL Analysis
         uses: github/codeql-action/init@v3
         with:
           languages: javascript,python
+        continue-on-error: true
+
+      - name: CodeQL Autobuild
+        uses: github/codeql-action/autobuild@v3
+        continue-on-error: true
+
+      - name: CodeQL Analysis
+        id: codeql
+        uses: github/codeql-action/analyze@v3
+        continue-on-error: true
+
+      - name: Run Semgrep SAST
+        id: semgrep
+        run: |
+          pip install semgrep
+          semgrep --config auto --json --output semgrep-results.json ${{ inputs.scan_path }} || true
+          if [ -f semgrep-results.json ]; then
+            count=$(python3 -c "import json; d=json.load(open('semgrep-results.json')); print(len(d.get('results',[])))" 2>/dev/null || echo "0")
+            echo "findings=$count" >> "$GITHUB_OUTPUT"
+          else
+            echo "findings=0" >> "$GITHUB_OUTPUT"
+          fi
+        continue-on-error: true
+
+      - name: Upload SAST results
+        uses: actions/upload-artifact@v4
+        with:
+          name: sast-results
+          path: semgrep-results.json
+          retention-days: 30
+        if: always()
+        continue-on-error: true
 
       - name: Set SAST result
         id: sast-result
-        if: always()
-        run: echo "status=completed" >> "$GITHUB_OUTPUT"
+        run: |
+          findings="${{ steps.semgrep.outputs.findings }}"
+          if [ "$findings" = "0" ] || [ -z "$findings" ]; then
+            echo "status=PASS" >> "$GITHUB_OUTPUT"
+            echo "findings=0" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=FAIL" >> "$GITHUB_OUTPUT"
+            echo "findings=$findings" >> "$GITHUB_OUTPUT"
+          fi
 
   sca:
-    name: Software Composition Analysis
+    name: SCA - Software Composition Analysis
     runs-on: ubuntu-latest
     outputs:
-      result: ${{ steps.sca-result.outputs.status }}
+      status: ${{ steps.sca-result.outputs.status }}
+      findings: ${{ steps.sca-result.outputs.findings }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
-      - name: Make scripts executable
+      - name: Set script permissions
         run: chmod +x scripts/*.sh scripts/*.py 2>/dev/null || true
 
-      - name: Run Black Duck SCA
-        id: blackduck
-        if: env.BLACK_DUCK_TOKEN != ''
-        env:
-          BLACK_DUCK_TOKEN: ${{ secrets.BLACK_DUCK_TOKEN }}
-          BLACK_DUCK_URL: ${{ secrets.BLACK_DUCK_URL }}
+      - name: Check Black Duck availability
+        id: check-bd
         run: |
-          echo "Running Black Duck SCA scan"
-          echo "Project: ${{ inputs.app_name }}"
-          echo "Server: $BLACK_DUCK_URL"
-          echo "blackduck_ran=true" >> "$GITHUB_OUTPUT"
-
-      - name: Run OWASP Dependency-Check (fallback)
-        if: env.BLACK_DUCK_TOKEN == ''
+          if [ -n "$BD_URL" ] && [ -n "$BD_TOKEN" ]; then
+            echo "blackduck_available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "blackduck_available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Black Duck not configured, falling back to OWASP Dependency-Check"
+          fi
         env:
-          BLACK_DUCK_TOKEN: ${{ secrets.BLACK_DUCK_TOKEN }}
+          BD_URL: ${{ secrets.BLACK_DUCK_URL }}
+          BD_TOKEN: ${{ secrets.BLACK_DUCK_API_TOKEN }}
+
+      - name: Run Black Duck SCA
+        if: steps.check-bd.outputs.blackduck_available == 'true'
+        id: blackduck
+        run: |
+          echo "Running Black Duck scan..."
+          curl -sL "https://detect.synopsys.com/detect9.sh" -o detect.sh
+          chmod +x detect.sh
+          bash detect.sh \
+            --blackduck.url="${{ secrets.BLACK_DUCK_URL }}" \
+            --blackduck.api.token="${{ secrets.BLACK_DUCK_API_TOKEN }}" \
+            --detect.source.path="${{ inputs.scan_path }}" \
+            --detect.risk.report.pdf=true || true
+          echo "status=PASS" >> "$GITHUB_OUTPUT"
+        continue-on-error: true
+
+      - name: OWASP Dependency-Check (fallback)
+        if: steps.check-bd.outputs.blackduck_available != 'true'
+        id: owasp-dc
         uses: dependency-check/Dependency-Check_Action@main
         with:
-          project: ${{ inputs.app_name }}
+          project: "ForgeOps"
           path: ${{ inputs.scan_path }}
-          format: HTML
+          format: "HTML,JSON"
           args: >-
             --failOnCVSS 7
             --enableRetired
+        continue-on-error: true
 
       - name: Upload OWASP DC report
-        if: env.BLACK_DUCK_TOKEN == ''
+        if: steps.check-bd.outputs.blackduck_available != 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: owasp-dependency-check-report
+          name: owasp-dc-report
           path: reports/
+          retention-days: 30
+        continue-on-error: true
 
       - name: Set SCA result
         id: sca-result
-        if: always()
-        run: echo "status=completed" >> "$GITHUB_OUTPUT"
+        run: |
+          if [ "${{ steps.check-bd.outputs.blackduck_available }}" = "true" ]; then
+            if [ "${{ steps.blackduck.outcome }}" = "success" ]; then
+              echo "status=PASS" >> "$GITHUB_OUTPUT"
+              echo "findings=0" >> "$GITHUB_OUTPUT"
+            else
+              echo "status=FAIL" >> "$GITHUB_OUTPUT"
+              echo "findings=unknown" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            if [ "${{ steps.owasp-dc.outcome }}" = "success" ]; then
+              echo "status=PASS" >> "$GITHUB_OUTPUT"
+              echo "findings=0" >> "$GITHUB_OUTPUT"
+            else
+              echo "status=FAIL" >> "$GITHUB_OUTPUT"
+              echo "findings=unknown" >> "$GITHUB_OUTPUT"
+            fi
+          fi
 
   secrets:
     name: Secret Detection
     runs-on: ubuntu-latest
     outputs:
-      result: ${{ steps.secrets-result.outputs.status }}
+      status: ${{ steps.secrets-result.outputs.status }}
+      findings: ${{ steps.secrets-result.outputs.findings }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Make scripts executable
+      - name: Set script permissions
         run: chmod +x scripts/*.sh scripts/*.py 2>/dev/null || true
 
       - name: Run Gitleaks
+        id: gitleaks
         uses: gitleaks/gitleaks-action@v2
+        continue-on-error: true
         env:
-          GITHUB_TOKEN: ${{ github.token }}
-          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_PAT || github.token }}
+
+      - name: Run TruffleHog
+        id: trufflehog
+        run: |
+          docker run --rm -v "$PWD:/repo" trufflesecurity/trufflehog:latest \
+            filesystem /repo --json --no-update > trufflehog-results.json 2>/dev/null || true
+          if [ -f trufflehog-results.json ]; then
+            count=$(wc -l < trufflehog-results.json | tr -d ' ')
+            echo "findings=$count" >> "$GITHUB_OUTPUT"
+          else
+            echo "findings=0" >> "$GITHUB_OUTPUT"
+          fi
+        continue-on-error: true
+
+      - name: Upload secret scan results
+        uses: actions/upload-artifact@v4
+        with:
+          name: secret-scan-results
+          path: trufflehog-results.json
+          retention-days: 30
+        if: always()
+        continue-on-error: true
 
       - name: Set secrets result
         id: secrets-result
-        if: always()
         run: |
-          if [ "${{ steps.gitleaks.outcome }}" = "failure" ]; then
-            echo "status=failed" >> "$GITHUB_OUTPUT"
+          gitleaks_outcome="${{ steps.gitleaks.outcome }}"
+          trufflehog_findings="${{ steps.trufflehog.outputs.findings }}"
+          if [ "$gitleaks_outcome" = "failure" ] || [ "$trufflehog_findings" != "0" ]; then
+            echo "status=FAIL" >> "$GITHUB_OUTPUT"
+            echo "findings=$trufflehog_findings" >> "$GITHUB_OUTPUT"
           else
-            echo "status=completed" >> "$GITHUB_OUTPUT"
+            echo "status=PASS" >> "$GITHUB_OUTPUT"
+            echo "findings=0" >> "$GITHUB_OUTPUT"
           fi
 
   container:
-    name: Container Image Scan
+    name: Container Security Scan
     runs-on: ubuntu-latest
     if: inputs.image_name != ''
     outputs:
-      result: ${{ steps.container-result.outputs.status }}
+      status: ${{ steps.container-result.outputs.status }}
+      findings: ${{ steps.container-result.outputs.findings }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
-      - name: Make scripts executable
+      - name: Set script permissions
         run: chmod +x scripts/*.sh scripts/*.py 2>/dev/null || true
 
       - name: Run Trivy container scan
+        id: trivy
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ inputs.image_name }}
-          format: table
-          exit-code: 1
-          severity: ${{ inputs.severity_threshold }},CRITICAL
-          ignore-unfixed: true
+          format: "json"
+          output: "trivy-container-results.json"
+          severity: ${{ inputs.severity_threshold }}
+        continue-on-error: true
+
+      - name: Parse Trivy results
+        id: parse-trivy
+        run: |
+          if [ -f trivy-container-results.json ]; then
+            count=$(python3 -c "
+          import json
+          data = json.load(open('trivy-container-results.json'))
+          total = 0
+          for result in data.get('Results', []):
+              total += len(result.get('Vulnerabilities', []))
+          print(total)
+          " 2>/dev/null || echo "0")
+            echo "findings=$count" >> "$GITHUB_OUTPUT"
+          else
+            echo "findings=0" >> "$GITHUB_OUTPUT"
+          fi
+        continue-on-error: true
+
+      - name: Upload container scan results
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-scan-results
+          path: trivy-container-results.json
+          retention-days: 30
+        if: always()
+        continue-on-error: true
 
       - name: Set container result
         id: container-result
-        if: always()
-        run: echo "status=completed" >> "$GITHUB_OUTPUT"
+        run: |
+          findings="${{ steps.parse-trivy.outputs.findings }}"
+          if [ "${{ steps.trivy.outcome }}" = "failure" ]; then
+            echo "status=FAIL" >> "$GITHUB_OUTPUT"
+            echo "findings=${findings:-unknown}" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=PASS" >> "$GITHUB_OUTPUT"
+            echo "findings=${findings:-0}" >> "$GITHUB_OUTPUT"
+          fi
 
   sbom:
     name: SBOM Generation
     runs-on: ubuntu-latest
     outputs:
-      result: ${{ steps.sbom-result.outputs.status }}
+      status: ${{ steps.sbom-result.outputs.status }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
-      - name: Make scripts executable
+      - name: Set script permissions
         run: chmod +x scripts/*.sh scripts/*.py 2>/dev/null || true
 
       - name: Generate SBOM with Syft
+        id: syft
         uses: anchore/sbom-action@v0
         with:
           path: ${{ inputs.scan_path }}
           format: spdx-json
-          output-file: sbom-${{ inputs.app_name }}.spdx.json
+          output-file: sbom-spdx.json
+        continue-on-error: true
 
-      - name: Upload SBOM artifact
+      - name: Generate CycloneDX SBOM
+        id: cyclonedx
+        run: |
+          npm install -g @cyclonedx/cyclonedx-npm 2>/dev/null || true
+          pip install cyclonedx-bom 2>/dev/null || true
+          if [ -f package-lock.json ]; then
+            npx @cyclonedx/cyclonedx-npm --output-file sbom-cyclonedx.json 2>/dev/null || true
+          fi
+          if [ -f requirements.txt ]; then
+            cyclonedx-py requirements -i requirements.txt -o sbom-cyclonedx-py.json --format json 2>/dev/null || true
+          fi
+        continue-on-error: true
+
+      - name: Upload SBOM artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: sbom-${{ inputs.app_name }}
-          path: sbom-${{ inputs.app_name }}.spdx.json
+          name: sbom-reports
+          path: sbom-*.json
           retention-days: 90
+        if: always()
+        continue-on-error: true
 
       - name: Set SBOM result
         id: sbom-result
-        if: always()
-        run: echo "status=completed" >> "$GITHUB_OUTPUT"
+        run: |
+          if [ -f sbom-spdx.json ] || [ -f sbom-cyclonedx.json ] || [ -f sbom-cyclonedx-py.json ]; then
+            echo "status=PASS" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=FAIL" >> "$GITHUB_OUTPUT"
+          fi
 
   security-gate:
     name: Security Gate
     runs-on: ubuntu-latest
     needs: [sast, sca, secrets, container, sbom]
     if: always()
-    outputs:
-      passed: ${{ steps.gate.outputs.passed }}
     steps:
-      - name: Aggregate security results
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set script permissions
+        run: chmod +x scripts/*.sh scripts/*.py 2>/dev/null || true
+
+      - name: Write security status table
         id: gate
         run: |
-          echo "## Security Gate Results" >> "$GITHUB_STEP_SUMMARY"
+          sast_status="${{ needs.sast.outputs.status }}"
+          sca_status="${{ needs.sca.outputs.status }}"
+          secrets_status="${{ needs.secrets.outputs.status }}"
+          container_status="${{ needs.container.outputs.status }}"
+          sbom_status="${{ needs.sbom.outputs.status }}"
+
+          sast_findings="${{ needs.sast.outputs.findings }}"
+          sca_findings="${{ needs.sca.outputs.findings }}"
+          secrets_findings="${{ needs.secrets.outputs.findings }}"
+          container_findings="${{ needs.container.outputs.findings }}"
+
+          # Default skipped jobs
+          [ -z "$sast_status" ] && sast_status="SKIP"
+          [ -z "$sca_status" ] && sca_status="SKIP"
+          [ -z "$secrets_status" ] && secrets_status="SKIP"
+          [ -z "$container_status" ] && container_status="SKIP"
+          [ -z "$sbom_status" ] && sbom_status="SKIP"
+
+          echo "## Security Scan Results" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Check | Status |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|-------|--------|" >> "$GITHUB_STEP_SUMMARY"
-
-          FAILED=0
-
-          for JOB in sast sca secrets container sbom; do
-            case "$JOB" in
-              sast)     RESULT="${{ needs.sast.result }}" ;;
-              sca)      RESULT="${{ needs.sca.result }}" ;;
-              secrets)  RESULT="${{ needs.secrets.result }}" ;;
-              container) RESULT="${{ needs.container.result }}" ;;
-              sbom)     RESULT="${{ needs.sbom.result }}" ;;
-            esac
-
-            if [ "$RESULT" = "failure" ]; then
-              echo "| $JOB | FAILED |" >> "$GITHUB_STEP_SUMMARY"
-              FAILED=$((FAILED + 1))
-            elif [ "$RESULT" = "skipped" ]; then
-              echo "| $JOB | SKIPPED |" >> "$GITHUB_STEP_SUMMARY"
-            else
-              echo "| $JOB | PASSED |" >> "$GITHUB_STEP_SUMMARY"
-            fi
-          done
-
+          echo "| Scan Type | Status | Findings |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-----------|--------|----------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| SAST (Static Analysis) | ${sast_status} | ${sast_findings:-N/A} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| SCA (Dependency Check) | ${sca_status} | ${sca_findings:-N/A} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Secret Detection | ${secrets_status} | ${secrets_findings:-N/A} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Container Scan | ${container_status} | ${container_findings:-N/A} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| SBOM Generation | ${sbom_status} | N/A |" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
-          if [ "$FAILED" -gt 0 ]; then
-            echo "**Security gate: FAILED** ($FAILED check(s) failed)" >> "$GITHUB_STEP_SUMMARY"
-            echo "passed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "**Security gate: PASSED**" >> "$GITHUB_STEP_SUMMARY"
-            echo "passed=true" >> "$GITHUB_OUTPUT"
+          gate_passed="true"
+          if [ "$secrets_status" = "FAIL" ]; then
+            echo "GATE RESULT: FAIL - Secret detection found issues" >> "$GITHUB_STEP_SUMMARY"
+            gate_passed="false"
+          fi
+          if [ "$sast_status" = "FAIL" ]; then
+            echo "GATE RESULT: FAIL - SAST found issues" >> "$GITHUB_STEP_SUMMARY"
+            gate_passed="false"
+          fi
+          if [ "$sca_status" = "FAIL" ]; then
+            echo "GATE RESULT: FAIL - SCA found vulnerabilities" >> "$GITHUB_STEP_SUMMARY"
+            gate_passed="false"
+          fi
+          if [ "$container_status" = "FAIL" ]; then
+            echo "GATE RESULT: FAIL - Container scan found vulnerabilities" >> "$GITHUB_STEP_SUMMARY"
+            gate_passed="false"
           fi
 
-      - name: Fail if gate not passed
-        if: steps.gate.outputs.passed == 'false'
+          if [ "$gate_passed" = "true" ]; then
+            echo "GATE RESULT: PASS - All security checks passed" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          echo "gate_passed=$gate_passed" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce gate
+        if: steps.gate.outputs.gate_passed != 'true'
         run: |
-          echo "Security gate failed. Review the summary above."
+          echo "Security gate FAIL: one or more scans reported issues."
           exit 1

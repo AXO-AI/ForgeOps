@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: "📖 Knowledge base"
+  - name: Knowledge Base
     url: https://github.com/askboppana/ForgeOps/tree/main/docs/knowledge
-    about: "Check the knowledge articles before creating a ticket"
-  - name: "🔧 Troubleshooting guide"
+    about: Browse the knowledge base for guides and how-to articles
+  - name: Troubleshooting Guide
     url: https://github.com/askboppana/ForgeOps/blob/main/docs/TROUBLESHOOTING.md
-    about: "Common issues and fixes"
+    about: Check the troubleshooting guide before opening an issue
