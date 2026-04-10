@@ -90,7 +90,8 @@ var html=htm.bind(h);
 var ORG='askboppana';
 var cache={};
 function getToken(){return localStorage.getItem('fg_pat')||''}
-function apiGet(url){var k=url;if(cache[k]&&Date.now()-cache[k].t<120000)return Promise.resolve(cache[k].d);var h={Accept:'application/vnd.github.v3+json'};var tk=getToken();if(tk)h.Authorization='token '+tk;return fetch(url,{headers:h}).then(function(r){if(r.status===403)throw new Error('RATE_LIMITED');if(!r.ok)throw new Error(r.status+'');return r.json()}).then(function(d){cache[k]={d:d,t:Date.now()};return d})}
+var rateLimit={remaining:60,limit:60,reset:0};
+function apiGet(url){var k=url;if(cache[k]&&Date.now()-cache[k].t<120000)return Promise.resolve(cache[k].d);var h={Accept:'application/vnd.github.v3+json'};var tk=getToken();if(tk)h.Authorization='token '+tk;return fetch(url,{headers:h}).then(function(r){var rem=r.headers.get('x-ratelimit-remaining');var lim=r.headers.get('x-ratelimit-limit');var rst=r.headers.get('x-ratelimit-reset');if(rem!==null)rateLimit.remaining=parseInt(rem);if(lim!==null)rateLimit.limit=parseInt(lim);if(rst!==null)rateLimit.reset=parseInt(rst);if(r.status===403)throw new Error('RATE_LIMITED');if(!r.ok)throw new Error(r.status+'');return r.json()}).then(function(d){cache[k]={d:d,t:Date.now()};return d})}
 function api(path,opts){var url='https://api.github.com'+path;if(!opts)return apiGet(url);var tk=getToken();var h={Accept:'application/vnd.github.v3+json'};if(tk)h.Authorization='token '+tk;if(opts.body)h['Content-Type']='application/json';return fetch(url,{method:opts.method||'POST',headers:h,body:opts.body?JSON.stringify(opts.body):undefined}).then(function(r){if(!r.ok)return r.json().then(function(e){throw new Error(e.message||r.status)});if(r.status===204)return null;return r.json()})}
 function clearCache(){Object.keys(cache).forEach(function(k){delete cache[k]})}
 function fetchCmdData(){return fetch('https://raw.githubusercontent.com/'+ORG+'/ForgeOps/main/dashboard-data.json').then(function(r){return r.ok?r.json():null}).catch(function(){return null})}
@@ -414,7 +415,7 @@ return html`<div class="app">
     <div style="margin-top:auto;padding:8px 10px;border-top:1px solid var(--bd);font-size:9px;color:var(--td)"><span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--ok);margin-right:3px"></span>ForgeOps v6.0${lastRef[0]?' -- '+lastRef[0].toLocaleTimeString():''}</div>
   </div>
   <div class="mn">
-    <div class="hd"><button class="hb" onClick=${function(){setSideOpen(!sideOpen)}} aria-label="Toggle menu">Menu</button><span style="font-size:15px;font-weight:700;flex:1">${labels[page]||''}</span><button class="bt bs" style="font-size:10px" onClick=${refresh} aria-label="Refresh data">${loading?'...':'Refresh'}</button></div>
+    <div class="hd"><button class="hb" onClick=${function(){setSideOpen(!sideOpen)}} aria-label="Toggle menu">Menu</button><span style="font-size:15px;font-weight:700;flex:1">${labels[page]||''}</span><span style=${'font-size:10px;font-weight:500;color:'+(rateLimit.remaining>20?'var(--ok)':rateLimit.remaining>5?'var(--wa)':'var(--er)')}>API: ${rateLimit.remaining}/${rateLimit.limit}</span><button class="bt bs" style="font-size:10px" onClick=${refresh} aria-label="Refresh data">${loading?'...':'Refresh'}</button></div>
     <div class="ct">${renderPage()}</div>
     <div class="spark-btn" onClick=${function(){setSpark(!sparkOpen)}} aria-label="Open Spark AI assistant"><svg width="20" height="20" viewBox="0 0 40 40"><path d="M20 8L11 22h6.5l-2 10L27 18h-6.5l2-10z" fill="var(--in)" style="animation:sparkGlow 3s infinite"/></svg></div>
     ${sparkOpen&&html`<${SparkPanel} pg=${page} close=${function(){setSpark(false)}} startTour=${startTour}/>`}

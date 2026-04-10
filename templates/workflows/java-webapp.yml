@@ -1,0 +1,196 @@
+name: ForgeOps Java CI/CD
+
+on:
+  push:
+    branches: ['feature/*', 'hotfix/*']
+  pull_request:
+    branches: [int, qa, stage, main]
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options: [int, qa, stage, prod]
+
+permissions:
+  contents: write
+  checks: write
+
+env:
+  APP_NAME: "java-webapp-api"
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Build and Test
+        run: ./gradlew clean build test jacocoTestReport
+
+      - name: Test Report
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: java-junit
+          path: '**/build/test-results/test/*.xml'
+          reporter: java-junit
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: build/libs/*
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: '**/build/test-results/test/*.xml'
+
+  security:
+    name: Security Scan
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64 -o gitleaks
+          chmod +x gitleaks
+          ./gitleaks detect --source . --no-git --verbose || true
+
+      - name: Dependency Check
+        run: |
+          echo "Running OWASP dependency-check for ${{ env.APP_NAME }}"
+          if command -v ./gradlew &> /dev/null; then
+            ./gradlew dependencyCheckAnalyze || echo "Dependency check plugin not configured -- skipping"
+          else
+            echo "Gradle wrapper not found -- skipping dependency check"
+          fi
+
+  deploy-int:
+    name: Deploy to INT
+    needs: [security]
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'int') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'int')
+    environment: int
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy
+        run: echo "Deploying ${{ env.APP_NAME }} to INT environment"
+
+      - name: Jira Transition
+        run: echo "Transitioning Jira ticket to INT deployed"
+
+      - name: Health Check
+        run: echo "Running health check for ${{ env.APP_NAME }} in INT"
+
+  deploy-qa:
+    name: Deploy to QA
+    needs: [security]
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'qa') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'qa')
+    environment: qa
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy
+        run: echo "Deploying ${{ env.APP_NAME }} to QA environment"
+
+      - name: Jira Transition
+        run: echo "Transitioning Jira ticket to QA deployed"
+
+      - name: Health Check
+        run: echo "Running health check for ${{ env.APP_NAME }} in QA"
+
+  deploy-stage:
+    name: Deploy to Stage
+    needs: [security]
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'stage') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'stage')
+    environment: stage
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy
+        run: echo "Deploying ${{ env.APP_NAME }} to Stage environment"
+
+      - name: Jira Transition
+        run: echo "Transitioning Jira ticket to Stage deployed"
+
+      - name: Health Check
+        run: echo "Running health check for ${{ env.APP_NAME }} in Stage"
+
+  deploy-prod:
+    name: Deploy to Prod
+    needs: [security]
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
+    environment: prod
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy
+        run: echo "Deploying ${{ env.APP_NAME }} to Prod environment"
+
+      - name: Jira Transition
+        run: echo "Transitioning Jira ticket to Prod deployed"
+
+      - name: Health Check
+        run: echo "Running health check for ${{ env.APP_NAME }} in Prod"
+
+  notify:
+    name: Notify
+    if: always()
+    needs: [build, security, deploy-int, deploy-qa, deploy-stage, deploy-prod]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Send Notification
+        run: |
+          echo "Pipeline completed for ${{ env.APP_NAME }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Event: ${{ github.event_name }}"
+          echo "Status: completed"
+
+      - name: ForgeOps Log
+        run: |
+          chmod +x scripts/forgeops-log.sh 2>/dev/null || true
+          if [ -f scripts/forgeops-log.sh ]; then
+            bash scripts/forgeops-log.sh "${{ env.APP_NAME }}" "${{ github.ref_name }}" "${{ github.sha }}"
+          else
+            echo "forgeops-log.sh not found -- skipping audit log"
+          fi

@@ -88,6 +88,13 @@ ForgeOps/
     knowledge/
       (12 articles)
   templates/
+    workflows/
+      java-webapp.yml
+      javascript-webapp.yml
+      uipath-rpa.yml
+      system-integration.yml
+      salesforce.yml
+      informatica.yml
     CODEOWNERS.template
   dashboard/
     (static site files)

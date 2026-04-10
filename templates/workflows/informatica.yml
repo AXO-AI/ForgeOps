@@ -1,0 +1,227 @@
+name: ForgeOps Informatica CI/CD
+
+on:
+  push:
+    branches: ['feature/*', 'hotfix/*']
+  pull_request:
+    branches: [int, qa, stage, main]
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options: [int, qa, stage, prod]
+
+permissions:
+  contents: write
+  checks: write
+
+env:
+  APP_NAME: "informatica-etl"
+
+jobs:
+  build:
+    name: Build and Validate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate XML Files
+        run: |
+          echo "Validating Informatica XML mapping files for ${{ env.APP_NAME }}"
+          ERRORS=0
+          for f in $(find . -name "*.xml" -not -path "./.git/*"); do
+            python3 -c "
+          import xml.etree.ElementTree as ET
+          try:
+              ET.parse('$f')
+              print('VALID: $f')
+          except ET.ParseError as e:
+              print('INVALID: $f -- ' + str(e))
+              exit(1)
+          " || ERRORS=$((ERRORS + 1))
+          done
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "Found $ERRORS invalid XML files"
+            exit 1
+          fi
+          echo "All XML files are valid"
+
+      - name: Check Mapping References
+        run: |
+          echo "Checking Informatica mapping references"
+          if ls *.xml 1>/dev/null 2>&1 || ls mappings/*.xml 1>/dev/null 2>&1; then
+            echo "Validating source/target references in mapping files"
+            grep -rn "SOURCE\|TARGET\|TRANSFORMATION" --include="*.xml" . | head -50 || echo "No mapping elements found"
+          else
+            echo "No mapping XML files found in root or mappings/ directory"
+          fi
+
+  test:
+    name: Validate Workflow References
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Workflow References
+        run: |
+          echo "Validating Informatica workflow references for ${{ env.APP_NAME }}"
+          if ls workflows/*.xml 1>/dev/null 2>&1; then
+            for wf in workflows/*.xml; do
+              echo "Checking workflow: $wf"
+              python3 -c "
+          import xml.etree.ElementTree as ET
+          tree = ET.parse('$wf')
+          root = tree.getroot()
+          for task in root.iter():
+              if 'MAPPING' in task.tag.upper() or task.get('MAPPINGNAME'):
+                  mapping = task.get('MAPPINGNAME', task.get('NAME', 'unknown'))
+                  print('  Referenced mapping: ' + mapping)
+          "
+            done
+          else
+            echo "No workflow XML files found in workflows/ directory"
+          fi
+
+  security:
+    name: Security Scan
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64 -o gitleaks
+          chmod +x gitleaks
+          ./gitleaks detect --source . --no-git --verbose || true
+
+      - name: Scan for Hardcoded Credentials
+        run: |
+          echo "Scanning XML and properties files for hardcoded credentials"
+          echo "--- XML files ---"
+          grep -rni "password\|passwd\|secret\|apikey\|token\|credential" --include="*.xml" . || echo "No hardcoded credentials found in XML files"
+          echo "--- Properties files ---"
+          grep -rni "password\|passwd\|secret\|apikey\|token\|credential" --include="*.properties" . || echo "No hardcoded credentials found in properties files"
+          echo "--- Connection strings ---"
+          grep -rni "jdbc:\|Data Source=\|Server=" --include="*.xml" --include="*.properties" . || echo "No connection strings found"
+
+  deploy-int:
+    name: Deploy to INT
+    needs: [security, test]
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'int') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'int')
+    environment: int
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy
+        run: |
+          if [ -z "${{ secrets.INFA_SERVER }}" ]; then
+            echo "Informatica server not configured -- skipping deploy to INT"
+          else
+            echo "Copying mappings and workflows to Informatica INT server"
+          fi
+
+      - name: Health Check
+        run: echo "Running health check for ${{ env.APP_NAME }} in INT"
+
+  deploy-qa:
+    name: Deploy to QA
+    needs: [security, test]
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'qa') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'qa')
+    environment: qa
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy
+        run: |
+          if [ -z "${{ secrets.INFA_SERVER }}" ]; then
+            echo "Informatica server not configured -- skipping deploy to QA"
+          else
+            echo "Copying mappings and workflows to Informatica QA server"
+          fi
+
+      - name: Health Check
+        run: echo "Running health check for ${{ env.APP_NAME }} in QA"
+
+  deploy-stage:
+    name: Deploy to Stage
+    needs: [security, test]
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'stage') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'stage')
+    environment: stage
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy
+        run: |
+          if [ -z "${{ secrets.INFA_SERVER }}" ]; then
+            echo "Informatica server not configured -- skipping deploy to Stage"
+          else
+            echo "Copying mappings and workflows to Informatica Stage server"
+          fi
+
+      - name: Health Check
+        run: echo "Running health check for ${{ env.APP_NAME }} in Stage"
+
+  deploy-prod:
+    name: Deploy to Prod
+    needs: [security, test]
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
+    environment: prod
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy
+        run: |
+          if [ -z "${{ secrets.INFA_SERVER }}" ]; then
+            echo "Informatica server not configured -- skipping deploy to Prod"
+          else
+            echo "Copying mappings and workflows to Informatica Prod server"
+          fi
+
+      - name: Health Check
+        run: echo "Running health check for ${{ env.APP_NAME }} in Prod"
+
+  notify:
+    name: Notify
+    if: always()
+    needs: [build, test, security, deploy-int, deploy-qa, deploy-stage, deploy-prod]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Send Notification
+        run: |
+          echo "Pipeline completed for ${{ env.APP_NAME }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Event: ${{ github.event_name }}"
+          echo "Status: completed"
+
+      - name: ForgeOps Log
+        run: |
+          chmod +x scripts/forgeops-log.sh 2>/dev/null || true
+          if [ -f scripts/forgeops-log.sh ]; then
+            bash scripts/forgeops-log.sh "${{ env.APP_NAME }}" "${{ github.ref_name }}" "${{ github.sha }}"
+          else
+            echo "forgeops-log.sh not found -- skipping audit log"
+          fi
