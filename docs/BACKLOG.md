@@ -1,6 +1,6 @@
 # ForgeOps Backlog
 
-## Phase 1 — Core Platform (Current)
+## Phase 1 — Core Platform (Complete ✅)
 
 - [x] Reusable security scan workflow (_security-scan.yml)
 - [x] Reusable deploy workflow (_deploy.yml)
@@ -17,9 +17,30 @@
 - [x] Self-hosted runner setup scripts (Linux + Windows)
 - [x] Pipeline audit trail (events.json artifact)
 
+## Phase 1.5 — Gap Remediation (Complete ✅)
+
+- [x] Fix script permissions (git executable bit)
+- [x] Add workflow_dispatch triggers to all pipelines
+- [x] Add secret validation workflow (_validate-secrets.yml)
+- [x] Add scheduled secret health check with GitHub Issue creation
+- [x] Add CODEOWNERS file
+- [x] Add OWASP Dependency-Check as free SCA (when Black Duck not configured)
+- [x] Add test result aggregation (dorny/test-reporter)
+- [x] Add changelog generation + GitHub Releases on tag
+- [x] Fix DAST to not require Docker (graceful skip on hosted runners)
+- [x] Fix secret detection pattern (env var check, not direct secret reference)
+- [x] Add chmod +x step in all workflow jobs
+- [x] Dashboard v4: full API integration, search, toasts, keyboard shortcuts
+- [x] Dashboard: proper <select> dropdowns for PR creation (not text inputs)
+- [x] Dashboard: Deploy page with artifact management and environment promotion
+- [x] Dashboard: loading skeletons and empty states
+- [x] Dashboard: notification bell with counts
+- [x] Dashboard: mobile responsive sidebar collapse
+- [x] Dashboard: ErrorBoundary for crash recovery
+
 ## Phase 2 — Enhanced Security
 
-- [ ] OWASP Dependency-Check as free SCA alternative (when Black Duck not configured)
+- [x] OWASP Dependency-Check as free SCA alternative
 - [ ] CodeQL integration for GitHub-native SAST
 - [ ] Snyk integration option
 - [ ] SARIF upload to GitHub Security tab
@@ -64,6 +85,19 @@
 - [ ] Dependency update automation (Renovate/Dependabot config)
 - [ ] Branch protection rule automation script
 - [ ] GitHub App for centralized ForgeOps management
+- [ ] Replace PAT auth with GitHub OAuth App
+
+## Immediate Next Steps
+
+- [ ] Install SonarQube Community Edition (free, self-hosted)
+- [ ] Sign up for Jira free tier (atlassian.com/software/jira/free)
+- [ ] Ask IT about Splunk HEC access
+- [ ] Ask IT about Black Duck license
+- [ ] Ask IT about Cherwell/ServiceNow credentials
+- [ ] Switch to self-hosted runners (see docs/MIGRATION-TO-SELF-HOSTED.md)
+- [ ] Add drift detection scheduled workflow
+- [ ] Build Splunk dashboard for pipeline metrics
+- [ ] Add code coverage badges to repos
 
 ## Technical Debt
 

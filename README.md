@@ -2,6 +2,19 @@
 
 GitHub Actions-based CI/CD replacing CloudBees Jenkins. No Docker. Best of Harness.io + CircleCI + CloudBees, built on GitHub-native primitives.
 
+## Current Status
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| **Dashboard** | ✅ Live | [askboppana.github.io/ForgeOps](https://askboppana.github.io/ForgeOps) — 10-page DevSecOps portal |
+| **Pipelines** | ✅ Active | 4 templates: Java, JavaScript, UiPath, System Integration |
+| **Security** | ✅ Active | Gitleaks + OWASP Dependency-Check active; SonarQube + Black Duck ready when configured |
+| **Environments** | ✅ Active | 5 environments (dev/int/qa/stage/prod) with GitHub Environment protection rules |
+| **Integrations** | ⏭️ Ready | Jira, Splunk, Cherwell, Slack — all skip gracefully, add secrets to enable |
+| **Runners** | ✅ Active | GitHub-hosted (ubuntu-latest/windows-latest) — self-hosted migration documented |
+| **Secret Validation** | ✅ Active | Weekly health check + issue creation for missing secrets |
+| **CODEOWNERS** | ✅ Active | All workflow/script/dashboard changes require review |
+
 ## Architecture
 
 ```
@@ -204,12 +217,17 @@ No Jenkins manual approvals. No separate systems. Everything in GitHub.
 ```
 ForgeOps/
 ├── .github/workflows/
-│   ├── _security-scan.yml        # Reusable: 5 parallel security scans + gate
+│   ├── _security-scan.yml        # Reusable: 5 parallel security scans + OWASP Dep-Check + gate
 │   ├── _deploy.yml               # Reusable: multi-method deploy + ITSM + health
+│   ├── _validate-secrets.yml     # Reusable: checks all integration secrets
 │   ├── java-webapp.yml           # Full pipeline for Java web apps
 │   ├── javascript-webapp.yml     # Full pipeline for JS web apps
 │   ├── uipath-rpa.yml            # Full pipeline for UiPath RPA
-│   └── system-integration.yml    # Full pipeline for backend services
+│   ├── system-integration.yml    # Full pipeline for backend services
+│   ├── deploy-dashboard.yml      # Deploys dashboard to GitHub Pages
+│   └── secret-health-check.yml   # Weekly secret audit + issue creation
+├── dashboard/
+│   └── index.html                # Single-file React DevSecOps portal (10 pages)
 ├── scripts/
 │   ├── forgeops-log.sh           # Dual logging engine (Summary + Splunk)
 │   ├── forgeops-summary.sh       # Final pipeline summary generator
@@ -220,9 +238,10 @@ ForgeOps/
 │   └── setup-runner-windows.ps1  # Windows self-hosted runner setup
 ├── docs/
 │   ├── ENVIRONMENTS.md           # Environment matrix & branch mapping
-│   ├── MIGRATION-TO-SELF-HOSTED.md  # How to switch from hosted to self-hosted
-│   ├── BACKLOG.md                # Future work items
+│   ├── MIGRATION-TO-SELF-HOSTED.md  # Switch from hosted to self-hosted
+│   ├── BACKLOG.md                # Roadmap and completed items
 │   └── CHERWELL-SETUP.md        # ITSM setup guide
+├── CODEOWNERS                    # Code ownership rules
 ├── .gitignore
 └── README.md
 ```

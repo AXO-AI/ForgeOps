@@ -1,0 +1,7 @@
+# ForgeOps — Code Ownership
+# Platform team must review all workflow and script changes
+
+/.github/workflows/ @askboppana
+/scripts/ @askboppana
+/dashboard/ @askboppana
+CODEOWNERS @askboppana

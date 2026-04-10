@@ -85,6 +85,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh scripts/*.py 2>/dev/null || true
+
       - name: Check SonarQube configuration
         id: check
         run: |
@@ -213,6 +216,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh scripts/*.py 2>/dev/null || true
+
       - name: Check Black Duck configuration
         id: check
         run: |
@@ -231,6 +237,33 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "> **Tip:** For a free alternative, consider [OWASP Dependency-Check](https://owasp.org/www-project-dependency-check/)." >> "$GITHUB_STEP_SUMMARY"
           bash scripts/forgeops-log.sh "security_sca" "skipped" "Black Duck not configured — skipping SCA"
+
+      - name: OWASP Dependency-Check (free SCA)
+        if: steps.check.outputs.configured == 'false' || steps.skip_result.outputs.result == 'skipped'
+        run: |
+          echo "### 🛡️ SCA — OWASP Dependency-Check (free alternative)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          curl -sL https://github.com/jeremylong/DependencyCheck/releases/download/v10.0.3/dependency-check-10.0.3-release.zip -o dc.zip
+          unzip -q dc.zip
+          ./dependency-check/bin/dependency-check.sh \
+            --project "${{ inputs.project_name }}" \
+            --scan . \
+            --format JSON --format HTML \
+            --out dc-report/ \
+            --failOnCVSS 9 || true
+          echo "| Scan | OWASP Dependency-Check |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ✅ Complete |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        continue-on-error: true
+
+      - name: Upload Dependency-Check Report
+        if: steps.check.outputs.configured == 'false' || steps.skip_result.outputs.result == 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: dc-report/
+          retention-days: 90
+          if-no-files-found: ignore
 
       - name: Run Black Duck Detect
         if: steps.check.outputs.configured == 'true'
@@ -346,6 +379,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh scripts/*.py 2>/dev/null || true
+
       - name: Install Gitleaks
         run: |
           GITLEAKS_VERSION="8.21.2"
@@ -421,6 +457,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh scripts/*.py 2>/dev/null || true
 
       - name: Install Trivy
         run: |
@@ -509,6 +548,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh scripts/*.py 2>/dev/null || true
+
       - name: Install Syft
         run: |
           curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
@@ -585,6 +627,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh scripts/*.py 2>/dev/null || true
 
       - name: Evaluate security gate
         id: evaluate

@@ -118,6 +118,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh scripts/*.py 2>/dev/null || true
+
       # ------------------------------------------------------------------ #
       # 2. Download build artifacts
       # ------------------------------------------------------------------ #

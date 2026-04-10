@@ -430,6 +430,22 @@ function SettingsPage({repos,onDisconnect,toast}){
   </div>;
 }
 
+/* ═══ ErrorBoundary ═══ */
+class ErrorBoundary extends React.Component{
+  constructor(p){super(p);this.state={hasError:false,error:null};}
+  static getDerivedStateFromError(e){return{hasError:true,error:e};}
+  render(){if(this.state.hasError)return React.createElement('div',{style:{padding:40,textAlign:'center'}},React.createElement(Logo,{s:48}),React.createElement('h2',{style:{marginTop:16}},'Something went wrong'),React.createElement('p',{style:{color:'var(--soft)',marginTop:8}},this.state.error?.message),React.createElement('button',{className:'bt bt-p',style:{marginTop:16},onClick:()=>location.reload()},'Reload'));return this.props.children;}
+}
+
+/* ═══ HelpModal ═══ */
+function HelpModal({open,onClose}){
+  if(!open)return null;
+  const shortcuts=[['/',  'Focus search'],['r','Refresh data'],['1-0','Switch pages'],['Esc','Close modal/panel'],['?','Show this help']];
+  return React.createElement(Modal,{open:true,onClose,title:'⌨️ Keyboard Shortcuts'},
+    React.createElement('div',null,shortcuts.map(([k,d])=>React.createElement('div',{key:k,className:'lr',style:{gap:8}},React.createElement('kbd',{className:'mono',style:{background:'var(--surf)',padding:'3px 10px',borderRadius:6,fontSize:12,border:'1px solid var(--brd)'}},k),React.createElement('span',{style:{fontSize:12,color:'var(--soft)'}},d))))
+  );
+}
+
 /* ═══════════════════════════════════════
    NAV + MAIN APP
    ═══════════════════════════════════════ */
@@ -445,8 +461,18 @@ function App(){
   const[loading,setLoading]=useState(false);const[error,setError]=useState('');const[rateMsg,setRateMsg]=useState('');
   const[lastRef,setLastRef]=useState(null);const[sbOpen,setSbOpen]=useState(window.innerWidth>768);
   const[toastMsg,setToastMsg]=useState('');const[toastType,setToastType]=useState('s');
-  const timer=useRef(null);
+  const[search,setSearch]=useState('');const[showHelp,setShowHelp]=useState(false);const[showNotif,setShowNotif]=useState(false);
+  const timer=useRef(null);const searchRef=useRef(null);
   const showToast=(m,t)=>{setToastMsg(m);setToastType(t||'s');clearTimeout(toastTmr);toastTmr=setTimeout(()=>setToastMsg(''),4000);};
+
+  // Keyboard shortcuts
+  useEffect(()=>{const h=e=>{if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT'){if(e.key==='Escape')e.target.blur();return;}
+    if(e.key==='/'){e.preventDefault();searchRef.current?.focus();}
+    else if(e.key==='r')fetchData();
+    else if(e.key==='Escape'){setShowHelp(false);setShowNotif(false);}
+    else if(e.key==='?'){e.preventDefault();setShowHelp(true);}
+    else{const pages=['overview','pipelines','deploy','envs','prs','security','alm','approvals','runners','settings'];const idx='1234567890'.indexOf(e.key);if(idx>=0&&idx<pages.length)setPage(pages[idx]);}
+  };document.addEventListener('keydown',h);return()=>document.removeEventListener('keydown',h);},[]); // eslint-disable-line
 
   useEffect(()=>{const t=sessionStorage.getItem('fg_token'),u=sessionStorage.getItem('fg_user');if(t&&u)setUser({login:u});},[]);
 
@@ -509,12 +535,17 @@ function App(){
       <header className="tb">
         <button className="hb" onClick={()=>setSbOpen(!sbOpen)}>☰</button>
         <div style={{flex:1,fontSize:16,fontWeight:600}}>{(NAV.find(n=>n.k===page)||{}).l||''}</div>
-        <span className="mono" style={{fontSize:11,color:'var(--dim)'}}>{dateStr}</span>
+        <div style={{position:'relative'}}><input ref={searchRef} value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search... (/ to focus)" style={{width:180,padding:'6px 12px',fontSize:11,background:'var(--surf)',borderRadius:20}}/></div>
+        <span className="mono" style={{fontSize:10,color:'var(--dim)'}}>{dateStr}</span>
         {loading&&<span style={{color:'var(--cyan)',fontSize:12,animation:'spin 1s linear infinite',display:'inline-block'}}>⟳</span>}
-        {lastRef&&<span style={{fontSize:10,color:'var(--dim)'}}>{lastRef.toLocaleTimeString()}</span>}
+        {lastRef&&<span style={{fontSize:9,color:'var(--dim)'}}>{lastRef.toLocaleTimeString()}</span>}
+        <div style={{position:'relative'}}><button onClick={()=>setShowNotif(!showNotif)} style={{fontSize:16,position:'relative'}}>🔔{(pendN+runs.filter(r=>r.conclusion==='failure'&&(Date.now()-new Date(r.created_at))<3600000).length)>0&&<span style={{position:'absolute',top:-4,right:-4,background:'linear-gradient(135deg,var(--err),#ff6b6b)',color:'#fff',fontSize:8,fontWeight:700,padding:'1px 5px',borderRadius:8,minWidth:14,textAlign:'center'}}>{pendN+runs.filter(r=>r.conclusion==='failure'&&(Date.now()-new Date(r.created_at))<3600000).length}</span>}</button>
+          {showNotif&&<div style={{position:'absolute',top:36,right:0,width:300,background:'var(--card)',border:'1px solid var(--brd)',borderRadius:'var(--r)',padding:12,zIndex:300,boxShadow:'0 8px 30px rgba(0,0,0,.4)'}}><div style={{fontSize:12,fontWeight:600,marginBottom:8}}>Notifications</div>{pendN>0&&<div style={{fontSize:11,padding:'6px 0',borderBottom:'1px solid var(--brd)'}}>⏸️ {pendN} pending approval{pendN>1?'s':''}</div>}{runs.filter(r=>r.conclusion==='failure'&&(Date.now()-new Date(r.created_at))<3600000).map(r=><div key={r.id} style={{fontSize:11,padding:'6px 0',borderBottom:'1px solid var(--brd)'}}>❌ {r._repo} failed — {ago(r.created_at)}</div>)}{pendN===0&&runs.filter(r=>r.conclusion==='failure'&&(Date.now()-new Date(r.created_at))<3600000).length===0&&<div style={{fontSize:11,color:'var(--dim)'}}>No notifications</div>}</div>}
+        </div>
         <button className="bt bt-g bt-sm" onClick={fetchData}>🔄</button>
-        <div style={{width:30,height:30,borderRadius:'50%',background:'linear-gradient(135deg,var(--cyan),var(--violet))',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:'#fff'}}>{(O()[0]||'?').toUpperCase()}</div>
+        <div style={{width:28,height:28,borderRadius:'50%',background:'linear-gradient(135deg,var(--cyan),var(--violet))',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,color:'#fff'}}>{(O()[0]||'?').toUpperCase()}</div>
       </header>
+      <HelpModal open={showHelp} onClose={()=>setShowHelp(false)}/>
       <div className="ct">
         {error&&<div className="eb">⚠️ {error}</div>}
         {rateMsg&&<div className="rb">⏳ {rateMsg}</div>}
@@ -524,7 +555,7 @@ function App(){
   </div>;
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+ReactDOM.createRoot(document.getElementById('root')).render(<ErrorBoundary><App/></ErrorBoundary>);
 }catch(err){document.getElementById('root').innerHTML='<div id="fe"><h2>⚡ ForgeOps — Load Error</h2><p style="margin-top:10px">'+err.message+'</p><pre style="margin-top:10px;font-size:11px;color:#8b9dc3;overflow:auto;max-height:200px">'+(err.stack||'')+'</pre><p style="margin-top:10px;color:#4a5d80;font-size:12px">Refresh or check console.</p></div>';}
 </script>
 </body>

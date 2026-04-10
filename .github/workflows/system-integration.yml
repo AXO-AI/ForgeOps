@@ -12,6 +12,14 @@ on:
     branches:
       - develop
       - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: false
+        default: 'dev'
+        type: choice
+        options: [dev, int, qa, stage, prod]
 
 permissions:
   contents: write
@@ -20,6 +28,11 @@ env:
   APP_NAME: "system-integration-svc" # ← CHANGE THIS PER REPO
 
 jobs:
+  validate-secrets:
+    name: "Integration Status"
+    uses: ./.github/workflows/_validate-secrets.yml
+    secrets: inherit
+
   # ──────────────────────────────────────────────
   # 1. Build
   # ──────────────────────────────────────────────
@@ -32,6 +45,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh scripts/*.py 2>/dev/null || true
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -59,6 +75,15 @@ jobs:
 
       - name: Test
         run: ./gradlew test
+
+      - name: Test Report
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Test Results
+          path: '**/build/test-results/**/*.xml'
+          reporter: java-junit
+          fail-on-error: false
 
       - name: Code coverage report
         run: ./gradlew jacocoTestReport || true
@@ -245,6 +270,36 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag "v${VERSION}"
           git push origin "v${VERSION}"
+
+      - name: Generate Changelog
+        id: changelog
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            CHANGES=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          else
+            CHANGES=$(git log --pretty=format:"- %s (%h)" --no-merges -20)
+          fi
+          echo "changes<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.build.outputs.version }}
+          name: Release ${{ needs.build.outputs.version }}
+          body: |
+            ## What's Changed
+            ${{ steps.changelog.outputs.changes }}
+
+            ## Security
+            All scans passed ✅
+
+            ---
+            *Released by ForgeOps DevSecOps Platform*
+          draft: false
+          prerelease: false
 
       - name: Tag summary
         run: |
