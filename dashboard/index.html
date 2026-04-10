@@ -80,7 +80,14 @@ a{color:var(--teal);text-decoration:none}
 try {
 const {useState,useEffect,useCallback,useRef,useMemo}=React;
 
-/* ═══ API ═══ */
+/* === CACHE === */
+const cache = {};
+function cached(key, ttl, fetcher) {
+  if (cache[key] && Date.now() - cache[key].t < ttl) return Promise.resolve(cache[key].d);
+  return fetcher().then(d => { cache[key] = { d, t: Date.now() }; return d; });
+}
+
+/* === API === */
 async function api(path,opts={}){
   const tk=sessionStorage.getItem('fo_t');
   const r=await fetch('https://api.github.com'+path,{...opts,headers:{Authorization:'Bearer '+tk,Accept:'application/vnd.github.v3+json','Content-Type':'application/json',...(opts.headers||{})}});
@@ -92,40 +99,53 @@ async function api(path,opts={}){
 }
 const owner=()=>sessionStorage.getItem('fo_u')||'';
 
-/* ═══ Helpers ═══ */
+/* === Shared Fetchers === */
+function fetchBranches(repo) {
+  return cached('br_'+repo, 60000, () => api('/repos/'+owner()+'/'+repo+'/branches?per_page=100').then(d=>(d||[]).map(b=>b.name)));
+}
+function fetchWorkflows(repo) {
+  return cached('wf_'+repo, 60000, () => api('/repos/'+owner()+'/'+repo+'/actions/workflows').then(d=>(d&&d.workflows)||[]));
+}
+function fetchArtifacts(repo, runId) {
+  const path = runId ? '/repos/'+owner()+'/'+repo+'/actions/runs/'+runId+'/artifacts' : '/repos/'+owner()+'/'+repo+'/actions/artifacts?per_page=5';
+  return api(path).then(d=>(d&&d.artifacts)||[]);
+}
+
+/* === Helpers === */
 const ago=(d)=>{if(!d)return'';const s=Math.floor((Date.now()-new Date(d))/1000);if(s<60)return s+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';};
 const dur=(a,b)=>{if(!a||!b)return'—';const s=Math.round((new Date(b)-new Date(a))/1000);if(s<0)return'—';if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m '+s%60+'s';return Math.floor(s/3600)+'h '+Math.floor(s%3600/60)+'m';};
 const sE=c=>({success:'✅',completed:'✅',failure:'❌',cancelled:'🚫',in_progress:'🔄',queued:'⏳',waiting:'⏸️',action_required:'⚠️',skipped:'⏭️',pending:'⏳'}[c]||'⚪');
 const sC=c=>({success:'var(--success)',completed:'var(--success)',failure:'var(--danger)',cancelled:'var(--text3)',in_progress:'var(--blue)',queued:'var(--warn)',waiting:'var(--warn)',action_required:'var(--warn)'}[c]||'var(--text3)');
 const dot=(c,s)=><span style={{display:'inline-block',width:s||8,height:s||8,borderRadius:'50%',background:sC(c),flexShrink:0}}/>;
 const jiraKeys=t=>(t||'').match(/[A-Z]+-\d+/g)||[];
+const fmtSize=b=>{if(!b)return'0 B';if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(1)+' MB';};
 
-/* ═══ Toast ═══ */
+/* === Toast === */
 let toastTimer;
 function Toast({msg,type}){if(!msg)return null;return<div className={'toast toast-'+(type||'s')}>{msg}</div>;}
 
-/* ═══ Modal ═══ */
+/* === Modal === */
 function Modal({open,onClose,title,children}){if(!open)return null;return<div className="modal-ov" onClick={onClose}><div className="modal" onClick={e=>e.stopPropagation()}><div style={{display:'flex',alignItems:'center',marginBottom:16}}><span style={{flex:1,fontSize:16,fontWeight:600}}>{title}</span><button onClick={onClose} style={{fontSize:18,color:'var(--text3)'}}>✕</button></div>{children}</div></div>;}
 
-/* ═══ CSS Bar Chart ═══ */
+/* === CSS Bar Chart === */
 function BarChart({data}){
   const mx=Math.max(1,...data.map(d=>d.s+d.f+d.o));
   return<div style={{display:'flex',alignItems:'flex-end',gap:5,height:120,padding:'6px 0'}}>{data.map((d,i)=><div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:3}}><div style={{display:'flex',flexDirection:'column-reverse',gap:1,flex:1,width:'100%',maxWidth:32}}>{d.s>0&&<div style={{height:d.s/mx*95+'px',background:'var(--success)',borderRadius:'2px 2px 0 0'}}/>}{d.f>0&&<div style={{height:d.f/mx*95+'px',background:'var(--danger)'}}/>}{d.o>0&&<div style={{height:d.o/mx*95+'px',background:'var(--text3)',borderRadius:'2px 2px 0 0'}}/>}</div><div style={{fontSize:9,color:'var(--text3)'}}>{d.day}</div></div>)}</div>;
 }
 
-/* ═══════════════════════════════════════
-   PAGE 1: LOGIN
-   ═══════════════════════════════════════ */
+/* ======================================
+   PAGE: LOGIN
+   ====================================== */
 function LoginPage({onConnect}){
   const[tk,setTk]=useState('');const[u,setU]=useState('askboppana');const[err,setErr]=useState('');const[ld,setLd]=useState(false);
   const go=async()=>{if(!tk.trim()||!u.trim()){setErr('Both fields required');return;}setLd(true);setErr('');try{sessionStorage.setItem('fo_t',tk.trim());sessionStorage.setItem('fo_u',u.trim());const d=await api('/user');onConnect(d);}catch(e){setErr('Connection failed: '+e.message);sessionStorage.removeItem('fo_t');sessionStorage.removeItem('fo_u');}setLd(false);};
   return<div className="cw fu"><div className="cb"><div className="c" style={{padding:36}}><div style={{textAlign:'center',marginBottom:28}}><div style={{fontSize:48,marginBottom:6}}>⚡</div><div style={{fontSize:24,fontWeight:700,marginBottom:4}}>ForgeOps</div><div style={{color:'var(--text2)',fontSize:13}}>DevSecOps Portal — Connect to GitHub</div></div><div className="fl"><div><label className="lbl">GitHub Username</label><input value={u} onChange={e=>setU(e.target.value)} placeholder="askboppana"/></div><div><label className="lbl">Personal Access Token</label><input type="password" value={tk} onChange={e=>setTk(e.target.value)} placeholder="ghp_..." onKeyDown={e=>e.key==='Enter'&&go()}/></div><div style={{fontSize:10,color:'var(--text3)'}}>Needs <code style={{background:'var(--bg)',padding:'1px 4px',borderRadius:3}}>repo</code> + <code style={{background:'var(--bg)',padding:'1px 4px',borderRadius:3}}>actions</code> scopes. Stored in sessionStorage only.</div>{err&&<div className="eb">❌ {err}</div>}<button className="bt bt-t" onClick={go} disabled={ld} style={{width:'100%',padding:11,fontSize:14,justifyContent:'center'}}>{ld?'⏳ Connecting...':'Connect to GitHub'}</button></div></div></div></div>;
 }
 
-/* ═══════════════════════════════════════
-   PAGE 2: OVERVIEW
-   ═══════════════════════════════════════ */
-function OverviewPage({runs,prs}){
+/* ======================================
+   PAGE: OVERVIEW
+   ====================================== */
+function OverviewPage({runs,prs,repos,setPage}){
   const active=runs.filter(r=>r.status==='in_progress').length;
   const pending=runs.filter(r=>r.status==='waiting'||r.status==='action_required').length;
   const today=new Date().toISOString().slice(0,10);
@@ -137,8 +157,20 @@ function OverviewPage({runs,prs}){
   const ENVS=['DEV','INT','QA','STAGE','PROD'];
   const envMap=useMemo(()=>{const m={};ENVS.forEach(e=>{m[e]=runs.filter(r=>{const n=(r.name||r.display_title||'').toUpperCase();return n.includes(e)&&(n.includes('DEPLOY')||n.includes('→'));}).slice(0,3);});return m;},[runs]);
 
+  const[artifacts,setArtifacts]=useState([]);
+  useEffect(()=>{
+    if(repos.length===0)return;
+    Promise.all(repos.slice(0,5).map(r=>fetchArtifacts(r.name).then(a=>a.map(x=>({...x,_repo:r.name}))).catch(()=>[]))).then(all=>setArtifacts(all.flat().slice(0,10)));
+  },[repos]);
+
   return<div className="fu">
-    <h2 style={{fontSize:17,fontWeight:600,marginBottom:18}}>📊 Overview</h2>
+    <h2 style={{fontSize:17,fontWeight:600,marginBottom:14}}>📊 Overview</h2>
+    <div style={{display:'flex',gap:10,marginBottom:18,flexWrap:'wrap'}}>
+      <button className="bt bt-g" onClick={()=>setPage('prs')} style={{flex:'1 1 120px',justifyContent:'center',padding:12}}>✏️ Create PR</button>
+      <button className="bt bt-g" onClick={()=>setPage('pipelines')} style={{flex:'1 1 120px',justifyContent:'center',padding:12}}>▶ Run Pipeline</button>
+      <button className="bt bt-g" onClick={()=>setPage('deploy')} style={{flex:'1 1 120px',justifyContent:'center',padding:12}}>🚀 Deploy</button>
+      <button className="bt bt-g" onClick={()=>setPage('approvals')} style={{flex:'1 1 120px',justifyContent:'center',padding:12}}>⏸️ Approvals</button>
+    </div>
     <div className="sg">
       <div className="sc"><div className="si">🔄</div><div className="sl">Active Pipelines</div><div className="sv" style={{color:'var(--blue)'}}>{active}</div></div>
       <div className="sc"><div className="si">⏸️</div><div className="sl">Pending Approvals</div><div className="sv" style={{color:'var(--warn)'}}>{pending}</div></div>
@@ -150,15 +182,23 @@ function OverviewPage({runs,prs}){
       <div className="c"><div style={{fontSize:12,color:'var(--text2)',fontWeight:500,marginBottom:6}}>🕐 Recent Activity</div><div style={{maxHeight:200,overflowY:'auto'}}>{runs.slice(0,20).map(r=><div key={r.id} className="lr" style={{padding:'6px 0',gap:7}}><span style={{fontSize:13}}>{sE(r.conclusion||r.status)}</span><div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r._repo} — {r.name||r.display_title}</div><div style={{fontSize:10,color:'var(--text3)'}}>{r.head_branch} · #{r.run_number} · by {r.actor?.login||'?'}</div></div><div style={{fontSize:10,color:'var(--text3)',textAlign:'right',flexShrink:0}}><div>{dur(r.run_started_at,r.updated_at)}</div><div>{ago(r.created_at)}</div></div></div>)}{runs.length===0&&<div style={{padding:16,textAlign:'center',color:'var(--text3)',fontSize:12}}>No runs</div>}</div></div>
     </div>
     <div className="c"><div style={{fontSize:12,color:'var(--text2)',fontWeight:500,marginBottom:10}}>🌐 Environment Status</div><div style={{display:'flex',gap:8,overflowX:'auto'}}>{ENVS.map((e,i)=><React.Fragment key={e}><div style={{minWidth:130,flex:'1 1 130px',background:'var(--bg)',borderRadius:'var(--r)',padding:10}}><div style={{fontWeight:700,fontSize:13,marginBottom:6}}>{e}</div>{envMap[e].length>0?envMap[e].map(r=><div key={r.id} style={{fontSize:10,color:'var(--text2)',marginBottom:3}}>{dot(r.conclusion||r.status,6)} {r._repo} <span style={{color:'var(--text3)'}}>{ago(r.created_at)}</span></div>):<div style={{fontSize:10,color:'var(--text3)'}}>No deploys</div>}</div>{i<4&&<div style={{display:'flex',alignItems:'center',color:'var(--teal)',flexShrink:0}}>→</div>}</React.Fragment>)}</div></div>
+    <div className="c"><div style={{fontSize:12,color:'var(--text2)',fontWeight:500,marginBottom:10}}>📦 Latest Artifacts</div>
+      {artifacts.length===0?<div style={{padding:12,textAlign:'center',color:'var(--text3)',fontSize:12}}>No artifacts found</div>:
+      artifacts.map((a,i)=><div key={a.id||i} className="lr" style={{gap:8,fontSize:11}}>
+        <span>📦</span><div style={{flex:1}}><div style={{fontWeight:500}}>{a.name}</div><div style={{fontSize:10,color:'var(--text3)'}}>{a._repo} · {fmtSize(a.size_in_bytes)} · {ago(a.created_at)}</div></div>
+        <a href={a.archive_download_url} target="_blank" rel="noopener" style={{fontSize:10}}>Download ↗</a>
+      </div>)}
+    </div>
   </div>;
 }
 
-/* ═══════════════════════════════════════
-   PAGE 3: PIPELINES
-   ═══════════════════════════════════════ */
+/* ======================================
+   PAGE: PIPELINES
+   ====================================== */
 function PipelinesPage({repos,runs,toast}){
   const[exp,setExp]=useState(null);const[jc,setJc]=useState({});const[sel,setSel]=useState(null);
   const[showRun,setShowRun]=useState(null);const[wfs,setWfs]=useState({});const[branch,setBranch]=useState('');const[triggering,setTriggering]=useState(false);
+  const[artOpen,setArtOpen]=useState(null);const[artData,setArtData]=useState({});
 
   const rl=useMemo(()=>{const m={};runs.forEach(r=>{if(!m[r._repo])m[r._repo]=r;});return m;},[runs]);
 
@@ -168,9 +208,11 @@ function PipelinesPage({repos,runs,toast}){
   const openRunModal=async(repo)=>{setShowRun(repo);setBranch('main');if(!wfs[repo]){try{const d=await api('/repos/'+owner()+'/'+repo+'/actions/workflows');setWfs(p=>({...p,[repo]:(d&&d.workflows)||[]}));}catch(e){}}};
   const triggerRun=async(repo,wfId)=>{setTriggering(true);try{await api('/repos/'+owner()+'/'+repo+'/actions/workflows/'+wfId+'/dispatches',{method:'POST',body:JSON.stringify({ref:branch||'main'})});toast('✅ Pipeline triggered on '+branch);setShowRun(null);}catch(e){toast('❌ '+e.message,'e');}setTriggering(false);};
 
+  const toggleArt=async(repo,runId)=>{const k=repo+'/'+runId;if(artOpen===k){setArtOpen(null);return;}setArtOpen(k);if(!artData[k]){try{const a=await fetchArtifacts(repo,runId);setArtData(p=>({...p,[k]:a}));}catch(e){setArtData(p=>({...p,[k]:[]}));}}};
+
   return<div className="fu">
     <h2 style={{fontSize:17,fontWeight:600,marginBottom:18}}>🔀 Pipelines</h2>
-    {repos.filter(r=>rl[r.name]).map(repo=>{const run=rl[repo.name];const k=repo.name+'/'+run.id;const op=exp===k;const jobs=jc[k]||[];
+    {repos.filter(r=>rl[r.name]).map(repo=>{const run=rl[repo.name];const k=repo.name+'/'+run.id;const op=exp===k;const jobs=jc[k]||[];const artK=repo.name+'/'+run.id;
       return<div key={repo.name} className="c" style={{marginBottom:8}}>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
           <span onClick={()=>toggle(repo.name,run.id)} style={{cursor:'pointer',fontSize:11,color:'var(--text3)'}}>{op?'▼':'▶'}</span>
@@ -182,15 +224,25 @@ function PipelinesPage({repos,runs,toast}){
           <span className="bg" style={{background:sC(run.conclusion||run.status)+'22',color:sC(run.conclusion||run.status)}}>{run.conclusion||run.status}</span>
           <span style={{fontSize:10,color:'var(--text3)'}}>{dur(run.run_started_at,run.updated_at)}</span>
           <span style={{fontSize:10,color:'var(--text3)'}}>{ago(run.created_at)}</span>
+          {(run.conclusion==='success'||run.conclusion==='failure')&&<button className="bt bt-g" style={{fontSize:11,padding:'4px 8px'}} onClick={()=>toggleArt(repo.name,run.id)}>📦</button>}
           <button className="bt bt-g" style={{fontSize:11,padding:'4px 10px'}} onClick={()=>openRunModal(repo.name)}>▶ Run</button>
         </div>
+        {artOpen===artK&&<div style={{marginTop:8,padding:10,background:'var(--bg)',borderRadius:'var(--r)',fontSize:11}}>
+          <div style={{fontWeight:600,color:'var(--text2)',marginBottom:6}}>📦 Artifacts</div>
+          {!(artData[artK])?<div style={{color:'var(--text3)'}}>Loading...</div>:
+          (artData[artK]||[]).length===0?<div style={{color:'var(--text3)'}}>No artifacts</div>:
+          (artData[artK]).map(a=><div key={a.id} style={{display:'flex',gap:8,padding:'3px 0',alignItems:'center'}}>
+            <span style={{flex:1}}>{a.name}</span><span style={{color:'var(--text3)'}}>{fmtSize(a.size_in_bytes)}</span>
+            <a href={a.archive_download_url} target="_blank" rel="noopener" style={{fontSize:10}}>Download ↗</a>
+          </div>)}
+        </div>}
         {op&&<div style={{marginTop:14,paddingTop:12,borderTop:'1px solid var(--border)'}}>
           {jobs.length>0?<><div className="stg">{jobs.map((j,i)=><React.Fragment key={j.id}><div className="sbox" onClick={()=>setSel(sel===j.id?null:j.id)} style={{borderColor:sC(j.conclusion||j.status),color:sC(j.conclusion||j.status),background:sel===j.id?sC(j.conclusion||j.status)+'22':'transparent'}}>{sE(j.conclusion||j.status)} {j.name.length>12?j.name.slice(0,10)+'…':j.name}</div>{i<jobs.length-1&&<div className="sar"/>}</React.Fragment>)}</div>
-          {sel&&(()=>{const job=jobs.find(j=>j.id===sel);if(!job)return null;return<div style={{marginTop:10,padding:12,background:'var(--bg)',borderRadius:'var(--r)'}}>
-            <div style={{display:'flex',alignItems:'center',marginBottom:8}}><span style={{flex:1,fontSize:12,fontWeight:600,color:'var(--teal)'}}>📋 {job.name}</span>{job.html_url&&<a href={job.html_url} target="_blank" rel="noopener" style={{fontSize:11}}>📋 View Logs ↗</a>}</div>
+          {sel&&(()=>{const job=jobs.find(j=>j.id===sel);if(!job)return null;const logUrl='https://github.com/'+owner()+'/'+repo.name+'/actions/runs/'+run.id+'/jobs/'+job.id;return<div style={{marginTop:10,padding:12,background:'var(--bg)',borderRadius:'var(--r)'}}>
+            <div style={{display:'flex',alignItems:'center',marginBottom:8}}><span style={{flex:1,fontSize:12,fontWeight:600,color:'var(--teal)'}}>📋 {job.name}</span><a href={logUrl} target="_blank" rel="noopener" style={{fontSize:11}}>📋 View Logs ↗</a></div>
             {(job.steps||[]).map((s,i)=><div key={i} style={{display:'flex',gap:6,padding:'3px 0',fontSize:11}}><span>{sE(s.conclusion||s.status)}</span><span style={{flex:1,color:'var(--text2)'}}>{s.name}</span><span style={{color:'var(--text3)'}}>{dur(s.started_at,s.completed_at)}</span></div>)}
           </div>;})()}
-          {jobs.map(j=><div key={j.id} style={{display:'flex',gap:6,padding:'4px 0',fontSize:11,borderBottom:'1px solid var(--border)'}}><span>{sE(j.conclusion||j.status)}</span><span style={{flex:1,color:'var(--text2)'}}>{j.name}</span>{j.html_url&&<a href={j.html_url} target="_blank" rel="noopener" style={{fontSize:10,color:'var(--text3)'}}>Logs↗</a>}<span style={{color:'var(--text3)'}}>{dur(j.started_at,j.completed_at)}</span></div>)}
+          {jobs.map(j=>{const jLogUrl='https://github.com/'+owner()+'/'+repo.name+'/actions/runs/'+run.id+'/jobs/'+j.id;return<div key={j.id} style={{display:'flex',gap:6,padding:'4px 0',fontSize:11,borderBottom:'1px solid var(--border)'}}><span>{sE(j.conclusion||j.status)}</span><span style={{flex:1,color:'var(--text2)'}}>{j.name}</span><a href={jLogUrl} target="_blank" rel="noopener" style={{fontSize:10,color:'var(--text3)'}}>Logs↗</a><span style={{color:'var(--text3)'}}>{dur(j.started_at,j.completed_at)}</span></div>;})}
           </>:<div style={{padding:10,color:'var(--text3)',fontSize:12}}>⏳ Loading...</div>}
         </div>}
       </div>;})}
@@ -206,24 +258,121 @@ function PipelinesPage({repos,runs,toast}){
   </div>;
 }
 
-/* ═══════════════════════════════════════
-   PAGE 4: PULL REQUESTS
-   ═══════════════════════════════════════ */
+/* ======================================
+   PAGE: DEPLOY (NEW)
+   ====================================== */
+function DeployPage({repos,runs,toast,setPage}){
+  const[selRepo,setSelRepo]=useState('');
+  const[wfs,setWfs]=useState([]);const[branches,setBranches]=useState([]);
+  const[selWf,setSelWf]=useState('');const[selBranch,setSelBranch]=useState('');const[selEnv,setSelEnv]=useState('DEV');
+  const[arts,setArts]=useState([]);const[deploying,setDeploying]=useState(false);const[loadingRepo,setLoadingRepo]=useState(false);
+  const[promoModal,setPromoModal]=useState(null);const[promoting,setPromoting]=useState(false);
+
+  const onRepoChange=async(repo)=>{setSelRepo(repo);setWfs([]);setBranches([]);setArts([]);setSelWf('');setSelBranch('');
+    if(!repo)return;setLoadingRepo(true);
+    try{
+      const[w,b,a]=await Promise.all([fetchWorkflows(repo),fetchBranches(repo),fetchArtifacts(repo)]);
+      setWfs(w);setBranches(b);setArts(a);
+      setSelBranch(b.includes('develop')?'develop':b.includes('main')?'main':(b[0]||''));
+      if(w.length>0)setSelWf(String(w[0].id));
+    }catch(e){}setLoadingRepo(false);
+  };
+
+  const doDeploy=async()=>{if(!selRepo||!selWf||!selBranch){toast('❌ Select repo, workflow, and branch','e');return;}
+    setDeploying(true);try{
+      await api('/repos/'+owner()+'/'+selRepo+'/actions/workflows/'+selWf+'/dispatches',{method:'POST',body:JSON.stringify({ref:selBranch})});
+      toast('✅ Deploy triggered: '+selRepo+' / '+selBranch+' → '+selEnv);setPage('pipelines');
+    }catch(e){toast('❌ '+e.message,'e');}setDeploying(false);
+  };
+
+  const deployRuns=useMemo(()=>runs.filter(r=>(r.name||r.display_title||'').toLowerCase().includes('deploy')),[runs]);
+  const envColor=(name)=>{const n=(name||'').toUpperCase();if(n.includes('PROD'))return'var(--danger)';if(n.includes('QA')||n.includes('STAGE'))return'var(--warn)';return'var(--blue)';};
+
+  const doPromote=async(from,to)=>{setPromoting(true);try{
+    const repo=repos[0]?.name;if(!repo){toast('❌ No repos available','e');setPromoting(false);return;}
+    const wfList=await fetchWorkflows(repo);
+    const wf=wfList.find(w=>w.name.toLowerCase().includes('deploy'))||wfList[0];
+    if(!wf){toast('❌ No deploy workflow found','e');setPromoting(false);return;}
+    await api('/repos/'+owner()+'/'+repo+'/actions/workflows/'+wf.id+'/dispatches',{method:'POST',body:JSON.stringify({ref:'main',inputs:{environment:to.toLowerCase()}})});
+    toast('✅ Promotion '+from+' → '+to+' triggered');setPromoModal(null);
+  }catch(e){toast('❌ '+e.message,'e');}setPromoting(false);};
+
+  return<div className="fu">
+    <h2 style={{fontSize:17,fontWeight:600,marginBottom:18}}>🚀 Deploy</h2>
+
+    <div className="c">
+      <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>🚀 Deploy Artifact</div>
+      <div className="fl">
+        <div><label className="lbl">Repository</label><select value={selRepo} onChange={e=>onRepoChange(e.target.value)}><option value="">Select repo...</option>{repos.map(r=><option key={r.name} value={r.name}>{r.name}</option>)}</select></div>
+        {loadingRepo&&<div style={{fontSize:11,color:'var(--text3)'}}>Loading branches and workflows...</div>}
+        <div className="g2">
+          <div><label className="lbl">Workflow</label><select value={selWf} onChange={e=>setSelWf(e.target.value)}><option value="">Select workflow...</option>{wfs.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select></div>
+          <div><label className="lbl">Branch</label><select value={selBranch} onChange={e=>setSelBranch(e.target.value)}><option value="">Select branch...</option>{branches.map(b=><option key={b} value={b}>{b}</option>)}</select></div>
+        </div>
+        <div><label className="lbl">Environment</label><select value={selEnv} onChange={e=>setSelEnv(e.target.value)}>{['DEV','INT','QA','STAGE','PROD'].map(e=><option key={e} value={e}>{e}</option>)}</select></div>
+        {arts.length>0&&<div><div style={{fontSize:11,color:'var(--text2)',marginBottom:6}}>Latest Artifacts</div>{arts.slice(0,5).map(a=><div key={a.id} style={{display:'flex',gap:8,fontSize:11,padding:'3px 0',alignItems:'center'}}><span>📦</span><span style={{flex:1}}>{a.name}</span><span style={{color:'var(--text3)'}}>{fmtSize(a.size_in_bytes)}</span><span style={{color:'var(--text3)'}}>{ago(a.created_at)}</span><a href={a.archive_download_url} target="_blank" rel="noopener" style={{fontSize:10}}>Download ↗</a></div>)}</div>}
+        <button className="bt bt-t" onClick={doDeploy} disabled={deploying} style={{alignSelf:'flex-start'}}>{deploying?'⏳ Deploying...':'🚀 Deploy'}</button>
+      </div>
+    </div>
+
+    <div className="c">
+      <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>📜 Deployment History</div>
+      {deployRuns.length===0?<div style={{padding:12,textAlign:'center',color:'var(--text3)',fontSize:12}}>No deployment runs found</div>:
+      <div style={{overflowX:'auto'}}><table style={{width:'100%',fontSize:11,borderCollapse:'collapse'}}><thead><tr style={{borderBottom:'1px solid var(--border)'}}>
+        <th style={{textAlign:'left',padding:'6px 8px',color:'var(--text3)',fontWeight:500}}>Time</th>
+        <th style={{textAlign:'left',padding:'6px 8px',color:'var(--text3)',fontWeight:500}}>Repo</th>
+        <th style={{textAlign:'left',padding:'6px 8px',color:'var(--text3)',fontWeight:500}}>Branch</th>
+        <th style={{textAlign:'left',padding:'6px 8px',color:'var(--text3)',fontWeight:500}}>Status</th>
+        <th style={{textAlign:'left',padding:'6px 8px',color:'var(--text3)',fontWeight:500}}>By</th>
+        <th style={{textAlign:'left',padding:'6px 8px',color:'var(--text3)',fontWeight:500}}>Duration</th>
+      </tr></thead><tbody>
+        {deployRuns.slice(0,20).map(r=><tr key={r.id} style={{borderBottom:'1px solid var(--border)',borderLeft:'3px solid '+envColor(r.name||r.display_title)}}>
+          <td style={{padding:'6px 8px',color:'var(--text2)'}}>{ago(r.created_at)}</td>
+          <td style={{padding:'6px 8px'}}>{r._repo}</td>
+          <td style={{padding:'6px 8px',color:'var(--text2)'}}>{r.head_branch}</td>
+          <td style={{padding:'6px 8px'}}><span className="bg" style={{background:sC(r.conclusion||r.status)+'22',color:sC(r.conclusion||r.status)}}>{sE(r.conclusion||r.status)} {r.conclusion||r.status}</span></td>
+          <td style={{padding:'6px 8px',color:'var(--text2)'}}>{r.actor?.login||'?'}</td>
+          <td style={{padding:'6px 8px',color:'var(--text3)'}}>{dur(r.run_started_at,r.updated_at)}</td>
+        </tr>)}
+      </tbody></table></div>}
+    </div>
+
+    <div className="c">
+      <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>⚡ Quick Promote</div>
+      <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+        <button className="bt bt-g" style={{flex:'1 1 140px',justifyContent:'center',padding:14,fontSize:13}} onClick={()=>setPromoModal({from:'INT',to:'QA'})}>INT → QA</button>
+        <button className="bt bt-w" style={{flex:'1 1 140px',justifyContent:'center',padding:14,fontSize:13}} onClick={()=>setPromoModal({from:'QA',to:'STAGE'})}>QA → STAGE</button>
+        <button className="bt bt-d" style={{flex:'1 1 140px',justifyContent:'center',padding:14,fontSize:13,background:'rgba(244,91,105,.12)'}} onClick={()=>setPromoModal({from:'STAGE',to:'PROD'})}>STAGE → PROD</button>
+      </div>
+    </div>
+
+    <Modal open={!!promoModal} onClose={()=>setPromoModal(null)} title={'🚀 Promote: '+(promoModal?promoModal.from+' → '+promoModal.to:'')}>
+      {promoModal&&<div className="fl">
+        <div style={{padding:12,background:'var(--bg)',borderRadius:'var(--r)',fontSize:12}}><strong>Source:</strong> {promoModal.from} → <strong>Target:</strong> {promoModal.to}</div>
+        {promoModal.to==='PROD'&&<div className="eb" style={{background:'rgba(244,91,105,.08)'}}>⚠️ This will deploy to <strong>PRODUCTION</strong>. Ensure all checks pass.</div>}
+        <div style={{display:'flex',gap:8}}><button className="bt bt-t" onClick={()=>doPromote(promoModal.from,promoModal.to)} disabled={promoting}>{promoting?'⏳ Promoting...':'✅ Confirm Promotion'}</button><button className="bt bt-g" onClick={()=>setPromoModal(null)}>Cancel</button></div>
+      </div>}
+    </Modal>
+  </div>;
+}
+
+/* ======================================
+   PAGE: PULL REQUESTS
+   ====================================== */
 function PRPage({repos,prs,toast,refreshPRs}){
   const[tab,setTab]=useState('open');
-  // Create state
-  const[cr,setCr]=useState({repo:'',src:'',tgt:'develop',title:'',desc:'',jira:''});
-  const[branches,setBranches]=useState([]);const[creating,setCreating]=useState(false);
-  // Review state
+  const[cr,setCr]=useState({repo:'',src:'',tgt:'',title:'',desc:'',jira:''});
+  const[branches,setBranches]=useState([]);const[brLoading,setBrLoading]=useState(false);const[creating,setCreating]=useState(false);
   const[reviewComment,setReviewComment]=useState('');const[acting,setActing]=useState('');
 
-  const loadBranches=async(repo)=>{if(!repo)return;try{const d=await api('/repos/'+owner()+'/'+repo+'/branches?per_page=100');setBranches((d||[]).map(b=>b.name));}catch(e){setBranches([]);}};
-  const updateCr=(k,v)=>{const n={...cr,[k]:v};if(k==='repo')loadBranches(v);setCr(n);};
+  const loadBranches=async(repo)=>{if(!repo){setBranches([]);return;}setBrLoading(true);
+    try{const b=await fetchBranches(repo);setBranches(b);const tgt=b.includes('develop')?'develop':b.includes('main')?'main':(b[0]||'');setCr(p=>({...p,tgt}));}catch(e){setBranches([]);}setBrLoading(false);};
+  const updateCr=(k,v)=>{const n={...cr,[k]:v};if(k==='repo'){n.src='';n.tgt='';loadBranches(v);}setCr(n);};
 
   const createPR=async()=>{if(!cr.repo||!cr.src||!cr.title){toast('❌ Fill repo, source branch, and title','e');return;}setCreating(true);
     try{const title=(cr.jira?cr.jira+' ':'')+cr.title;const body=(cr.jira?'Jira: '+cr.jira+'\n\n':'')+cr.desc;
       const d=await api('/repos/'+owner()+'/'+cr.repo+'/pulls',{method:'POST',body:JSON.stringify({title,body,head:cr.src,base:cr.tgt||'develop'})});
-      toast('✅ PR #'+d.number+' created!');setCr({repo:cr.repo,src:'',tgt:'develop',title:'',desc:'',jira:''});refreshPRs();
+      toast('✅ PR #'+d.number+' created!');setCr({repo:cr.repo,src:'',tgt:branches.includes('develop')?'develop':'main',title:'',desc:'',jira:''});refreshPRs();
     }catch(e){toast('❌ '+e.message,'e');}setCreating(false);};
 
   const approvePR=async(repo,num)=>{setActing(repo+'/'+num+'/approve');try{await api('/repos/'+owner()+'/'+repo+'/pulls/'+num+'/reviews',{method:'POST',body:JSON.stringify({event:'APPROVE'})});toast('✅ PR #'+num+' approved');refreshPRs();}catch(e){toast('❌ '+e.message,'e');}setActing('');};
@@ -239,7 +388,11 @@ function PRPage({repos,prs,toast,refreshPRs}){
 
     {tab==='create'&&<div className="c"><div className="fl">
       <div><label className="lbl">Repository</label><select value={cr.repo} onChange={e=>updateCr('repo',e.target.value)}><option value="">Select repo...</option>{repos.map(r=><option key={r.name} value={r.name}>{r.name}</option>)}</select></div>
-      <div className="g2"><div><label className="lbl">Source Branch</label><select value={cr.src} onChange={e=>updateCr('src',e.target.value)}><option value="">Select branch...</option>{branches.map(b=><option key={b} value={b}>{b}</option>)}</select></div><div><label className="lbl">Target Branch</label><input value={cr.tgt} onChange={e=>updateCr('tgt',e.target.value)} placeholder="develop"/></div></div>
+      {brLoading&&<div style={{fontSize:11,color:'var(--text3)'}}>Loading branches...</div>}
+      <div className="g2">
+        <div><label className="lbl">Source Branch</label><select value={cr.src} onChange={e=>updateCr('src',e.target.value)}><option value="">Select branch...</option>{branches.map(b=><option key={b} value={b}>{b}</option>)}</select></div>
+        <div><label className="lbl">Target Branch</label><select value={cr.tgt} onChange={e=>updateCr('tgt',e.target.value)}><option value="">Select branch...</option>{branches.map(b=><option key={b} value={b}>{b}</option>)}</select></div>
+      </div>
       <div><label className="lbl">Jira Ticket (optional)</label><input value={cr.jira} onChange={e=>updateCr('jira',e.target.value)} placeholder="PROJ-123"/></div>
       <div><label className="lbl">Title</label><input value={cr.title} onChange={e=>updateCr('title',e.target.value)} placeholder="Add feature X"/></div>
       <div><label className="lbl">Description</label><textarea value={cr.desc} onChange={e=>updateCr('desc',e.target.value)} placeholder="Describe your changes..."/></div>
@@ -277,9 +430,9 @@ function PRPage({repos,prs,toast,refreshPRs}){
   </div>;
 }
 
-/* ═══════════════════════════════════════
-   PAGE 5: ENVIRONMENTS
-   ═══════════════════════════════════════ */
+/* ======================================
+   PAGE: ENVIRONMENTS
+   ====================================== */
 function EnvPage({runs,repos,toast}){
   const[confirm,setConfirm]=useState(null);const[promoting,setPromoting]=useState(false);
   const ENVS=[{n:'DEV',c:'var(--blue)',auto:true},{n:'INT',c:'var(--blue)',auto:true},{n:'QA',c:'var(--warn)'},{n:'STAGE',c:'var(--warn)'},{n:'PROD',c:'var(--danger)'}];
@@ -301,8 +454,8 @@ function EnvPage({runs,repos,toast}){
         <div style={{minWidth:160,flex:'1 1 160px',background:'var(--card)',border:'1px solid var(--border)',borderRadius:'var(--r)',overflow:'hidden'}}>
           <div style={{background:env.c,padding:3,borderRadius:'6px 6px 0 0'}}/>
           <div style={{padding:12}}>
-            <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:8}}><span style={{fontWeight:700,fontSize:14}}>{env.n}</span>{env.n==='PROD'&&<span className="bg" style={{background:'rgba(244,91,105,.15)',color:'var(--danger)',fontSize:8}}>🔒</span>}</div>
-            {(envMap[env.n]||[]).slice(0,3).map(r=><div key={r.id} style={{fontSize:10,color:'var(--text2)',marginBottom:3}}>{dot(r.conclusion||r.status,5)} {r._repo} <span style={{color:'var(--text3)'}}>{ago(r.created_at)}</span></div>)}
+            <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:8}}><span style={{fontWeight:700,fontSize:14}}>{env.n}</span>{env.n==='PROD'&&<span className="bg" style={{background:'rgba(244,91,105,.15)',color:'var(--danger)',fontSize:8}}>🔒 Protected — requires approval</span>}</div>
+            {(envMap[env.n]||[]).slice(0,5).map(r=><div key={r.id} style={{fontSize:10,color:'var(--text2)',marginBottom:3}}>{dot(r.conclusion||r.status,5)} {r._repo} <span style={{color:'var(--teal)',marginLeft:4}}>{r.head_branch}</span> <span style={{color:'var(--text3)'}}>{ago(r.created_at)}</span></div>)}
             {(envMap[env.n]||[]).length===0&&<div style={{fontSize:10,color:'var(--text3)'}}>No deployments</div>}
             <div style={{fontSize:9,color:'var(--text3)',marginTop:4}}>{(envMap[env.n]||[]).length} deploys total</div>
           </div>
@@ -324,9 +477,9 @@ function EnvPage({runs,repos,toast}){
   </div>;
 }
 
-/* ═══════════════════════════════════════
-   PAGE 6: APPROVALS
-   ═══════════════════════════════════════ */
+/* ======================================
+   PAGE: APPROVALS
+   ====================================== */
 function ApprovalsPage({runs,prs,toast,refreshData}){
   const[acting,setActing]=useState('');
   const waiting=runs.filter(r=>r.status==='waiting'||r.status==='action_required');
@@ -349,9 +502,9 @@ function ApprovalsPage({runs,prs,toast,refreshData}){
   </div>;
 }
 
-/* ═══════════════════════════════════════
-   PAGE 7: SECURITY
-   ═══════════════════════════════════════ */
+/* ======================================
+   PAGE: SECURITY
+   ====================================== */
 function SecurityPage({runs}){
   const sec=useMemo(()=>runs.filter(r=>{const n=(r.name||r.display_title||'').toLowerCase();return n.includes('security')||n.includes('sast')||n.includes('sca')||n.includes('scan')||n.includes('gitleaks')||n.includes('trivy');}),[runs]);
   const passed=sec.filter(r=>r.conclusion==='success').length;const failed=sec.filter(r=>r.conclusion==='failure').length;
@@ -375,9 +528,9 @@ function SecurityPage({runs}){
   </div>;
 }
 
-/* ═══════════════════════════════════════
-   PAGE 8: ALM / JIRA
-   ═══════════════════════════════════════ */
+/* ======================================
+   PAGE: ALM / JIRA
+   ====================================== */
 function ALMPage({toast}){
   const[jiraUrl,setJiraUrl]=useState(sessionStorage.getItem('fo_jira_url')||'');
   const[jiraToken,setJiraToken]=useState(sessionStorage.getItem('fo_jira_token')||'');
@@ -415,9 +568,9 @@ function ALMPage({toast}){
   </div>;
 }
 
-/* ═══════════════════════════════════════
-   PAGE 9: RUNNERS
-   ═══════════════════════════════════════ */
+/* ======================================
+   PAGE: RUNNERS
+   ====================================== */
 function RunnersPage({}){
   const[runners,setRunners]=useState([]);const[ld,setLd]=useState(true);const[err,setErr]=useState('');
   useEffect(()=>{(async()=>{try{let d=await api('/orgs/'+owner()+'/actions/runners').catch(()=>null);if(!d)d=await api('/repos/'+owner()+'/ForgeOps/actions/runners').catch(()=>null);if(d&&d.runners)setRunners(d.runners);else setErr('No runners found or insufficient permissions.');}catch(e){setErr(e.message);}setLd(false);})();},[]);
@@ -429,9 +582,9 @@ function RunnersPage({}){
   </div>;
 }
 
-/* ═══════════════════════════════════════
-   PAGE 10: SETTINGS
-   ═══════════════════════════════════════ */
+/* ======================================
+   PAGE: SETTINGS
+   ====================================== */
 function SettingsPage({repos,onDisconnect,toast}){
   const u=sessionStorage.getItem('fo_u')||'';const tk=sessionStorage.getItem('fo_t')||'';
   const masked=tk?tk.slice(0,6)+'••••••'+tk.slice(-4):'';
@@ -469,15 +622,16 @@ function SettingsPage({repos,onDisconnect,toast}){
   </div>;
 }
 
-/* ═══════════════════════════════════════
+/* ======================================
    NAV + MAIN APP
-   ═══════════════════════════════════════ */
+   ====================================== */
 const NAV=[
   {s:'Delivery'},
   {k:'overview',l:'Overview',i:'📊'},
   {k:'pipelines',l:'Pipelines',i:'🔀'},
-  {k:'prs',l:'Pull Requests',i:'📬'},
+  {k:'deploy',l:'Deploy',i:'🚀'},
   {k:'envs',l:'Environments',i:'🌐'},
+  {k:'prs',l:'Pull Requests',i:'📬'},
   {s:'Quality'},
   {k:'security',l:'Security',i:'🛡️'},
   {k:'alm',l:'ALM / Jira',i:'🎫'},
@@ -503,19 +657,16 @@ function App(){
     if(!sessionStorage.getItem('fo_t'))return;
     setLoading(true);setError('');setRateMsg('');
     try{
-      const repoList=await api('/users/'+owner()+'/repos?per_page=100&sort=updated');
+      const repoList=await cached('repos',60000,()=>api('/users/'+owner()+'/repos?per_page=100&sort=updated'));
       if(!repoList)throw new Error('Could not fetch repos');
       setRepos(repoList);
 
-      // Fetch runs
       const runBatches=await Promise.all(repoList.slice(0,15).map(r=>api('/repos/'+owner()+'/'+r.name+'/actions/runs?per_page=20').then(d=>((d&&d.workflow_runs)||[]).map(run=>({...run,_repo:r.name}))).catch(()=>[])));
       setRuns(runBatches.flat().sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)));
 
-      // Fetch PRs
       const prBatches=await Promise.all(repoList.slice(0,15).map(r=>api('/repos/'+owner()+'/'+r.name+'/pulls?state=all&per_page=15&sort=updated&direction=desc').then(d=>(d||[]).map(p=>({...p,_repo:r.name,_checks:'pending'}))).catch(()=>[])));
       const allPrs=prBatches.flat().sort((a,b)=>new Date(b.updated_at)-new Date(a.updated_at));
 
-      // Fetch check status for open PRs (first 10)
       const openOnes=allPrs.filter(p=>p.state==='open').slice(0,10);
       await Promise.all(openOnes.map(async p=>{try{const d=await api('/repos/'+owner()+'/'+p._repo+'/commits/'+p.head.sha+'/check-runs');const checks=(d&&d.check_runs)||[];if(checks.length===0)p._checks='pending';else if(checks.every(c=>c.conclusion==='success'))p._checks='success';else if(checks.some(c=>c.conclusion==='failure'))p._checks='failure';else p._checks='pending';}catch(e){}}));
       setPrs(allPrs);
@@ -527,7 +678,7 @@ function App(){
     setLoading(false);
   },[]);
 
-  const refreshPRs=()=>{fetchData();}; // full refresh for simplicity
+  const refreshPRs=()=>{fetchData();};
 
   useEffect(()=>{if(user){fetchData();timer.current=setInterval(fetchData,20000);}return()=>{if(timer.current)clearInterval(timer.current);};},[user,fetchData]);
 
@@ -542,8 +693,9 @@ function App(){
   const renderPage=()=>{
     if(loading&&runs.length===0)return<div><div className="sg">{[1,2,3,4].map(i=><div key={i} className="sk" style={{height:80}}/>)}</div><div className="sk" style={{height:200,marginTop:14}}/></div>;
     switch(page){
-      case'overview':return<OverviewPage runs={runs} prs={prs}/>;
+      case'overview':return<OverviewPage runs={runs} prs={prs} repos={repos} setPage={setPage}/>;
       case'pipelines':return<PipelinesPage repos={repos} runs={runs} toast={showToast}/>;
+      case'deploy':return<DeployPage repos={repos} runs={runs} toast={showToast} setPage={setPage}/>;
       case'prs':return<PRPage repos={repos} prs={prs} toast={showToast} refreshPRs={refreshPRs}/>;
       case'envs':return<EnvPage runs={runs} repos={repos} toast={showToast}/>;
       case'approvals':return<ApprovalsPage runs={runs} prs={prs} toast={showToast} refreshData={fetchData}/>;
@@ -576,6 +728,7 @@ function App(){
         <button className="hb" onClick={()=>setSbOpen(!sbOpen)}>☰</button>
         <div style={{flex:1,fontSize:14,fontWeight:600}}>{(NAV.find(n=>n.k===page)||{}).l||''}</div>
         {loading&&<span style={{color:'var(--teal)',fontSize:12}}>⟳ loading</span>}
+        {lastRef&&<span style={{fontSize:10,color:'var(--text3)'}}>Last: {lastRef.toLocaleTimeString()}</span>}
         <button className="bt bt-g" onClick={fetchData} style={{fontSize:11,padding:'4px 10px'}}>🔄 Refresh</button>
       </header>
       <div className="ct">
