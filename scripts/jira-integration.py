@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
 """
-jira-integration.py - JIRA integration for ForgeOps CI/CD pipelines.
+jira-integration.py - Jira integration for ForgeOps CI/CD pipelines.
 
 Subcommands:
-  create-ticket     Create a new JIRA ticket
-  transition        Transition a ticket to a new status
-  set-fix-version   Set the fix version on a ticket
+  create-ticket   Create a new Jira issue
+  transition      Transition issues found in git commit range
+  set-fix-version Set fix version on issues found in git commit range
 
-Uses only urllib (no third-party dependencies).
-Exits 0 with a skip message when --url is empty or not provided.
+Uses only argparse and urllib (stdlib). No third-party dependencies.
 """
 
 import argparse
 import json
-import os
 import re
 import subprocess
 import sys
@@ -22,15 +20,14 @@ import urllib.error
 import urllib.parse
 
 
-# ------------------------------------------------------------------
-# Helpers
-# ------------------------------------------------------------------
+TICKET_PATTERN = re.compile(r"[A-Z]+-\d+")
 
-def jira_request(base_url, path, token, method="GET", data=None):
-    """Send a request to the JIRA REST API."""
+
+def jira_request(base_url, token, method, path, data=None):
+    """Make an authenticated Jira REST API request."""
     url = base_url.rstrip("/") + path
     headers = {
-        "Authorization": f"Basic {token}",
+        "Authorization": "Basic " + token,
         "Content-Type": "application/json",
         "Accept": "application/json",
     }
@@ -42,194 +39,195 @@ def jira_request(base_url, path, token, method="GET", data=None):
             resp_body = resp.read().decode("utf-8")
             if resp_body:
                 return json.loads(resp_body)
-            return {}
+            return None
     except urllib.error.HTTPError as exc:
-        error_body = exc.read().decode("utf-8", errors="replace")
-        print(f"[FAIL] JIRA API error {exc.code}: {error_body}", file=sys.stderr)
+        err_body = exc.read().decode("utf-8", errors="replace")
+        print("[FAIL] Jira API error: HTTP {} - {}".format(exc.code, err_body), file=sys.stderr)
         sys.exit(1)
     except urllib.error.URLError as exc:
-        print(f"[FAIL] Could not reach JIRA: {exc.reason}", file=sys.stderr)
+        print("[FAIL] Jira connection error: {}".format(exc.reason), file=sys.stderr)
         sys.exit(1)
 
 
-def extract_ticket_keys(count=50):
-    """Extract JIRA ticket keys ([A-Z]+-\\d+) from recent git log."""
+def extract_tickets_from_commits(commit_range):
+    """Extract Jira ticket IDs from git log messages in the given commit range."""
     try:
         result = subprocess.run(
-            ["git", "log", f"-{count}", "--oneline"],
+            ["git", "log", "--oneline", commit_range],
             capture_output=True,
             text=True,
-            timeout=15,
+            check=True,
         )
-        if result.returncode != 0:
-            return []
-        pattern = re.compile(r"[A-Z]+-\d+")
-        keys = pattern.findall(result.stdout)
-        # Deduplicate while preserving order
-        seen = set()
-        unique = []
-        for k in keys:
-            if k not in seen:
-                seen.add(k)
-                unique.append(k)
-        return unique
-    except Exception:
-        return []
+    except subprocess.CalledProcessError as exc:
+        print("[FAIL] git log failed: {}".format(exc.stderr.strip()), file=sys.stderr)
+        sys.exit(1)
+    except FileNotFoundError:
+        print("[FAIL] git not found in PATH", file=sys.stderr)
+        sys.exit(1)
 
+    tickets = set()
+    for line in result.stdout.splitlines():
+        tickets.update(TICKET_PATTERN.findall(line))
 
-# ------------------------------------------------------------------
-# Subcommands
-# ------------------------------------------------------------------
+    return sorted(tickets)
+
 
 def cmd_create_ticket(args):
-    """Create a new JIRA ticket."""
-    if not args.url:
-        print("[SKIP] JIRA URL not configured -- skipping ticket creation")
+    """Handle the create-ticket subcommand."""
+    if not args.url or args.url.lower() == "none":
+        print("Jira not configured - skipping")
         sys.exit(0)
+
+    labels = []
+    if args.labels:
+        labels = [l.strip() for l in args.labels.split(",") if l.strip()]
 
     payload = {
         "fields": {
             "project": {"key": args.project},
+            "issuetype": {"name": args.type},
             "summary": args.summary,
-            "issuetype": {"name": args.issue_type},
+            "description": args.description or "",
+            "priority": {"name": args.priority or "Medium"},
         }
     }
-    if args.description:
-        payload["fields"]["description"] = args.description
+    if labels:
+        payload["fields"]["labels"] = labels
 
-    if args.labels:
-        payload["fields"]["labels"] = args.labels.split(",")
+    result = jira_request(args.url, args.token, "POST", "/rest/api/2/issue", payload)
 
-    result = jira_request(args.url, "/rest/api/2/issue", args.token, method="POST", data=payload)
-    ticket_key = result.get("key", "UNKNOWN")
-    print(f"[PASS] Created JIRA ticket: {ticket_key}")
-
-    # Write to GITHUB_OUTPUT if available
-    gh_output = os.environ.get("GITHUB_OUTPUT", "")
-    if gh_output:
-        with open(gh_output, "a") as f:
-            f.write(f"ticket_key={ticket_key}\n")
-
-    return ticket_key
+    if result and "key" in result:
+        print("[PASS] Created Jira ticket: {}".format(result["key"]))
+        print(result["key"])
+    else:
+        print("[FAIL] Unexpected response from Jira", file=sys.stderr)
+        sys.exit(1)
 
 
 def cmd_transition(args):
-    """Transition a JIRA ticket to a new status."""
-    if not args.url:
-        print("[SKIP] JIRA URL not configured -- skipping transition")
+    """Handle the transition subcommand."""
+    if not args.url or args.url.lower() == "none":
+        print("Jira not configured - skipping")
         sys.exit(0)
 
-    ticket_key = args.ticket
-    if not ticket_key:
-        # Try to extract from git log
-        keys = extract_ticket_keys()
-        if not keys:
-            print("[SKIP] No JIRA ticket key found in git log")
-            sys.exit(0)
-        ticket_key = keys[0]
-        print(f"[INFO] Auto-detected ticket from git log: {ticket_key}")
+    tickets = extract_tickets_from_commits(args.commit_range)
+    if not tickets:
+        print("[INFO] No Jira tickets found in commit range: {}".format(args.commit_range))
+        sys.exit(0)
 
-    # Get available transitions
-    transitions = jira_request(
-        args.url,
-        f"/rest/api/2/issue/{ticket_key}/transitions",
-        args.token,
-    )
-    target_id = None
-    for t in transitions.get("transitions", []):
-        if t["name"].lower() == args.status.lower():
-            target_id = t["id"]
-            break
+    print("[INFO] Found tickets: {}".format(", ".join(tickets)))
 
-    if not target_id:
-        available = [t["name"] for t in transitions.get("transitions", [])]
-        print(f"[FAIL] Transition '{args.status}' not found. Available: {', '.join(available)}")
-        sys.exit(1)
+    for ticket in tickets:
+        # Get available transitions
+        transitions_resp = jira_request(
+            args.url, args.token, "GET",
+            "/rest/api/2/issue/{}/transitions".format(ticket),
+        )
+        if not transitions_resp or "transitions" not in transitions_resp:
+            print("[SKIP] Could not fetch transitions for {}".format(ticket))
+            continue
 
-    jira_request(
-        args.url,
-        f"/rest/api/2/issue/{ticket_key}/transitions",
-        args.token,
-        method="POST",
-        data={"transition": {"id": target_id}},
-    )
-    print(f"[PASS] Transitioned {ticket_key} to '{args.status}'")
+        target_id = None
+        for t in transitions_resp["transitions"]:
+            if t["name"].lower() == args.status.lower():
+                target_id = t["id"]
+                break
+
+        if not target_id:
+            available = [t["name"] for t in transitions_resp["transitions"]]
+            print("[SKIP] Transition '{}' not available for {} (available: {})".format(
+                args.status, ticket, ", ".join(available)))
+            continue
+
+        payload = {"transition": {"id": target_id}}
+        if args.comment:
+            payload["update"] = {
+                "comment": [{"add": {"body": args.comment}}]
+            }
+
+        jira_request(
+            args.url, args.token, "POST",
+            "/rest/api/2/issue/{}/transitions".format(ticket),
+            payload,
+        )
+        print("[PASS] Transitioned {} to '{}'".format(ticket, args.status))
 
 
 def cmd_set_fix_version(args):
-    """Set fix version on a JIRA ticket."""
-    if not args.url:
-        print("[SKIP] JIRA URL not configured -- skipping fix version")
+    """Handle the set-fix-version subcommand."""
+    if not args.url or args.url.lower() == "none":
+        print("Jira not configured - skipping")
         sys.exit(0)
 
-    ticket_key = args.ticket
-    if not ticket_key:
-        keys = extract_ticket_keys()
-        if not keys:
-            print("[SKIP] No JIRA ticket key found in git log")
-            sys.exit(0)
-        ticket_key = keys[0]
-        print(f"[INFO] Auto-detected ticket from git log: {ticket_key}")
+    tickets = extract_tickets_from_commits(args.commit_range)
+    if not tickets:
+        print("[INFO] No Jira tickets found in commit range: {}".format(args.commit_range))
+        sys.exit(0)
 
-    payload = {
-        "update": {
-            "fixVersions": [{"add": {"name": args.version}}]
+    print("[INFO] Found tickets: {}".format(", ".join(tickets)))
+
+    for ticket in tickets:
+        payload = {
+            "update": {
+                "fixVersions": [{"add": {"name": args.version}}]
+            }
         }
-    }
-    jira_request(
-        args.url,
-        f"/rest/api/2/issue/{ticket_key}",
-        args.token,
-        method="PUT",
-        data=payload,
-    )
-    print(f"[PASS] Set fix version '{args.version}' on {ticket_key}")
+        jira_request(
+            args.url, args.token, "PUT",
+            "/rest/api/2/issue/{}".format(ticket),
+            payload,
+        )
+        print("[PASS] Set fix version '{}' on {}".format(args.version, ticket))
 
-
-# ------------------------------------------------------------------
-# CLI
-# ------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(description="ForgeOps JIRA Integration")
-    parser.add_argument("--url", default=os.environ.get("JIRA_URL", ""), help="JIRA base URL")
-    parser.add_argument("--token", default=os.environ.get("JIRA_TOKEN", ""), help="JIRA API token (base64)")
+    parser = argparse.ArgumentParser(
+        description="ForgeOps Jira integration for CI/CD pipelines",
+    )
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    # --- create-ticket ---
+    create_parser = subparsers.add_parser("create-ticket", help="Create a new Jira issue")
+    create_parser.add_argument("--url", required=True, help="Jira base URL (or 'none' to skip)")
+    create_parser.add_argument("--token", required=True, help="Jira API token (base64 user:token)")
+    create_parser.add_argument("--project", required=True, help="Jira project key (e.g. FORGE)")
+    create_parser.add_argument("--type", required=True, help="Issue type (e.g. Bug, Task, Story)")
+    create_parser.add_argument("--summary", required=True, help="Issue summary / title")
+    create_parser.add_argument("--description", default="", help="Issue description")
+    create_parser.add_argument("--priority", default="Medium", help="Priority (default: Medium)")
+    create_parser.add_argument("--labels", default="", help="Comma-separated labels")
 
-    # create-ticket
-    p_create = subparsers.add_parser("create-ticket", help="Create a JIRA ticket")
-    p_create.add_argument("--project", required=True, help="JIRA project key")
-    p_create.add_argument("--summary", required=True, help="Ticket summary")
-    p_create.add_argument("--description", default="", help="Ticket description")
-    p_create.add_argument("--issue-type", default="Task", help="Issue type (default: Task)")
-    p_create.add_argument("--labels", default="", help="Comma-separated labels")
-    p_create.set_defaults(func=cmd_create_ticket)
+    # --- transition ---
+    transition_parser = subparsers.add_parser(
+        "transition", help="Transition issues referenced in commits",
+    )
+    transition_parser.add_argument("--url", required=True, help="Jira base URL (or 'none' to skip)")
+    transition_parser.add_argument("--token", required=True, help="Jira API token")
+    transition_parser.add_argument("--commit-range", required=True, help="Git commit range (e.g. HEAD~5..HEAD)")
+    transition_parser.add_argument("--status", required=True, help="Target transition name")
+    transition_parser.add_argument("--comment", default="", help="Comment to add on transition")
 
-    # transition
-    p_trans = subparsers.add_parser("transition", help="Transition a JIRA ticket")
-    p_trans.add_argument("--ticket", default="", help="Ticket key (auto-detect from git if omitted)")
-    p_trans.add_argument("--status", required=True, help="Target status name")
-    p_trans.set_defaults(func=cmd_transition)
-
-    # set-fix-version
-    p_fix = subparsers.add_parser("set-fix-version", help="Set fix version on a ticket")
-    p_fix.add_argument("--ticket", default="", help="Ticket key (auto-detect from git if omitted)")
-    p_fix.add_argument("--version", required=True, help="Fix version name")
-    p_fix.set_defaults(func=cmd_set_fix_version)
+    # --- set-fix-version ---
+    fix_parser = subparsers.add_parser(
+        "set-fix-version", help="Set fix version on issues referenced in commits",
+    )
+    fix_parser.add_argument("--url", required=True, help="Jira base URL (or 'none' to skip)")
+    fix_parser.add_argument("--token", required=True, help="Jira API token")
+    fix_parser.add_argument("--commit-range", required=True, help="Git commit range")
+    fix_parser.add_argument("--version", required=True, help="Fix version name")
 
     args = parser.parse_args()
 
-    # Global check: if --url is empty, exit gracefully
-    if not args.url:
-        print("[SKIP] JIRA URL not provided -- skipping JIRA integration")
-        sys.exit(0)
-
-    if not args.token:
-        print("[FAIL] JIRA token is required when URL is configured")
+    if not args.command:
+        parser.print_help()
         sys.exit(1)
 
-    args.func(args)
+    dispatch = {
+        "create-ticket": cmd_create_ticket,
+        "transition": cmd_transition,
+        "set-fix-version": cmd_set_fix_version,
+    }
+    dispatch[args.command](args)
 
 
 if __name__ == "__main__":

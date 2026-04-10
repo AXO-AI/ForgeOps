@@ -1,38 +1,27 @@
-# Workflow
+# ForgeOps Workflow
 
 ## Branch Strategy
+| Branch    | Environment | Trigger         | Approval   |
+|-----------|-------------|-----------------|------------|
+| feature/* | --          | push            | none       |
+| develop   | INT         | merge PR        | 1 reviewer |
+| release/* | QA          | merge PR        | tech lead  |
+| main      | STAGE       | merge PR        | 2 reviewers|
+| tag v*    | PROD        | manual dispatch | release eng|
 
-```
-feature/* --> int --> qa --> stage --> main
-```
+## 10-Step Pipeline Flow
+1. Developer creates feature branch, pushes code
+2. CI runs: lint, unit test, SAST scan -- Jira set to "Ready for Unit Testing"
+3. Developer creates PR to develop -- email sent to reviewers
+4. PR merged to develop -- deploy to INT -- Jira set to "In INT"
+5. Tech lead creates PR to release branch -- QA notified via email
+6. PR merged to release -- deploy to QA -- Jira set to "Ready for SIT"
+7. QA signs off -- PR created to main -- Teams notification sent
+8. PR merged to main -- deploy to STAGE -- Jira set to "Ready for UAT"
+9. UAT signs off -- release engineer creates tag -- approval required
+10. Tag created -- deploy to PROD -- Jira set to "Deployed" -- all stakeholders emailed
 
-## Flow
-
-1. Developer creates a `feature/*` branch from `main`
-2. Developer opens a PR targeting `int`
-3. CI runs: build, unit tests, SAST, SCA, lint
-4. Code review and approval by tech lead
-5. Merge to `int` triggers auto-deploy to INT environment
-6. QA team validates; PR opened to promote `int` to `qa`
-7. QA approval triggers deploy to QA environment
-8. UAT team validates; PR opened to promote `qa` to `stage`
-9. Stage approval triggers deploy to Stage environment
-10. Release engineer approves promotion to `main` (production)
-
-## Approval Matrix
-
-| Target      | Approver         |
-|-------------|------------------|
-| int         | tech_lead        |
-| qa          | qa_team          |
-| stage       | uat_team         |
-| main (prod) | release_engineer |
-
-## Hotfix Flow
-
-1. Create `hotfix/*` branch from `main`
-2. PR directly to `main` with expedited review
-3. Back-merge to `int` after production deploy
-
-## Rollback
-See [ROLLBACK.md](ROLLBACK.md) for rollback procedures.
+## Notifications
+- Email: build failures, deployment success/failure, PR reviews needed
+- Teams: production deployments, critical failures, weekly DORA report
+- Splunk: all pipeline logs forwarded for audit

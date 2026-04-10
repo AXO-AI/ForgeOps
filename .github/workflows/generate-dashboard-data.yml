@@ -1,0 +1,52 @@
+name: Generate Dashboard Data
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate data
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Generating dashboard data..."
+          CONFIG=$(cat forgeops-config.json 2>/dev/null || echo '{}')
+          ORG=$(echo "$CONFIG" | python3 -c "import json,sys;print(json.load(sys.stdin).get('org','askboppana'))" 2>/dev/null || echo "askboppana")
+
+          python3 -c "
+          import json, subprocess, sys
+          from datetime import datetime
+
+          config = json.load(open('forgeops-config.json')) if __import__('os').path.exists('forgeops-config.json') else {}
+          org = config.get('org', 'askboppana')
+          projects = config.get('projects', {})
+          data = {'generated': datetime.utcnow().isoformat() + 'Z', 'org': org, 'projects': {}}
+
+          for pname, pconf in projects.items():
+              pdata = {'repos': [], 'team': pconf.get('team', ''), 'template': pconf.get('template', '')}
+              for repo in pconf.get('repos', []):
+                  try:
+                      result = subprocess.run(['gh', 'api', '/repos/' + org + '/' + repo + '/actions/runs?per_page=5'], capture_output=True, text=True, timeout=10)
+                      runs = json.loads(result.stdout).get('workflow_runs', []) if result.returncode == 0 else []
+                  except Exception:
+                      runs = []
+                  pdata['repos'].append({'name': repo, 'runs': [{'id': r.get('id'), 'status': r.get('status'), 'conclusion': r.get('conclusion'), 'branch': r.get('head_branch'), 'created': r.get('created_at')} for r in runs[:5]]})
+              data['projects'][pname] = pdata
+
+          with open('dashboard-data.json', 'w') as f:
+              json.dump(data, f, indent=2)
+          print('Generated dashboard-data.json with ' + str(len(projects)) + ' projects')
+          "
+
+      - name: Commit data
+        run: |
+          git config user.name "ForgeOps Bot"
+          git config user.email "forgeops@github.actions"
+          git add dashboard-data.json
+          git diff --cached --quiet || git commit -m "chore: update dashboard data [skip ci]"
+          git push || echo "Push failed - may need permissions"

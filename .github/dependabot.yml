@@ -4,8 +4,6 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    labels:
-      - "dependencies"
-      - "self-healing"
+    labels: ["dependencies", "self-healing"]
     commit-message:
       prefix: "fix(deps)"

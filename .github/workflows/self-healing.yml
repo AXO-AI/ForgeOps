@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   self-heal:
@@ -22,55 +21,54 @@ jobs:
       - name: Set script permissions
         run: chmod +x scripts/*.sh scripts/*.py 2>/dev/null || true
 
-      - name: Validate workflow YAML files
+      - name: Validate YAML files
         id: yaml-check
         run: |
-          pip install yamllint pyyaml > /dev/null 2>&1
-          errors=0
-          fixed=0
+          echo "Validating YAML files..."
+          YAML_ERRORS=0
 
-          echo "Checking workflow YAML files..."
-          for f in .github/workflows/*.yml .github/workflows/*.yaml; do
-            [ -f "$f" ] || continue
-            echo "  Checking: $f"
+          for f in $(find .github/workflows -name '*.yml' -o -name '*.yaml' 2>/dev/null); do
             if ! python3 -c "import yaml; yaml.safe_load(open('$f'))" 2>/dev/null; then
-              echo "    FAIL: Invalid YAML syntax in $f"
-              errors=$((errors + 1))
-            else
-              echo "    PASS: Valid YAML"
-            fi
-          done
-
-          echo "yaml_errors=$errors" >> "$GITHUB_OUTPUT"
-          echo "yaml_fixed=$fixed" >> "$GITHUB_OUTPUT"
-
-      - name: Check and fix script permissions
-        id: script-check
-        run: |
-          fixed=0
-
-          echo "Checking script permissions..."
-          for f in scripts/*.sh scripts/*.py; do
-            [ -f "$f" ] || continue
-            if [ ! -x "$f" ]; then
-              echo "  Fixing: $f (not executable)"
-              chmod +x "$f"
-              fixed=$((fixed + 1))
+              echo "  FAIL: $f"
+              YAML_ERRORS=$((YAML_ERRORS + 1))
             else
               echo "  PASS: $f"
             fi
           done
 
-          echo "scripts_fixed=$fixed" >> "$GITHUB_OUTPUT"
+          echo "yaml_errors=${YAML_ERRORS}" >> "$GITHUB_OUTPUT"
 
-      - name: Check dependabot configuration
-        id: dependabot-check
+          if [ "$YAML_ERRORS" -gt 0 ]; then
+            echo "Found ${YAML_ERRORS} YAML validation error(s)"
+          else
+            echo "All YAML files: PASS"
+          fi
+
+      - name: Fix script permissions
+        id: fix-perms
         run: |
-          created="false"
+          FIXED=0
+          for f in scripts/*.sh scripts/*.py 2>/dev/null; do
+            if [ -f "$f" ] && [ ! -x "$f" ]; then
+              chmod +x "$f"
+              echo "Fixed permissions: $f"
+              FIXED=$((FIXED + 1))
+            fi
+          done
+          echo "perms_fixed=${FIXED}" >> "$GITHUB_OUTPUT"
+          if [ "$FIXED" -eq 0 ]; then
+            echo "All script permissions: OK"
+          else
+            echo "Fixed ${FIXED} file(s)"
+          fi
+
+      - name: Create dependabot.yml if missing
+        id: dependabot
+        run: |
           if [ ! -f .github/dependabot.yml ]; then
-            echo "Dependabot config not found - creating default..."
+            echo "dependabot.yml MISSING -- creating"
             mkdir -p .github
-            cat > .github/dependabot.yml << 'DEPBOT'
+            cat > .github/dependabot.yml <<'DEPEOF'
           version: 2
           updates:
             - package-ecosystem: "github-actions"
@@ -78,100 +76,63 @@ jobs:
               schedule:
                 interval: "weekly"
                 day: "monday"
-              open-pull-requests-limit: 10
-              labels:
-                - "dependencies"
-                - "github-actions"
-
             - package-ecosystem: "npm"
               directory: "/"
               schedule:
                 interval: "weekly"
                 day: "monday"
               open-pull-requests-limit: 10
-              labels:
-                - "dependencies"
-                - "npm"
-
             - package-ecosystem: "pip"
               directory: "/"
               schedule:
                 interval: "weekly"
                 day: "monday"
-              open-pull-requests-limit: 5
-              labels:
-                - "dependencies"
-                - "python"
-          DEPBOT
-            created="true"
-            echo "Dependabot config created."
+              open-pull-requests-limit: 10
+          DEPEOF
+            echo "created=true" >> "$GITHUB_OUTPUT"
           else
-            echo "PASS: Dependabot config exists."
+            echo "dependabot.yml: OK"
+            echo "created=false" >> "$GITHUB_OUTPUT"
           fi
-          echo "dependabot_created=$created" >> "$GITHUB_OUTPUT"
 
       - name: Check dashboard directory
         id: dashboard-check
         run: |
-          created="false"
-          if [ ! -d dashboard ]; then
-            echo "Dashboard directory not found - creating scaffold..."
-            mkdir -p dashboard
-            cat > dashboard/index.html << 'HTML'
-          <!DOCTYPE html>
-          <html lang="en">
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>ForgeOps Dashboard</title>
-            <style>
-              body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 2rem; }
-              h1 { color: #333; }
-              .status { padding: 1rem; border-radius: 8px; background: #f0f0f0; }
-            </style>
-          </head>
-          <body>
-            <h1>ForgeOps Dashboard</h1>
-            <div class="status">
-              <p>Dashboard placeholder - deploy pipeline metrics and status here.</p>
-            </div>
-          </body>
-          </html>
-          HTML
-            created="true"
-            echo "Dashboard scaffold created."
+          if [ -d "dashboard" ]; then
+            echo "Dashboard directory: OK"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
           else
-            echo "PASS: Dashboard directory exists."
+            echo "Dashboard directory: MISSING"
+            echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
-          echo "dashboard_created=$created" >> "$GITHUB_OUTPUT"
 
-      - name: Commit auto-fixes
+      - name: Auto-commit fixes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           git add -A
           if git diff --cached --quiet; then
-            echo "No changes to commit - everything is healthy."
+            echo "No changes to commit"
           else
             git commit -m "chore: self-healing auto-fix
 
-          - YAML validation: ${{ steps.yaml-check.outputs.yaml_errors }} errors found
-          - Script permissions fixed: ${{ steps.script-check.outputs.scripts_fixed }}
-          - Dependabot created: ${{ steps.dependabot-check.outputs.dependabot_created }}
-          - Dashboard created: ${{ steps.dashboard-check.outputs.dashboard_created }}"
+          - YAML validation errors: ${{ steps.yaml-check.outputs.yaml_errors }}
+          - Script permissions fixed: ${{ steps.fix-perms.outputs.perms_fixed }}
+          - Dependabot created: ${{ steps.dependabot.outputs.created }}"
             git push
-            echo "Auto-fix changes committed and pushed."
+            echo "Auto-commit pushed"
           fi
 
-      - name: Write self-healing summary
-        if: always()
+      - name: Self-Healing Summary
         run: |
-          echo "## Self-Healing Report" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Check | Result |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|-------|--------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| YAML Validation Errors | ${{ steps.yaml-check.outputs.yaml_errors }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Script Permissions Fixed | ${{ steps.script-check.outputs.scripts_fixed }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Dependabot Config Created | ${{ steps.dependabot-check.outputs.dependabot_created }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Dashboard Scaffold Created | ${{ steps.dashboard-check.outputs.dashboard_created }} |" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## Self-Healing Report"
+            echo ""
+            echo "| Check | Result |"
+            echo "|-------|--------|"
+            echo "| YAML Validation Errors | ${{ steps.yaml-check.outputs.yaml_errors }} |"
+            echo "| Script Permissions Fixed | ${{ steps.fix-perms.outputs.perms_fixed }} |"
+            echo "| Dependabot Created | ${{ steps.dependabot.outputs.created }} |"
+            echo "| Dashboard Exists | ${{ steps.dashboard-check.outputs.exists }} |"
+          } >> "$GITHUB_STEP_SUMMARY"

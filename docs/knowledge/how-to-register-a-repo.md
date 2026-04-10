@@ -1,18 +1,23 @@
 # How to Register a Repo
 
 ## Steps
+1. Open forgeops-config.json in the ForgeOps repo.
+2. Find the project your repo belongs to (or create a new project entry).
+3. Add the repo name to the "repos" array for that project.
+4. Commit and push to main.
+5. The dashboard data workflow will pick up the new repo within 15 minutes.
 
-1. Open `forgeops-config.json` in the ForgeOps repo
-2. Add your repository entry under the appropriate section
-3. Copy `templates/CODEOWNERS.template` to your repo root as `CODEOWNERS`
-4. Configure branch protection rules on `main`, `stage`, `qa`, `int`
-5. Set up GitHub Environments (int, qa, stage, prod) with protection rules
-6. Add required secrets to GitHub Org Secrets or repo-level secrets
-7. Open a PR to ForgeOps with your config changes
-8. Once merged, your repo is active on the platform
+## Example
+```json
+"java-backend": {
+  "repos": ["api-gateway", "user-service", "payment-service", "NEW-REPO-HERE"],
+  "template": "java-webapp",
+  "team": "Backend Team",
+  "environments": ["int", "qa", "stage", "prod"]
+}
+```
 
-## Required Information
-- Repository name and URL
-- Technology stack (Java, .NET, Node.js, Python)
-- Team members and their roles
-- Deployment targets per environment
+## After Registration
+- Copy the appropriate workflow template from templates/ to the new repo.
+- Configure environment protection rules in the repo settings.
+- Add CODEOWNERS file (use templates/CODEOWNERS.template as a starting point).

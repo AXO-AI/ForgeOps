@@ -1,34 +1,33 @@
-# Cherwell Integration Setup
+# Cherwell ITSM Setup
 
 ## Overview
+ForgeOps can integrate with Cherwell for change management. Production deployments
+automatically create a change request in Cherwell and update it on completion.
 
-Cherwell is used for change management. Production deployments require a Cherwell change ticket.
+## Prerequisites
+- Cherwell instance with REST API enabled
+- API client ID and key with permission to create and update change requests
+- Change template configured in Cherwell for automated deployments
 
-## Configuration
-
-1. Obtain a Cherwell API key from the service desk team
-2. Add the following secrets to GitHub Org Secrets:
-   - `CHERWELL_API_URL` -- Cherwell instance URL
-   - `CHERWELL_API_KEY` -- API authentication key
-   - `CHERWELL_TEMPLATE_ID` -- change request template ID
+## Secrets Required
+| Secret             | Value                          |
+|--------------------|--------------------------------|
+| CHERWELL_BASE_URL  | https://your-cherwell-instance |
+| CHERWELL_API_KEY   | API key from Cherwell admin    |
 
 ## How It Works
+1. Production deployment workflow starts
+2. Workflow calls Cherwell API to create a change request (status: Scheduled)
+3. Deployment runs
+4. On success: workflow updates change request to Implemented
+5. On failure: workflow updates change request to Failed, adds error details
 
-1. When a production promotion is approved, the pipeline creates a Cherwell change ticket
-2. The ticket is auto-populated with deployment details (version, environment, approver)
-3. On successful deploy, the ticket is closed with status "Completed"
-4. On failure or rollback, the ticket is updated with status "Failed"
+## Configuration
+Add the Cherwell secrets to GitHub Organization Secrets.
+The reusable deployment workflow checks for CHERWELL_BASE_URL. If present,
+it creates the change request automatically. If absent, this step is skipped.
 
-## Manual Ticket Creation
-
-If automatic creation fails:
-1. Log into Cherwell
-2. Create a new Change Request using the ForgeOps template
-3. Fill in the deployment details
-4. Link the ticket ID in the PR description
-
-## Troubleshooting
-
-- Verify the API URL and key are correct
-- Check that the template ID exists in Cherwell
-- Review the deploy workflow logs for Cherwell API errors
+## Testing
+1. Set secrets with a Cherwell sandbox instance
+2. Trigger a manual deployment to any environment
+3. Verify the change request appears in Cherwell with correct details

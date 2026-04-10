@@ -1,55 +1,48 @@
 {
-  "version": "6.0.0",
-  "platform": "ForgeOps",
-  "roles": {
-    "admin": {
-      "description": "Full platform access, can manage all workflows and settings",
-      "permissions": ["read", "write", "deploy", "approve", "admin"]
+  "version": "2.0",
+  "org": "askboppana",
+  "projects": {
+    "uipath-rpa": {
+      "repos": ["uipath-claims-bot", "uipath-invoice-bot", "uipath-onboarding-bot"],
+      "template": "uipath-rpa",
+      "team": "RPA Team",
+      "environments": ["qa", "stage", "prod"]
     },
-    "release_engineer": {
-      "description": "Manages releases and production deployments",
-      "permissions": ["read", "write", "deploy", "approve"]
+    "java-backend": {
+      "repos": ["api-gateway", "user-service", "payment-service"],
+      "template": "java-webapp",
+      "team": "Backend Team",
+      "environments": ["int", "qa", "stage", "prod"]
     },
-    "developer": {
-      "description": "Develops features and submits pull requests",
-      "permissions": ["read", "write"]
+    "react-frontend": {
+      "repos": ["customer-portal", "admin-dashboard"],
+      "template": "javascript-webapp",
+      "team": "Frontend Team",
+      "environments": ["int", "qa", "stage", "prod"]
     },
-    "tech_lead": {
-      "description": "Reviews code and approves promotions",
-      "permissions": ["read", "write", "approve"]
-    },
-    "qa_team": {
-      "description": "Validates builds in QA environment",
-      "permissions": ["read", "deploy:qa"]
-    },
-    "uat_team": {
-      "description": "Validates builds in Stage/UAT environment",
-      "permissions": ["read", "deploy:stage"]
+    "system-integration": {
+      "repos": ["data-sync-service", "event-processor"],
+      "template": "system-integration",
+      "team": "Integration Team",
+      "environments": ["int", "qa", "stage", "prod"]
     }
+  },
+  "roles": {
+    "admin": {"description": "Full control", "permissions": ["all"]},
+    "release_engineer": {"description": "Deploy and promote between environments", "permissions": ["view_all", "create_pr", "merge_pr", "deploy", "promote", "rollback"]},
+    "developer": {"description": "Commit code, create PRs to INT", "permissions": ["view_own", "create_pr_to_int", "run_pipeline", "view_logs"]},
+    "tech_lead": {"description": "Review and approve PRs", "permissions": ["view_all", "approve_pr", "merge_pr", "approve_int"]},
+    "qa_team": {"description": "View QA environment, update SIT status", "permissions": ["view_qa", "update_jira_sit"]},
+    "uat_team": {"description": "View Stage environment, update UAT status", "permissions": ["view_stage", "update_jira_uat"]}
   },
   "users": {
-    "askboppana": {
-      "role": "admin",
-      "email": "askboppana@forgeops.io",
-      "notifications": ["email", "teams"]
-    }
+    "askboppana": {"role": "admin", "name": "Ashwin Boppana", "email": ""}
   },
   "email_groups": {
-    "platform_alerts": ["askboppana@forgeops.io"],
-    "deploy_notifications": ["askboppana@forgeops.io"],
-    "security_alerts": ["askboppana@forgeops.io"]
-  },
-  "environments": {
-    "int": { "auto_deploy": true, "approval_required": false },
-    "qa": { "auto_deploy": false, "approval_required": true },
-    "stage": { "auto_deploy": false, "approval_required": true },
-    "prod": { "auto_deploy": false, "approval_required": true }
-  },
-  "integrations": {
-    "jira": { "enabled": true, "project_prefix": "FORGE" },
-    "teams": { "enabled": true },
-    "email": { "enabled": true },
-    "splunk": { "enabled": true },
-    "cherwell": { "enabled": true }
+    "developers": [],
+    "qa_team": [],
+    "uat_team": [],
+    "release_engineers": [],
+    "all_stakeholders": []
   }
 }

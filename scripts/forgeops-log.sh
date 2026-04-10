@@ -1,7 +1,8 @@
 #!/bin/bash
-# forgeops-log.sh - Structured logging for ForgeOps CI/CD pipelines
+# forgeops-log.sh - Structured event logging for ForgeOps CI/CD pipelines
 # Usage: forgeops-log.sh <event_type> <status> <message> [json_payload]
-# Status values: PASS, FAIL, SKIP, INFO
+# Writes to GITHUB_STEP_SUMMARY, appends to .forgeops/events.json,
+# and optionally forwards to Splunk HEC.
 
 set -euo pipefail
 
@@ -10,111 +11,66 @@ STATUS="${2:-}"
 MESSAGE="${3:-}"
 JSON_PAYLOAD="${4:-{}}"
 
-if [[ -z "$EVENT_TYPE" || -z "$STATUS" || -z "$MESSAGE" ]]; then
-  echo "[FAIL] Usage: forgeops-log.sh <event_type> <status> <message> [json_payload]"
-  exit 1
+if [ -z "$EVENT_TYPE" ] || [ -z "$STATUS" ] || [ -z "$MESSAGE" ]; then
+    echo "Usage: forgeops-log.sh <event_type> <status> <message> [json_payload]"
+    echo "  event_type: deploy, test, security, build, notify, etc."
+    echo "  status:     PASS, FAIL, SKIP, INFO"
+    echo "  message:    Human-readable description"
+    echo "  json_payload: Optional JSON object with extra fields"
+    exit 1
 fi
 
-# Validate status
+TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+# Normalize status label
 case "$STATUS" in
-  PASS|FAIL|SKIP|INFO) ;;
-  *)
-    echo "[FAIL] Invalid status: $STATUS. Must be one of: PASS, FAIL, SKIP, INFO"
-    exit 1
-    ;;
+    PASS|pass) STATUS_LABEL="[PASS]" ;;
+    FAIL|fail) STATUS_LABEL="[FAIL]" ;;
+    SKIP|skip) STATUS_LABEL="[SKIP]" ;;
+    INFO|info) STATUS_LABEL="[INFO]" ;;
+    *)         STATUS_LABEL="[$STATUS]" ;;
 esac
 
-TIMESTAMP="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-DISPLAY_TIME="$(date -u '+%H:%M:%S')"
-
-# Format status label
-STATUS_LABEL="[${STATUS}]"
-
-# ------------------------------------------------------------------
-# 1. Write to GITHUB_STEP_SUMMARY (markdown table row)
-# ------------------------------------------------------------------
-if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-  echo "| ${DISPLAY_TIME} | ${EVENT_TYPE} | ${STATUS_LABEL} | ${MESSAGE} |" >> "$GITHUB_STEP_SUMMARY"
-else
-  echo "${DISPLAY_TIME} | ${EVENT_TYPE} | ${STATUS_LABEL} | ${MESSAGE}"
+# --- Write to GITHUB_STEP_SUMMARY ---
+if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+    echo "| ${TIMESTAMP} | ${EVENT_TYPE} | ${STATUS_LABEL} | ${MESSAGE} |" >> "$GITHUB_STEP_SUMMARY"
 fi
 
-# ------------------------------------------------------------------
-# 2. Append structured JSON to .forgeops/events.json
-# ------------------------------------------------------------------
+# --- Append JSON event to .forgeops/events.json ---
 EVENTS_DIR=".forgeops"
 EVENTS_FILE="${EVENTS_DIR}/events.json"
-
 mkdir -p "$EVENTS_DIR"
 
-# Build the event JSON object
-EVENT_JSON=$(cat <<ENDJSON
-{
-  "timestamp": "${TIMESTAMP}",
-  "event_type": "${EVENT_TYPE}",
-  "status": "${STATUS}",
-  "message": "${MESSAGE}",
-  "payload": ${JSON_PAYLOAD},
-  "run_id": "${GITHUB_RUN_ID:-local}",
-  "run_number": "${GITHUB_RUN_NUMBER:-0}",
-  "repository": "${GITHUB_REPOSITORY:-local}",
-  "ref": "${GITHUB_REF:-unknown}"
-}
-ENDJSON
-)
+# Build a single JSON line using only shell builtins and standard tools
+# Escape double quotes in message for safe JSON embedding
+ESCAPED_MESSAGE="$(printf '%s' "$MESSAGE" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+ESCAPED_TYPE="$(printf '%s' "$EVENT_TYPE" | sed 's/\\/\\\\/g; s/"/\\"/g')"
 
-# Initialize the events file if it does not exist
-if [[ ! -f "$EVENTS_FILE" ]]; then
-  echo "[]" > "$EVENTS_FILE"
+EVENT_LINE="{\"timestamp\":\"${TIMESTAMP}\",\"event_type\":\"${ESCAPED_TYPE}\",\"status\":\"${STATUS}\",\"message\":\"${ESCAPED_MESSAGE}\",\"payload\":${JSON_PAYLOAD}}"
+
+echo "$EVENT_LINE" >> "$EVENTS_FILE"
+
+# --- Forward to Splunk HEC if configured ---
+if [ -n "${SPLUNK_HEC_URL:-}" ]; then
+    SPLUNK_TOKEN="${SPLUNK_HEC_TOKEN:-}"
+    if [ -z "$SPLUNK_TOKEN" ]; then
+        # Silently skip if token is not set
+        exit 0
+    fi
+
+    SPLUNK_INDEX="${SPLUNK_INDEX:-main}"
+    SPLUNK_SOURCE="${SPLUNK_SOURCE:-forgeops-ci}"
+    SPLUNK_SOURCETYPE="${SPLUNK_SOURCETYPE:-forgeops:event}"
+
+    SPLUNK_PAYLOAD="{\"index\":\"${SPLUNK_INDEX}\",\"source\":\"${SPLUNK_SOURCE}\",\"sourcetype\":\"${SPLUNK_SOURCETYPE}\",\"event\":${EVENT_LINE}}"
+
+    # Send to Splunk HEC; ignore failures so the pipeline continues
+    curl -s -S -k \
+        -H "Authorization: Splunk ${SPLUNK_TOKEN}" \
+        -H "Content-Type: application/json" \
+        -d "$SPLUNK_PAYLOAD" \
+        "${SPLUNK_HEC_URL}/services/collector/event" \
+        >/dev/null 2>&1 || true
 fi
 
-# Append the event -- read existing array, add new entry, write back
-# Uses a temp file to avoid partial writes
-TMP_FILE=$(mktemp)
-if command -v python3 &>/dev/null; then
-  python3 -c "
-import json, sys
-with open('${EVENTS_FILE}', 'r') as f:
-    events = json.load(f)
-events.append(json.loads(sys.stdin.read()))
-with open('${TMP_FILE}', 'w') as f:
-    json.dump(events, f, indent=2)
-" <<< "$EVENT_JSON"
-  mv "$TMP_FILE" "$EVENTS_FILE"
-else
-  # Fallback: just append as newline-delimited JSON
-  echo "$EVENT_JSON" >> "$EVENTS_FILE"
-  rm -f "$TMP_FILE"
-fi
-
-# ------------------------------------------------------------------
-# 3. Send to Splunk HEC if configured
-# ------------------------------------------------------------------
-if [[ -n "${SPLUNK_HEC_URL:-}" && -n "${SPLUNK_HEC_TOKEN:-}" ]]; then
-  SPLUNK_PAYLOAD=$(cat <<ENDJSON2
-{
-  "event": ${EVENT_JSON},
-  "sourcetype": "forgeops:ci",
-  "source": "forgeops-log",
-  "index": "${SPLUNK_INDEX:-main}"
-}
-ENDJSON2
-  )
-
-  HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-    -X POST "${SPLUNK_HEC_URL}" \
-    -H "Authorization: Splunk ${SPLUNK_HEC_TOKEN}" \
-    -H "Content-Type: application/json" \
-    -d "$SPLUNK_PAYLOAD" \
-    --connect-timeout 5 \
-    --max-time 10 \
-  ) || true
-
-  if [[ "${HTTP_CODE}" == "200" ]]; then
-    echo "[INFO] Event sent to Splunk successfully"
-  else
-    echo "[INFO] Splunk delivery returned HTTP ${HTTP_CODE} (non-fatal)"
-  fi
-else
-  echo "[INFO] Splunk HEC not configured -- skipping remote logging"
-fi
+exit 0

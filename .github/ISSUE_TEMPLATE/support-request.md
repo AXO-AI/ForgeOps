@@ -1,36 +1,27 @@
 ---
-name: "Support request"
-about: "Request help with pipelines, deployments, or platform issues"
+name: Support request
+about: Report an issue with ForgeOps pipelines or dashboard
 title: "[SUPPORT] "
 labels: support, triage
 assignees: askboppana
 ---
-
 ## Environment
 - [ ] INT
 - [ ] QA
-- [ ] Stage
-- [ ] Production
-
-## Repository
-<!-- Which repository is affected? -->
-
+- [ ] STAGE
+- [ ] PROD
+- [ ] Dashboard
+- [ ] Pipeline
+## Repository affected
 ## Description
-<!-- Describe the issue you need help with -->
-
-## Expected Behavior
-<!-- What did you expect to happen? -->
-
-## Steps to Reproduce
+## Expected behavior
+## Steps to reproduce
 1.
 2.
 3.
-
-## Pipeline Link
-<!-- Paste the GitHub Actions run URL -->
-
+## Pipeline run link
 ## Priority
-- [ ] Low - no immediate impact
+- [ ] Critical - production is down
+- [ ] High - blocking deployment
 - [ ] Medium - workaround available
-- [ ] High - blocking development
-- [ ] Critical - production impact
+- [ ] Low - cosmetic / enhancement

@@ -1,29 +1,26 @@
 # How to Setup Teams Notifications
 
-## Overview
-Microsoft Teams notifications are sent via incoming webhooks for pipeline events.
+## Secret Required
+| Secret            | Description                    |
+|-------------------|--------------------------------|
+| TEAMS_WEBHOOK_URL | Incoming webhook URL from Teams |
 
-## Configuration
-1. In Teams, create an Incoming Webhook connector in your target channel
-2. Copy the webhook URL
-3. Add the URL as `TEAMS_WEBHOOK_URL` in GitHub Org Secrets
+## Create the Webhook
+1. Open Microsoft Teams.
+2. Go to the target channel > Manage channel > Connectors.
+3. Add "Incoming Webhook".
+4. Name it "ForgeOps" and copy the URL.
+5. Add the URL as TEAMS_WEBHOOK_URL in GitHub Organization Secrets.
 
-## Notification Events
-- Pipeline started
-- Deploy succeeded
-- Deploy failed
-- Security findings detected
-- Self-healing triggered
+## What Gets Posted
+- Production deployments (success and failure)
+- Critical pipeline failures
+- Self-healing alerts (when drift is detected)
+- Weekly DORA metrics summary
 
 ## Message Format
-Notifications include:
-- Repository name
-- Branch and environment
+Messages are sent as adaptive cards with:
+- Repo name and branch
 - Status (success/failure)
-- Link to the workflow run
+- Link to the Actions run
 - Timestamp
-
-## Troubleshooting
-- Verify the webhook URL is valid and the connector is active
-- Check that the Teams channel allows incoming webhooks
-- Review the notify workflow logs for HTTP errors

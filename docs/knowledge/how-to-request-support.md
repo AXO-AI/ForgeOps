@@ -1,26 +1,23 @@
 # How to Request Support
 
-## Before Opening a Ticket
-1. Check the [Troubleshooting Guide](../TROUBLESHOOTING.md)
-2. Search the [Knowledge Base](README.md) for a relevant article
-3. Search existing [GitHub Issues](https://github.com/askboppana/ForgeOps/issues)
+## Before Requesting
+1. Check docs/TROUBLESHOOTING.md for common issues.
+2. Search existing issues in the ForgeOps repo.
+3. Review the knowledge base articles in docs/knowledge/.
 
-## Opening a Support Request
-1. Go to [New Issue](https://github.com/askboppana/ForgeOps/issues/new?template=support-request.md)
-2. Select the "Support request" template
-3. Fill in all required fields:
-   - Environment (INT, QA, Stage, Production)
-   - Repository name
-   - Description of the issue
-   - Steps to reproduce
-   - Pipeline run link
-   - Priority level
+## How to Submit
+1. Go to the ForgeOps repo > Issues > New Issue.
+2. Select the "Support request" template.
+3. Fill in all fields: environment, repo, description, steps to reproduce.
+4. Set the priority level.
+5. Include a link to the failed pipeline run if applicable.
+6. Submit. The issue is auto-assigned to the platform team.
 
 ## Response Times
-- Critical (production impact): 1 hour
-- High (blocking development): 4 hours
+- Critical (production down): 1 hour
+- High (blocking deployment): 4 hours
 - Medium (workaround available): 1 business day
-- Low (no immediate impact): 3 business days
+- Low (cosmetic/enhancement): next sprint
 
 ## Escalation
-Tag @askboppana in the issue for urgent matters.
+If no response within the SLA, contact @askboppana directly on Teams.

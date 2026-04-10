@@ -1,16 +1,9 @@
 # Security Policy
-
 ## Reporting
-
-Use the **Security Vulnerability** issue template to report any security concerns.
-All reports are triaged within 24 hours.
-
+Use the Security Vulnerability issue template. Do NOT post details publicly.
 ## Practices
-
-- Secrets stored in GitHub Org Secrets (encrypted at rest)
-- No secrets logged or included in artifacts
+- Secrets stored in GitHub Organization Secrets (encrypted at rest)
+- No secrets logged or written to artifacts
 - Dependabot auto-updates GitHub Actions dependencies
-- Self-healing checks run every 6 hours
-- SAST and SCA scans on every pull request
-- Container image scanning before deployment
-- Branch protection enforced on all environments
+- Self-healing workflow validates integrity every 6 hours
+- Dashboard uses read-only GitHub API (no auth tokens stored server-side)

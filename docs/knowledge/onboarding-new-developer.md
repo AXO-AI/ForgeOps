@@ -1,21 +1,18 @@
-# Onboarding New Developer
-
-## Prerequisites
-- GitHub account added to the ForgeOps organization
-- Access granted to the relevant repositories
+# Onboarding a New Developer
 
 ## Steps
+1. Add the developer to the GitHub organization and the appropriate team.
+2. Grant repository access to the repos listed in forgeops-config.json for their project.
+3. Add their email to the appropriate email group in forgeops-config.json.
+4. Have them clone the app repo and create a feature branch.
+5. Walk through the PR process (see how-to-create-a-pr.md).
+6. Show them the dashboard at the ForgeOps GitHub Pages URL.
+7. Ensure they have Jira access and understand the status flow.
 
-1. Clone the ForgeOps repo: `git clone https://github.com/askboppana/ForgeOps.git`
-2. Read the [WORKFLOW.md](../WORKFLOW.md) to understand the branch strategy
-3. Read the [ENVIRONMENTS.md](../ENVIRONMENTS.md) to understand deployment targets
-4. Set up your local environment per [SETUP.md](../SETUP.md)
-5. Create a feature branch: `git checkout -b feature/your-feature`
-6. Make changes, commit, and push
-7. Open a PR targeting `int` -- the pipeline runs automatically
-8. Request review from your tech lead
+## Tools Needed
+- GitHub account with org membership
+- Jira account with project access
+- IDE with recommended extensions (see .vscode/extensions.json)
 
-## Resources
-- [Knowledge Base](README.md) -- all how-to guides
-- [Troubleshooting](../TROUBLESHOOTING.md) -- common issues
-- [Support Request](https://github.com/askboppana/ForgeOps/issues/new?template=support-request.md) -- get help
+## First Task
+Create a small PR to verify the full pipeline runs: lint, test, scan, deploy to INT.

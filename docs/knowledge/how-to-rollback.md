@@ -1,28 +1,22 @@
 # How to Rollback
 
-## Automatic Rollback
-If health checks fail after deploy, the platform rolls back automatically. No action needed.
+## Quick Rollback (Re-run)
+1. Go to the Actions tab in the app repo.
+2. Find the last successful deployment run for the target environment.
+3. Click "Re-run all jobs" to redeploy the previous version.
 
-## Manual Rollback
+## Dispatch Rollback
+1. Go to Actions > Rollback workflow.
+2. Click "Run workflow".
+3. Select environment and enter the version tag to rollback to.
+4. Click "Run workflow" and wait for completion.
 
-### Option 1: Git Revert
-```bash
-git revert <commit-sha>
-git push origin <branch>
-```
-This triggers a new deploy with the previous code.
-
-### Option 2: Re-run Previous Deploy
-1. Go to the Actions tab in GitHub
-2. Find the last successful deploy run
-3. Click "Re-run all jobs"
-
-### Option 3: Emergency
-1. Open a Support Request with Critical priority
-2. Tag @askboppana
-3. Admin triggers rollback from the dashboard
+## Git Revert
+1. Run: `git revert -m 1 <merge-commit-sha>`
+2. Push to the branch mapped to the target environment.
+3. The pipeline deploys the reverted code automatically.
 
 ## After Rollback
-1. Investigate root cause
-2. Fix on a feature branch
-3. Re-promote through the standard workflow
+- Update the Jira ticket with the rollback reason.
+- File a bug report via the ForgeOps issue templates.
+- Notify stakeholders and schedule a root cause analysis.

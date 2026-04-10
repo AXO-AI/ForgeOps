@@ -1,171 +1,31 @@
-name: Weekly Metrics
-
+name: Weekly DORA Metrics
 on:
   schedule:
-    - cron: "0 9 * * 1"
+    - cron: '0 9 * * 1'
   workflow_dispatch:
-
 permissions:
   contents: read
   issues: write
-
 jobs:
-  dora-metrics:
-    name: DORA Metrics Collection
+  metrics:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set script permissions
-        run: chmod +x scripts/*.sh scripts/*.py 2>/dev/null || true
-
-      - name: Calculate DORA metrics
-        id: metrics
+      - uses: actions/checkout@v4
+      - name: Calculate metrics
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Calculating DORA metrics for the past 7 days..."
-          since=$(date -d '7 days ago' +'%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -v-7d +'%Y-%m-%dT%H:%M:%SZ')
-          now=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-
-          # Deployment Frequency - count merged PRs as proxy
-          deploy_count=$(git log --since="$since" --oneline --merges 2>/dev/null | wc -l | tr -d ' ')
-          echo "deploy_count=$deploy_count" >> "$GITHUB_OUTPUT"
-
-          # Lead Time for Changes - average time from first commit to merge
-          total_hours=0
-          merge_count=0
-          while IFS= read -r merge_hash; do
-            [ -z "$merge_hash" ] && continue
-            merge_time=$(git show -s --format='%ct' "$merge_hash" 2>/dev/null || echo "0")
-            parent_hash=$(git log --format='%H' "${merge_hash}^2" -1 2>/dev/null || true)
-            if [ -n "$parent_hash" ]; then
-              first_commit_time=$(git log --format='%ct' --reverse "${merge_hash}^1..${parent_hash}" 2>/dev/null | head -1)
-              if [ -n "$first_commit_time" ] && [ "$first_commit_time" -gt 0 ] 2>/dev/null; then
-                diff_hours=$(( (merge_time - first_commit_time) / 3600 ))
-                total_hours=$((total_hours + diff_hours))
-                merge_count=$((merge_count + 1))
-              fi
-            fi
-          done < <(git log --since="$since" --merges --format='%H' 2>/dev/null)
-
-          if [ "$merge_count" -gt 0 ]; then
-            avg_lead_time=$((total_hours / merge_count))
-          else
-            avg_lead_time=0
-          fi
-          echo "lead_time_hours=$avg_lead_time" >> "$GITHUB_OUTPUT"
-
-          # Change Failure Rate - count reverts as proxy for failures
-          revert_count=$(git log --since="$since" --oneline --grep="revert\|Revert\|REVERT\|rollback\|hotfix" 2>/dev/null | wc -l | tr -d ' ')
-          if [ "$deploy_count" -gt 0 ]; then
-            cfr_pct=$((revert_count * 100 / deploy_count))
-          else
-            cfr_pct=0
-          fi
-          echo "change_failure_rate=$cfr_pct" >> "$GITHUB_OUTPUT"
-          echo "revert_count=$revert_count" >> "$GITHUB_OUTPUT"
-
-          # Mean Time to Recovery - estimate from revert commit timestamps
-          mttr_hours=0
-          echo "mttr_hours=$mttr_hours" >> "$GITHUB_OUTPUT"
-
-          # Total commits
-          total_commits=$(git log --since="$since" --oneline 2>/dev/null | wc -l | tr -d ' ')
-          echo "total_commits=$total_commits" >> "$GITHUB_OUTPUT"
-
-          # Active contributors
-          contributors=$(git log --since="$since" --format='%aN' 2>/dev/null | sort -u | wc -l | tr -d ' ')
-          echo "contributors=$contributors" >> "$GITHUB_OUTPUT"
-
-          echo "date_range=${since} to ${now}" >> "$GITHUB_OUTPUT"
-
-      - name: Classify DORA performance
-        id: classify
-        run: |
-          deploy_count=${{ steps.metrics.outputs.deploy_count }}
-          lead_time=${{ steps.metrics.outputs.lead_time_hours }}
-          cfr=${{ steps.metrics.outputs.change_failure_rate }}
-
-          # Deployment Frequency classification
-          if [ "$deploy_count" -ge 7 ]; then
-            df_class="Elite (daily or more)"
-          elif [ "$deploy_count" -ge 1 ]; then
-            df_class="High (weekly)"
-          elif [ "$deploy_count" -ge 0 ]; then
-            df_class="Medium (monthly)"
-          else
-            df_class="Low"
-          fi
-          echo "df_class=$df_class" >> "$GITHUB_OUTPUT"
-
-          # Lead Time classification
-          if [ "$lead_time" -le 24 ]; then
-            lt_class="Elite (less than one day)"
-          elif [ "$lead_time" -le 168 ]; then
-            lt_class="High (less than one week)"
-          else
-            lt_class="Medium/Low"
-          fi
-          echo "lt_class=$lt_class" >> "$GITHUB_OUTPUT"
-
-          # Change Failure Rate classification
-          if [ "$cfr" -le 5 ]; then
-            cfr_class="Elite (0-5%)"
-          elif [ "$cfr" -le 15 ]; then
-            cfr_class="High (5-15%)"
-          else
-            cfr_class="Medium/Low (>15%)"
-          fi
-          echo "cfr_class=$cfr_class" >> "$GITHUB_OUTPUT"
-
-      - name: Create metrics issue
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const title = `Weekly DORA Metrics - ${new Date().toISOString().split('T')[0]}`;
-            const body = `## Weekly DORA Metrics Report
-
-            **Period:** ${{ steps.metrics.outputs.date_range }}
-
-            ### DORA Metrics
-
-            | Metric | Value | Classification |
-            |--------|-------|----------------|
-            | Deployment Frequency | ${{ steps.metrics.outputs.deploy_count }} deploys/week | ${{ steps.classify.outputs.df_class }} |
-            | Lead Time for Changes | ${{ steps.metrics.outputs.lead_time_hours }} hours | ${{ steps.classify.outputs.lt_class }} |
-            | Change Failure Rate | ${{ steps.metrics.outputs.change_failure_rate }}% | ${{ steps.classify.outputs.cfr_class }} |
-            | Mean Time to Recovery | ${{ steps.metrics.outputs.mttr_hours }} hours | N/A |
-
-            ### Additional Stats
-
-            | Metric | Value |
-            |--------|-------|
-            | Total Commits | ${{ steps.metrics.outputs.total_commits }} |
-            | Active Contributors | ${{ steps.metrics.outputs.contributors }} |
-            | Reverts/Rollbacks | ${{ steps.metrics.outputs.revert_count }} |
-
-            ---
-            Generated automatically by the weekly-metrics workflow.`;
-
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: title,
-              body: body,
-              labels: ['metrics', 'dora']
-            });
-
-      - name: Write metrics summary
-        if: always()
-        run: |
-          echo "## Weekly DORA Metrics" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Deployment Frequency | ${{ steps.metrics.outputs.deploy_count }}/week |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Lead Time | ${{ steps.metrics.outputs.lead_time_hours }}h |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Change Failure Rate | ${{ steps.metrics.outputs.change_failure_rate }}% |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Total Commits | ${{ steps.metrics.outputs.total_commits }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Contributors | ${{ steps.metrics.outputs.contributors }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "## DORA Metrics Report" >> $GITHUB_STEP_SUMMARY
+          DEPLOYS=$(gh run list --status success --limit 100 --json databaseId 2>/dev/null | python3 -c "import json,sys;print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
+          FAILED=$(gh run list --status failure --limit 100 --json databaseId 2>/dev/null | python3 -c "import json,sys;print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
+          TOTAL=$((DEPLOYS + FAILED))
+          CFR=0; [ "$TOTAL" -gt 0 ] && CFR=$((FAILED * 100 / TOTAL))
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Successful deploys | $DEPLOYS |" >> $GITHUB_STEP_SUMMARY
+          echo "| Failed | $FAILED |" >> $GITHUB_STEP_SUMMARY
+          echo "| Change failure rate | ${CFR}% |" >> $GITHUB_STEP_SUMMARY
+      - name: Create issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh issue create --repo "${{ github.repository }}" --title "[Metrics] Weekly report $(date +%Y-%m-%d)" --body "See workflow run for details." --label "metrics" 2>/dev/null || true

@@ -1,26 +1,24 @@
-# How to Configure Jira
+# How to Configure Jira Integration
 
-## Overview
-ForgeOps links Jira tickets to PRs and deployments for traceability.
+## Secrets Required
+| Secret          | Description               |
+|-----------------|---------------------------|
+| JIRA_BASE_URL   | e.g. https://yourorg.atlassian.net |
+| JIRA_USER_EMAIL | API user email            |
+| JIRA_API_TOKEN  | Generated from Atlassian account settings |
 
-## Setup
-1. Ensure `JIRA_API_TOKEN` is set in GitHub Org Secrets
-2. Ensure `JIRA_BASE_URL` is set (e.g., `https://yourorg.atlassian.net`)
-3. Use the project prefix defined in `forgeops-config.json` (default: `FORGE`)
+## Jira Status Flow
+The pipeline updates Jira ticket status at each stage:
+- CI pass --> "Ready for Unit Testing"
+- Deploy to INT --> "In INT"
+- Deploy to QA --> "Ready for SIT"
+- Deploy to STAGE --> "Ready for UAT"
+- Deploy to PROD --> "Deployed"
 
-## Linking Tickets to PRs
-Include the Jira ticket ID in your PR title:
-```
-FORGE-123: Add user authentication
-```
-The pipeline automatically updates the Jira ticket with the PR link and build status.
+## How Ticket Key is Detected
+The workflow extracts the Jira ticket key from the PR title (e.g., PROJ-123).
+Ensure every PR title starts with the ticket key.
 
-## Ticket Transitions
-- PR opened: ticket moves to "In Progress"
-- PR merged to int: ticket moves to "In Review"
-- Deployed to prod: ticket moves to "Done"
-
-## Troubleshooting
-- Verify the API token has read/write access to the project
-- Check that the ticket ID format matches the project prefix
-- Review the pipeline logs for Jira API errors
+## Custom Status Names
+If your Jira project uses different status names, update the status mapping
+in the reusable workflow files (reusable-jira-update.yml).

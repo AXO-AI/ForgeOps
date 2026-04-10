@@ -1,86 +1,110 @@
 #!/bin/bash
-# cherwell-health-check.sh - Test connectivity to Cherwell or ServiceNow ITSM
-# Checks whichever platform is configured via environment variables.
+# cherwell-health-check.sh - Health check for Cherwell or ServiceNow ITSM connectivity
+# Checks CHERWELL_URL or SERVICENOW_URL env vars and tests API reachability.
 
 set -euo pipefail
 
 CHERWELL_URL="${CHERWELL_URL:-}"
-CHERWELL_TOKEN="${CHERWELL_TOKEN:-}"
 SERVICENOW_URL="${SERVICENOW_URL:-}"
-SERVICENOW_TOKEN="${SERVICENOW_TOKEN:-}"
 
-TIMEOUT="${HEALTH_CHECK_TIMEOUT:-10}"
-RETRIES="${HEALTH_CHECK_RETRIES:-3}"
+# Determine which ITSM backend is configured
+BACKEND=""
+URL=""
 
-# ------------------------------------------------------------------
-# Helper: test a single endpoint
-# ------------------------------------------------------------------
-test_endpoint() {
-  local url="$1"
-  local auth_header="$2"
-  local label="$3"
-  local attempt=1
+if [ -n "$CHERWELL_URL" ]; then
+    BACKEND="Cherwell"
+    URL="$CHERWELL_URL"
+elif [ -n "$SERVICENOW_URL" ]; then
+    BACKEND="ServiceNow"
+    URL="$SERVICENOW_URL"
+else
+    echo "[SKIP] No ITSM configured (neither CHERWELL_URL nor SERVICENOW_URL is set)"
+    exit 0
+fi
 
-  while [[ $attempt -le $RETRIES ]]; do
-    echo "[INFO] ${label} connectivity check (attempt ${attempt}/${RETRIES})..."
+echo "[INFO] ITSM backend: ${BACKEND}"
+echo "[INFO] URL: ${URL}"
 
-    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-      -X GET "${url}" \
-      -H "Authorization: ${auth_header}" \
-      -H "Accept: application/json" \
-      --connect-timeout "$TIMEOUT" \
-      --max-time "$TIMEOUT" \
-    ) || HTTP_CODE="000"
+# Build the health check endpoint
+if [ "$BACKEND" = "Cherwell" ]; then
+    HEALTH_ENDPOINT="${URL%/}/CherwellAPI/api/V1/serviceinfo"
+elif [ "$BACKEND" = "ServiceNow" ]; then
+    HEALTH_ENDPOINT="${URL%/}/api/now/table/sys_properties?sysparm_limit=1"
+fi
 
-    if [[ "$HTTP_CODE" =~ ^2[0-9]{2}$ ]]; then
-      echo "[PASS] ${label} is reachable (HTTP ${HTTP_CODE})"
-      return 0
+echo "[INFO] Testing connectivity to: ${HEALTH_ENDPOINT}"
+
+# Perform the health check via curl
+HTTP_CODE=""
+CURL_EXIT=0
+
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+    --connect-timeout 10 \
+    --max-time 30 \
+    -H "Accept: application/json" \
+    "$HEALTH_ENDPOINT" 2>/dev/null) || CURL_EXIT=$?
+
+if [ "$CURL_EXIT" -ne 0 ]; then
+    echo "[FAIL] Connection failed (curl exit code: ${CURL_EXIT})"
+    echo ""
+    echo "Possible causes:"
+    echo "  - URL is unreachable or DNS resolution failed"
+    echo "  - Network/firewall is blocking the connection"
+    echo "  - TLS/SSL certificate issue"
+    exit 1
+fi
+
+echo "[INFO] HTTP response code: ${HTTP_CODE}"
+
+case "$HTTP_CODE" in
+    200|201|204)
+        echo "[PASS] ${BACKEND} is reachable and responding (HTTP ${HTTP_CODE})"
+        ;;
+    401|403)
+        echo "[PASS] ${BACKEND} is reachable (HTTP ${HTTP_CODE} - authentication required, which is expected)"
+        echo "[INFO] The endpoint responded but credentials are needed for full access"
+        ;;
+    404)
+        echo "[FAIL] ${BACKEND} returned HTTP 404 - endpoint not found"
+        echo "[INFO] The server is reachable but the API path may be incorrect"
+        exit 1
+        ;;
+    5[0-9][0-9])
+        echo "[FAIL] ${BACKEND} returned server error (HTTP ${HTTP_CODE})"
+        exit 1
+        ;;
+    000)
+        echo "[FAIL] No response received from ${BACKEND}"
+        exit 1
+        ;;
+    *)
+        echo "[INFO] ${BACKEND} returned HTTP ${HTTP_CODE} - unexpected status"
+        echo "[INFO] The server is reachable but returned a non-standard response"
+        ;;
+esac
+
+# DNS resolution check
+HOSTNAME="$(echo "$URL" | sed 's|https\?://||' | sed 's|/.*||' | sed 's|:.*||')"
+echo ""
+echo "[INFO] DNS resolution for: ${HOSTNAME}"
+if command -v nslookup >/dev/null 2>&1; then
+    if nslookup "$HOSTNAME" >/dev/null 2>&1; then
+        echo "[PASS] DNS resolution successful for ${HOSTNAME}"
+    else
+        echo "[FAIL] DNS resolution failed for ${HOSTNAME}"
+        exit 1
     fi
-
-    echo "[INFO] ${label} returned HTTP ${HTTP_CODE}"
-    attempt=$((attempt + 1))
-
-    if [[ $attempt -le $RETRIES ]]; then
-      sleep 1
+elif command -v host >/dev/null 2>&1; then
+    if host "$HOSTNAME" >/dev/null 2>&1; then
+        echo "[PASS] DNS resolution successful for ${HOSTNAME}"
+    else
+        echo "[FAIL] DNS resolution failed for ${HOSTNAME}"
+        exit 1
     fi
-  done
-
-  echo "[FAIL] ${label} is not reachable after ${RETRIES} attempts"
-  return 1
-}
-
-# ------------------------------------------------------------------
-# Main
-# ------------------------------------------------------------------
-CHECKED=0
-FAILURES=0
-
-if [[ -n "$CHERWELL_URL" && -n "$CHERWELL_TOKEN" ]]; then
-  CHECKED=1
-  HEALTH_ENDPOINT="${CHERWELL_URL%/}/api/V1/serviceinfo"
-  if ! test_endpoint "$HEALTH_ENDPOINT" "Bearer ${CHERWELL_TOKEN}" "Cherwell"; then
-    FAILURES=$((FAILURES + 1))
-  fi
+else
+    echo "[SKIP] No DNS lookup tool available (nslookup/host not found)"
 fi
 
-if [[ -n "$SERVICENOW_URL" && -n "$SERVICENOW_TOKEN" ]]; then
-  CHECKED=1
-  HEALTH_ENDPOINT="${SERVICENOW_URL%/}/api/now/table/sys_properties?sysparm_limit=1"
-  if ! test_endpoint "$HEALTH_ENDPOINT" "Bearer ${SERVICENOW_TOKEN}" "ServiceNow"; then
-    FAILURES=$((FAILURES + 1))
-  fi
-fi
-
-if [[ $CHECKED -eq 0 ]]; then
-  echo "[SKIP] No ITSM platform configured -- nothing to check"
-  echo "[SKIP] Set CHERWELL_URL/CHERWELL_TOKEN or SERVICENOW_URL/SERVICENOW_TOKEN to enable"
-  exit 0
-fi
-
-if [[ $FAILURES -gt 0 ]]; then
-  echo "[FAIL] Health check completed with ${FAILURES} failure(s)"
-  exit 1
-fi
-
-echo "[PASS] All ITSM health checks passed"
+echo ""
+echo "[PASS] ${BACKEND} health check completed successfully"
 exit 0

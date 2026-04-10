@@ -1,32 +1,27 @@
 # App Repo Setup Template
 
-## Checklist for onboarding a new application repository
+## Checklist for New Application Repos
+Use this checklist when setting up a new repo to work with ForgeOps.
 
-### 1. Repository Configuration
-- [ ] Repository created in the ForgeOps GitHub organization
-- [ ] Default branch set to `main`
-- [ ] Branch protection enabled on `main`, `stage`, `qa`, `int`
-- [ ] CODEOWNERS file added (copy from `templates/CODEOWNERS.template`)
+1. Register the repo in forgeops-config.json (see how-to-register-a-repo.md).
+2. Copy the matching workflow template to .github/workflows/ in the app repo.
+3. Copy templates/CODEOWNERS.template to CODEOWNERS and update team names.
+4. Create environment protection rules: Settings > Environments > add int, qa, stage, prod.
+5. Add required reviewers for stage (2 reviewers) and prod (release engineer).
+6. Enable branch protection on develop and main: require PR, require status checks.
+7. Verify the first pipeline run passes on a test PR.
 
-### 2. Platform Registration
-- [ ] Repo added to `forgeops-config.json`
-- [ ] Technology stack specified (Java, .NET, Node.js, Python)
-- [ ] Team members and roles assigned
+## File Structure Expected
+```
+app-repo/
+  .github/
+    workflows/
+      ci-cd.yml          (copied from ForgeOps templates)
+  CODEOWNERS
+  src/
+  tests/
+```
 
-### 3. Secrets
-- [ ] Deployment credentials added to GitHub Secrets
-- [ ] Environment-specific variables configured
-
-### 4. Environments
-- [ ] GitHub Environments created (int, qa, stage, prod)
-- [ ] Protection rules configured with required approvers
-
-### 5. Branches
-- [ ] `int` branch created
-- [ ] `qa` branch created
-- [ ] `stage` branch created
-
-### 6. Verification
-- [ ] Test PR opened to `int` branch
-- [ ] Pipeline runs successfully (build, test, security, deploy)
-- [ ] Notifications received (email and/or Teams)
+## Validation
+After setup, create a feature branch, push a small change, and open a PR to develop.
+Confirm that lint, test, scan, and deploy-to-INT all run successfully.

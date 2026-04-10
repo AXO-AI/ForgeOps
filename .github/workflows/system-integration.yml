@@ -1,6 +1,3 @@
-##############################################################################
-# system-integration.yml - CI/CD pipeline for system-integration-svc
-##############################################################################
 name: System Integration Service Pipeline
 
 on:
@@ -10,8 +7,8 @@ on:
       - qa
       - stage
       - main
-      - "feature/*"
-      - "hotfix/*"
+      - 'feature/*'
+      - 'hotfix/*'
   pull_request:
     branches:
       - int
@@ -21,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: "Target deployment environment"
+        description: "Target environment"
         required: true
         type: choice
         options:
@@ -30,392 +27,242 @@ on:
           - stage
           - prod
 
-env:
-  APP_NAME: system-integration-svc
-  JAVA_VERSION: "17"
-  JAVA_DISTRIBUTION: temurin
-
 permissions:
   contents: write
   checks: write
-  actions: read
-  packages: read
-  id-token: write
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+env:
+  APP_NAME: system-integration-svc
 
-# ---------------------------------------------------------------------------
-# JOBS
-# ---------------------------------------------------------------------------
 jobs:
-  # -------------------------------------------------------------------------
-  # Validate Secrets
-  # -------------------------------------------------------------------------
   validate-secrets:
     name: Validate Secrets
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check required secrets
-        run: |
-          missing=()
-          if [ -z "${{ secrets.DOCKER_REGISTRY }}" ]; then missing+=("DOCKER_REGISTRY"); fi
-          if [ -z "${{ secrets.DOCKER_USERNAME }}" ]; then missing+=("DOCKER_USERNAME"); fi
-          if [ -z "${{ secrets.DOCKER_PASSWORD }}" ]; then missing+=("DOCKER_PASSWORD"); fi
-          if [ -z "${{ secrets.DEPLOY_TOKEN }}" ]; then missing+=("DEPLOY_TOKEN"); fi
-          if [ -z "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then missing+=("SLACK_WEBHOOK_URL"); fi
-          if [ ${#missing[@]} -ne 0 ]; then
-            echo "::error::Missing required secrets: ${missing[*]}"
-            exit 1
-          fi
-          echo "All required secrets are configured."
+    uses: ./.github/workflows/_validate-secrets.yml
+    secrets: inherit
 
-  # -------------------------------------------------------------------------
-  # Build
-  # -------------------------------------------------------------------------
   build:
-    name: Build & Test
+    name: Build and Test
     runs-on: ubuntu-latest
-    needs: validate-secrets
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      image_tag: ${{ steps.version.outputs.image_tag }}
+    needs: [validate-secrets]
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Set up JDK ${{ env.JAVA_VERSION }}
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          java-version: ${{ env.JAVA_VERSION }}
-          distribution: ${{ env.JAVA_DISTRIBUTION }}
-          cache: gradle
+          distribution: temurin
+          java-version: '17'
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
 
-      - name: Build with Gradle
-        run: ./gradlew build
+      - name: Build
+        run: ./gradlew clean build -x test
 
-      - name: Run tests
+      - name: Test
         run: ./gradlew test
 
-      - name: Generate JaCoCo coverage report
-        run: ./gradlew jacocoTestReport
+      - name: JaCoCo Report
+        run: ./gradlew jacocoTestReport || true
 
-      - name: Publish test results
-        uses: dorny/test-reporter@v1
+      - name: Test Report
         if: always()
+        uses: dorny/test-reporter@v1
         with:
-          name: JUnit Test Results
-          path: "**/build/test-results/test/*.xml"
+          name: java-junit
+          path: '**/build/test-results/test/*.xml'
           reporter: java-junit
 
-      - name: Upload coverage report
+      - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: jacoco-coverage
-          path: "**/build/reports/jacoco/"
-          retention-days: 14
+          name: build-artifacts
+          path: build/libs/*
 
-      - name: Compute version
-        id: version
-        run: |
-          SHORT_SHA="${GITHUB_SHA::8}"
-          BRANCH="${GITHUB_REF_NAME//\//-}"
-          VERSION="${BRANCH}-${SHORT_SHA}"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "image_tag=${{ secrets.DOCKER_REGISTRY }}/${{ env.APP_NAME }}:${VERSION}" >> "$GITHUB_OUTPUT"
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: '**/build/test-results/test/*.xml'
 
-      - name: Build and push container image
-        run: |
-          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login "${{ secrets.DOCKER_REGISTRY }}" \
-            -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-          docker build -t "${{ steps.version.outputs.image_tag }}" .
-          docker push "${{ steps.version.outputs.image_tag }}"
-
-  # -------------------------------------------------------------------------
-  # Security Scan
-  # -------------------------------------------------------------------------
   security:
     name: Security Scan
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    needs: [build]
+    uses: ./.github/workflows/_security-scan.yml
+    with:
+      project_name: system-integration-svc
+      language: java
+    secrets: inherit
 
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ needs.build.outputs.image_tag }}
-          format: table
-          exit-code: "1"
-          severity: CRITICAL,HIGH
-
-      - name: Run OWASP dependency check
-        run: ./gradlew dependencyCheckAnalyze || true
-
-  # -------------------------------------------------------------------------
-  # Deploy - INT
-  # -------------------------------------------------------------------------
   deploy-int:
     name: Deploy to INT
-    runs-on: ubuntu-latest
-    needs: [build, security]
-    if: >-
-      github.ref == 'refs/heads/int'
-      || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'int')
-    environment:
-      name: int
-      url: https://int.${{ env.APP_NAME }}.example.com
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Deploy to INT
-        run: |
-          echo "Deploying ${{ env.APP_NAME }} version ${{ needs.build.outputs.version }} to INT"
+    if: github.ref == 'refs/heads/int'
+    needs: [security]
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      environment: int
+      app_name: system-integration-svc
+    secrets: inherit
 
   notify-int:
-    name: Notify - INT Deployment
-    runs-on: ubuntu-latest
-    needs: deploy-int
-    if: always()
-    steps:
-      - name: Send Slack notification
-        uses: slackapi/slack-github-action@v1
-        with:
-          payload: |
-            {
-              "text": "${{ env.APP_NAME }} deployed to INT - Status: ${{ needs.deploy-int.result }} - Version: ${{ needs.build.outputs.version || 'N/A' }}"
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    name: Notify INT
+    if: always() && needs.deploy-int.result != 'skipped'
+    needs: [deploy-int]
+    uses: ./.github/workflows/_notify.yml
+    with:
+      environment: int
+      app_name: system-integration-svc
+      status: ${{ needs.deploy-int.result }}
+    secrets: inherit
 
-  # -------------------------------------------------------------------------
-  # Deploy - QA
-  # -------------------------------------------------------------------------
   deploy-qa:
     name: Deploy to QA
-    runs-on: ubuntu-latest
-    needs: [build, security]
-    if: >-
-      github.ref == 'refs/heads/qa'
-      || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'qa')
-    environment:
-      name: qa
-      url: https://qa.${{ env.APP_NAME }}.example.com
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Deploy to QA
-        run: |
-          echo "Deploying ${{ env.APP_NAME }} version ${{ needs.build.outputs.version }} to QA"
+    if: github.ref == 'refs/heads/qa'
+    needs: [security]
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      environment: qa
+      app_name: system-integration-svc
+    secrets: inherit
 
   notify-qa:
-    name: Notify - QA Deployment
-    runs-on: ubuntu-latest
-    needs: deploy-qa
-    if: always()
-    steps:
-      - name: Send Slack notification
-        uses: slackapi/slack-github-action@v1
-        with:
-          payload: |
-            {
-              "text": "${{ env.APP_NAME }} deployed to QA - Status: ${{ needs.deploy-qa.result }} - Version: ${{ needs.build.outputs.version || 'N/A' }}"
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    name: Notify QA
+    if: always() && needs.deploy-qa.result != 'skipped'
+    needs: [deploy-qa]
+    uses: ./.github/workflows/_notify.yml
+    with:
+      environment: qa
+      app_name: system-integration-svc
+      status: ${{ needs.deploy-qa.result }}
+    secrets: inherit
 
-  # -------------------------------------------------------------------------
-  # Deploy - STAGE
-  # -------------------------------------------------------------------------
   deploy-stage:
-    name: Deploy to STAGE
-    runs-on: ubuntu-latest
-    needs: [build, security]
-    if: >-
-      github.ref == 'refs/heads/stage'
-      || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'stage')
-    environment:
-      name: stage
-      url: https://stage.${{ env.APP_NAME }}.example.com
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Deploy to STAGE
-        run: |
-          echo "Deploying ${{ env.APP_NAME }} version ${{ needs.build.outputs.version }} to STAGE"
+    name: Deploy to Stage
+    if: github.ref == 'refs/heads/stage'
+    needs: [security]
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      environment: stage
+      app_name: system-integration-svc
+    secrets: inherit
 
   notify-stage:
-    name: Notify - STAGE Deployment
-    runs-on: ubuntu-latest
-    needs: deploy-stage
-    if: always()
-    steps:
-      - name: Send Slack notification
-        uses: slackapi/slack-github-action@v1
-        with:
-          payload: |
-            {
-              "text": "${{ env.APP_NAME }} deployed to STAGE - Status: ${{ needs.deploy-stage.result }} - Version: ${{ needs.build.outputs.version || 'N/A' }}"
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    name: Notify Stage
+    if: always() && needs.deploy-stage.result != 'skipped'
+    needs: [deploy-stage]
+    uses: ./.github/workflows/_notify.yml
+    with:
+      environment: stage
+      app_name: system-integration-svc
+      status: ${{ needs.deploy-stage.result }}
+    secrets: inherit
 
-  # -------------------------------------------------------------------------
-  # Deploy - PROD
-  # -------------------------------------------------------------------------
   deploy-prod:
-    name: Deploy to PROD
-    runs-on: ubuntu-latest
-    needs: [build, security]
-    if: >-
-      github.ref == 'refs/heads/main'
-      || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
-    environment:
-      name: prod
-      url: https://${{ env.APP_NAME }}.example.com
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Deploy to PROD
-        run: |
-          echo "Deploying ${{ env.APP_NAME }} version ${{ needs.build.outputs.version }} to PROD"
+    name: Deploy to Prod
+    if: github.ref == 'refs/heads/main'
+    needs: [security]
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      environment: prod
+      app_name: system-integration-svc
+      rollback_on_failure: true
+    secrets: inherit
 
   notify-prod:
-    name: Notify - PROD Deployment
-    runs-on: ubuntu-latest
-    needs: deploy-prod
-    if: always()
-    steps:
-      - name: Send Slack notification
-        uses: slackapi/slack-github-action@v1
-        with:
-          payload: |
-            {
-              "text": "${{ env.APP_NAME }} deployed to PROD - Status: ${{ needs.deploy-prod.result }} - Version: ${{ needs.build.outputs.version || 'N/A' }}"
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    name: Notify Prod
+    if: always() && needs.deploy-prod.result != 'skipped'
+    needs: [deploy-prod]
+    uses: ./.github/workflows/_notify.yml
+    with:
+      environment: prod
+      app_name: system-integration-svc
+      status: ${{ needs.deploy-prod.result }}
+    secrets: inherit
 
-  # -------------------------------------------------------------------------
-  # Notify Failure
-  # -------------------------------------------------------------------------
   notify-failure:
-    name: Notify - Pipeline Failure
-    runs-on: ubuntu-latest
-    needs: [validate-secrets, build, security]
+    name: Notify on Failure
     if: failure()
-    steps:
-      - name: Send failure notification
-        uses: slackapi/slack-github-action@v1
-        with:
-          payload: |
-            {
-              "text": "PIPELINE FAILED: ${{ env.APP_NAME }} on branch ${{ github.ref_name }} - Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    needs: [build, security, deploy-int, deploy-qa, deploy-stage, deploy-prod]
+    uses: ./.github/workflows/_notify.yml
+    with:
+      environment: unknown
+      app_name: system-integration-svc
+      status: failure
+    secrets: inherit
 
-  # -------------------------------------------------------------------------
-  # Release Tag (main branch only)
-  # -------------------------------------------------------------------------
   release-tag:
-    name: Create Release Tag
+    name: Release Tag
+    if: github.ref == 'refs/heads/main' && success()
+    needs: [deploy-prod]
     runs-on: ubuntu-latest
-    needs: deploy-prod
-    if: github.ref == 'refs/heads/main'
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Generate changelog
-        id: changelog
-        run: |
-          PREVIOUS_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -z "$PREVIOUS_TAG" ]; then
-            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges -20)
-          else
-            CHANGELOG=$(git log "${PREVIOUS_TAG}..HEAD" --pretty=format:"- %s (%h)" --no-merges)
-          fi
-          echo "changelog<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$CHANGELOG" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
-
-      - name: Determine next version tag
+      - name: Generate Tag
         id: tag
         run: |
-          LATEST_TAG=$(git describe --tags --abbrev=0 --match "v*" 2>/dev/null || echo "v0.0.0")
-          MAJOR=$(echo "$LATEST_TAG" | sed 's/v//' | cut -d. -f1)
-          MINOR=$(echo "$LATEST_TAG" | sed 's/v//' | cut -d. -f2)
-          PATCH=$(echo "$LATEST_TAG" | sed 's/v//' | cut -d. -f3)
-          PATCH=$((PATCH + 1))
-          NEW_TAG="v${MAJOR}.${MINOR}.${PATCH}"
-          echo "new_tag=${NEW_TAG}" >> "$GITHUB_OUTPUT"
+          VERSION="v$(date +'%Y.%m.%d')-$(echo $GITHUB_SHA | cut -c1-7)"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create Git Tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.tag.outputs.version }}" -m "Release ${{ steps.tag.outputs.version }}"
+          git push origin "${{ steps.tag.outputs.version }}"
+
+      - name: Generate Changelog
+        id: changelog
+        run: |
+          PREV_TAG=$(git tag --sort=-creatordate | head -2 | tail -1)
+          if [ -z "$PREV_TAG" ]; then
+            CHANGELOG=$(git log --oneline -20)
+          else
+            CHANGELOG=$(git log --oneline "$PREV_TAG"..HEAD)
+          fi
+          {
+            echo "changelog<<EOF"
+            echo "$CHANGELOG"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.tag.outputs.new_tag }}
-          name: "${{ env.APP_NAME }} ${{ steps.tag.outputs.new_tag }}"
+          tag_name: ${{ steps.tag.outputs.version }}
+          name: ${{ env.APP_NAME }} ${{ steps.tag.outputs.version }}
           body: |
-            ## Release ${{ steps.tag.outputs.new_tag }}
-
-            ### Changelog
+            ## Changelog
             ${{ steps.changelog.outputs.changelog }}
+          generate_release_notes: true
 
-            ### Artifacts
-            - Image: `${{ needs.build.outputs.image_tag }}`
-          generate_release_notes: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # -------------------------------------------------------------------------
-  # Pipeline Summary
-  # -------------------------------------------------------------------------
   pipeline-summary:
     name: Pipeline Summary
-    runs-on: ubuntu-latest
     if: always()
-    needs:
-      - validate-secrets
-      - build
-      - security
-      - deploy-int
-      - deploy-qa
-      - deploy-stage
-      - deploy-prod
-      - release-tag
+    needs: [validate-secrets, build, security, deploy-int, deploy-qa, deploy-stage, deploy-prod, release-tag]
+    runs-on: ubuntu-latest
     steps:
-      - name: Generate pipeline summary
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate Summary
         run: |
-          cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
-          ## Pipeline Summary - system-integration-svc
-
-          | Stage            | Status |
-          |------------------|--------|
-          | Validate Secrets | ${{ needs.validate-secrets.result }} |
-          | Build & Test     | ${{ needs.build.result }} |
-          | Security Scan    | ${{ needs.security.result }} |
-          | Deploy INT       | ${{ needs.deploy-int.result }} |
-          | Deploy QA        | ${{ needs.deploy-qa.result }} |
-          | Deploy STAGE     | ${{ needs.deploy-stage.result }} |
-          | Deploy PROD      | ${{ needs.deploy-prod.result }} |
-          | Release Tag      | ${{ needs.release-tag.result }} |
-
-          **Branch:** `${{ github.ref_name }}`
-          **Commit:** `${{ github.sha }}`
-          **Triggered by:** `${{ github.actor }}`
-          **Run:** [View](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-          SUMMARY
+          chmod +x scripts/forgeops-summary.sh 2>/dev/null || true
+          if [ -f scripts/forgeops-summary.sh ]; then
+            bash scripts/forgeops-summary.sh
+          else
+            echo "## Pipeline Summary" >> "$GITHUB_STEP_SUMMARY"
+            echo "App: ${{ env.APP_NAME }}" >> "$GITHUB_STEP_SUMMARY"
+            echo "Branch: ${{ github.ref_name }}" >> "$GITHUB_STEP_SUMMARY"
+            echo "Commit: ${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
+          fi

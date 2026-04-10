@@ -1,34 +1,40 @@
 # Migration to Self-Hosted Runners
 
-## Why Self-Hosted
-
-- Faster builds with persistent caches
-- Access to internal network resources
-- Custom tooling pre-installed
-- Cost savings at scale
+## When to Migrate
+- GitHub-hosted runner minutes exceed budget
+- Builds require access to internal network resources
+- Compliance requires builds to run on-premises
+- Build times exceed 30 minutes and need faster hardware
 
 ## Prerequisites
-
-- Linux VM (Ubuntu 22.04+) or container host
-- Network access to GitHub and internal registries
-- Service account with appropriate permissions
+- Linux VM or container with Docker installed
+- Network access to GitHub, artifact registries, and deploy targets
+- GitHub Actions runner agent installed
 
 ## Steps
 
-1. Provision runner VM or container
-2. Install the GitHub Actions runner agent
-3. Register the runner with the ForgeOps organization
-4. Apply labels: `self-hosted`, `linux`, `x64`
-5. Update workflow files to use `runs-on: [self-hosted, linux]`
-6. Test with a non-production workflow first
-7. Roll out to all pipelines
+### 1. Install the runner
+Follow GitHub docs: Settings > Actions > Runners > New self-hosted runner.
 
-## Runner Maintenance
+### 2. Update workflow files
+Replace `runs-on: ubuntu-latest` with `runs-on: self-hosted` in all workflows:
+```bash
+sed -i 's/runs-on: ubuntu-latest/runs-on: self-hosted/g' .github/workflows/*.yml
+```
 
-- Auto-update is enabled by default
-- Monitor runner health via the dashboard
-- Self-healing workflow restarts offline runners every 6 hours
+### 3. Update reusable workflows
+```bash
+sed -i 's/runs-on: ubuntu-latest/runs-on: self-hosted/g' .github/workflows/reusable-*.yml
+```
 
-## Rollback to GitHub-Hosted
+### 4. Add runner labels (optional)
+Use labels to route jobs to specific runners:
+```yaml
+runs-on: [self-hosted, linux, x64]
+```
 
-Change `runs-on` back to `ubuntu-latest` in workflow files and push.
+### 5. Test
+Run a pipeline end-to-end on the self-hosted runner before switching all repos.
+
+## Rollback
+Revert the sed commands to switch back to `ubuntu-latest`.

@@ -1,27 +1,23 @@
 # How to Read Security Results
 
-## Scan Types
-- **SAST** -- Static Application Security Testing (code analysis)
-- **SCA** -- Software Composition Analysis (dependency vulnerabilities)
-
 ## Where to Find Results
-1. Open the PR in GitHub
-2. Click the "Checks" tab
-3. Find the security scan job
-4. Review the output log for findings
+- GitHub Actions run log: expand the "Security Scan" step.
+- SonarQube dashboard (if configured): linked in the PR check status.
+- GitHub Security tab: Dependabot alerts and code scanning alerts.
 
-## Severity Levels
-- **Critical** -- must fix before merge, blocks the pipeline
-- **High** -- must fix before merge, blocks the pipeline
-- **Medium** -- should fix, does not block
-- **Low** -- informational, fix when possible
+## SAST Scan Output
+The CI pipeline runs static analysis on every push. Results are categorized:
+- Critical: must fix before merge (blocks PR)
+- High: should fix before merge
+- Medium: fix within current sprint
+- Low: fix when convenient
 
 ## What to Do
-1. Review each finding and its description
-2. Check if it is a true positive or false positive
-3. Fix true positives in your code
-4. For false positives, add a suppression comment with justification
-5. Re-push to trigger a new scan
+1. Click the failed check on the PR to see the scan report.
+2. Review each finding. Some may be false positives.
+3. Fix real issues in your feature branch and push.
+4. If a finding is a false positive, add a suppression comment in code and note it in the PR.
 
-## Help
-See [Troubleshooting](../TROUBLESHOOTING.md) or open a Support Request.
+## Dependency Vulnerabilities
+Dependabot creates PRs automatically for vulnerable dependencies.
+Review and merge these PRs promptly, especially for critical severity.

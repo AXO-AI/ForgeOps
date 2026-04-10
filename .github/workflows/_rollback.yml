@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       environment:
-        description: "Target environment (int, qa, stage, prod)"
+        description: "Target environment"
         required: true
         type: choice
         options:
@@ -21,7 +21,6 @@ jobs:
   rollback:
     name: Rollback ${{ inputs.app_name }} in ${{ inputs.environment }}
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,68 +28,38 @@ jobs:
       - name: Set script permissions
         run: chmod +x scripts/*.sh scripts/*.py 2>/dev/null || true
 
-      - name: Log rollback info
+      - name: Log rollback request
         run: |
-          echo "=========================================="
-          echo "  ROLLBACK INITIATED"
-          echo "=========================================="
-          echo ""
-          echo "Application:  ${{ inputs.app_name }}"
-          echo "Environment:  ${{ inputs.environment }}"
-          echo "Triggered by: ${{ github.actor }}"
-          echo "Run ID:       ${{ github.run_id }}"
-          echo "Timestamp:    $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          echo "Repository:   ${{ github.repository }}"
-          echo "Ref:          ${{ github.ref }}"
-          echo ""
-          echo "=========================================="
-
-      - name: Check ArgoCD availability
-        id: check-argocd
-        run: |
-          if [ -n "$ARGOCD_SERVER_CHECK" ] && [ -n "$ARGOCD_TOKEN_CHECK" ]; then
-            echo "argocd_available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "argocd_available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::ArgoCD not configured - rollback will log only"
-          fi
-        env:
-          ARGOCD_SERVER_CHECK: ${{ secrets.ARGOCD_SERVER }}
-          ARGOCD_TOKEN_CHECK: ${{ secrets.ARGOCD_AUTH_TOKEN }}
-
-      - name: Rollback via ArgoCD
-        if: steps.check-argocd.outputs.argocd_available == 'true'
-        run: |
-          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-          chmod +x argocd
-
-          echo "Rolling back ${{ inputs.app_name }}-${{ inputs.environment }}..."
-          ./argocd app rollback "${{ inputs.app_name }}-${{ inputs.environment }}" \
-            --server "${{ secrets.ARGOCD_SERVER }}" \
-            --auth-token "${{ secrets.ARGOCD_AUTH_TOKEN }}" \
-            --grpc-web
-          echo "Rollback completed."
-
-      - name: Log rollback (no ArgoCD)
-        if: steps.check-argocd.outputs.argocd_available != 'true'
-        run: |
-          echo "SKIP: ArgoCD not available for automated rollback."
-          echo "Manual rollback required for ${{ inputs.app_name }} in ${{ inputs.environment }}."
-          echo ""
-          echo "Suggested manual steps:"
-          echo "  1. Identify the last known good deployment version"
-          echo "  2. Re-deploy using the deploy workflow with that version"
-          echo "  3. Verify application health after rollback"
-
-      - name: Write rollback summary
-        if: always()
-        run: |
-          echo "## Rollback Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Rollback Request" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
           echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
           echo "| Application | ${{ inputs.app_name }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Environment | ${{ inputs.environment }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Triggered by | ${{ github.actor }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Timestamp | $(date -u +'%Y-%m-%dT%H:%M:%SZ') |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| ArgoCD Available | ${{ steps.check-argocd.outputs.argocd_available }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Requested by | ${{ github.actor }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Timestamp | $(date -u '+%Y-%m-%dT%H:%M:%SZ') |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Execute rollback
+        run: |
+          echo "Initiating rollback of ${{ inputs.app_name }} in ${{ inputs.environment }}"
+          if [ -f scripts/rollback.sh ]; then
+            bash scripts/rollback.sh \
+              --app "${{ inputs.app_name }}" \
+              --environment "${{ inputs.environment }}"
+          else
+            echo "No rollback script found at scripts/rollback.sh"
+            echo "Manual rollback may be required"
+          fi
+
+  notify:
+    name: Notify
+    needs: rollback
+    if: always()
+    uses: ./.github/workflows/_notify.yml
+    with:
+      job_name: "Rollback"
+      status: ${{ needs.rollback.result }}
+      app_name: ${{ inputs.app_name }}
+      environment: ${{ inputs.environment }}
+      version: "rollback"
+    secrets: inherit
