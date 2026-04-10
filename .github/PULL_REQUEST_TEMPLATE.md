@@ -7,7 +7,6 @@
 - [ ] Bug Fix
 - [ ] Hotfix
 - [ ] Refactor
-- [ ] Documentation
 
 ## Testing
 - [ ] Unit tests pass
@@ -16,3 +15,4 @@
 ## Checklist
 - [ ] PR title includes Jira ticket
 - [ ] No secrets in code
+- [ ] Self-review done

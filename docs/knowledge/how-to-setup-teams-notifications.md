@@ -1,7 +1,5 @@
-# Setting Up Microsoft Teams Notifications
-
-1. In Teams, go to the channel where you want notifications
-2. Click ⋯ → Connectors → Incoming Webhook → Create
-3. Name it "ForgeOps" → Create → copy the webhook URL
-4. Add to GitHub Org Secrets: TEAMS_WEBHOOK = the URL you copied
-5. Notifications appear automatically on every deploy + failure
+# Teams Notifications
+1. Teams channel → ⋯ → Connectors → Incoming Webhook → Create
+2. Name: "ForgeOps" → Create → copy URL
+3. Add secret: TEAMS_WEBHOOK = URL
+Notifications appear on every deploy + failure.

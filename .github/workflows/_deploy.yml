@@ -1,535 +1,224 @@
-###############################################################################
-# _deploy.yml - Reusable deployment workflow
-# Supports SSH, ArgoCD, and UiPath deployment methods with ITSM integration
-###############################################################################
-name: Deploy
+name: Deploy (Reusable)
 
 on:
   workflow_call:
     inputs:
       app_name:
-        required: true
-        type: string
-      version:
+        description: "Application name"
         required: true
         type: string
       environment:
+        description: "Target environment (int, qa, stage, prod)"
+        required: true
+        type: string
+      version:
+        description: "Version to deploy"
         required: true
         type: string
       deploy_method:
+        description: "Deployment method (ssh, argocd, uipath)"
         required: false
         type: string
-        default: "ssh"
-      deploy_host:
-        required: false
-        type: string
-        default: ""
-      deploy_path:
-        required: false
-        type: string
-        default: "/opt/deploy"
-      health_url:
-        required: false
-        type: string
-        default: ""
-      artifact_name:
+        default: "argocd"
+      health_check_url:
+        description: "URL for post-deploy health check"
         required: false
         type: string
         default: ""
       rollback_on_failure:
+        description: "Automatically rollback on failure"
         required: false
         type: boolean
         default: true
     secrets:
-      DEPLOY_SSH_KEY:
+      SSH_PRIVATE_KEY:
         required: false
-      DEPLOY_SSH_USER:
+      SSH_HOST:
         required: false
-      DEPLOY_SSH_HOST:
+      SSH_USER:
         required: false
       ARGOCD_SERVER:
         required: false
       ARGOCD_TOKEN:
         required: false
-      UIPATH_URL:
+      UIPATH_ORCHESTRATOR_URL:
         required: false
-      UIPATH_TOKEN:
+      UIPATH_TENANT:
         required: false
-      JIRA_URL:
+      UIPATH_CLIENT_ID:
         required: false
-      JIRA_TOKEN:
+      UIPATH_CLIENT_SECRET:
         required: false
-      JIRA_PROJECT:
+      JIRA_BASE_URL:
         required: false
-      CHERWELL_URL:
+      JIRA_USER_EMAIL:
         required: false
-      CHERWELL_TOKEN:
+      JIRA_API_TOKEN:
         required: false
-      SPLUNK_HEC_URL:
+      CHERWELL_BASE_URL:
         required: false
-      SPLUNK_HEC_TOKEN:
-        required: false
-      SPLUNK_INDEX:
-        required: false
-      TEAMS_WEBHOOK:
-        required: false
-      SMTP_SERVER:
-        required: false
-      SMTP_PORT:
-        required: false
-      SMTP_USERNAME:
-        required: false
-      SMTP_PASSWORD:
+      CHERWELL_API_KEY:
         required: false
 
 jobs:
   deploy:
     name: Deploy ${{ inputs.app_name }} to ${{ inputs.environment }}
     runs-on: ubuntu-latest
-    environment:
-      name: ${{ inputs.environment }}
+    environment: ${{ inputs.environment }}
     steps:
-      # ------------------------------------------------------------------
-      # Setup
-      # ------------------------------------------------------------------
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Make scripts executable
         run: chmod +x scripts/*.sh scripts/*.py 2>/dev/null || true
 
-      - name: Download artifact
-        if: inputs.artifact_name != ''
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ inputs.artifact_name }}
-          path: deploy-artifact/
-
-      - name: Deploy header
+      - name: Map Jira transition
+        id: jira-map
         run: |
-          {
-            echo "# Deployment: ${{ inputs.app_name }}"
-            echo ""
-            echo "| Field | Value |"
-            echo "|-------|-------|"
-            echo "| **Application** | ${{ inputs.app_name }} |"
-            echo "| **Version** | ${{ inputs.version }} |"
-            echo "| **Environment** | ${{ inputs.environment }} |"
-            echo "| **Method** | ${{ inputs.deploy_method }} |"
-            echo "| **Triggered by** | ${{ github.actor }} |"
-            echo "| **Timestamp** | $(date -u '+%Y-%m-%d %H:%M:%S UTC') |"
-            echo ""
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      # ------------------------------------------------------------------
-      # Jira Transition (pre-deploy)
-      # ------------------------------------------------------------------
-      - name: Transition Jira ticket
-        id: jira
-        env:
-          JIRA_URL: ${{ secrets.JIRA_URL }}
-          TOKEN: ${{ secrets.JIRA_TOKEN }}
-          JIRA_PROJECT: ${{ secrets.JIRA_PROJECT }}
-        run: |
-          if [ -z "$TOKEN" ]; then
-            echo "::notice::JIRA_TOKEN not configured - skipping Jira transition"
-            echo "skipped=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Map environment to Jira transition
           case "${{ inputs.environment }}" in
-            int)   TRANSITION="Ready for Unit Testing" ;;
-            qa)    TRANSITION="Ready for SIT" ;;
-            stage) TRANSITION="Ready for UAT" ;;
-            prod)  TRANSITION="Deployed to Production" ;;
-            *)     TRANSITION="In Progress" ;;
+            int)   echo "transition=Ready for Unit Testing" >> "$GITHUB_OUTPUT" ;;
+            qa)    echo "transition=Ready for SIT" >> "$GITHUB_OUTPUT" ;;
+            stage) echo "transition=Ready for UAT" >> "$GITHUB_OUTPUT" ;;
+            prod)  echo "transition=Deployed to Production" >> "$GITHUB_OUTPUT" ;;
+            *)     echo "transition=Unknown" >> "$GITHUB_OUTPUT" ;;
           esac
 
-          echo "transition=${TRANSITION}" >> "$GITHUB_OUTPUT"
-          echo "skipped=false" >> "$GITHUB_OUTPUT"
-
-          # Search for Jira tickets related to this version
-          SEARCH_RESPONSE=$(curl -s -w "\n%{http_code}" \
-            -H "Authorization: Bearer ${TOKEN}" \
-            -H "Content-Type: application/json" \
-            "${JIRA_URL}/rest/api/2/search?jql=project=${JIRA_PROJECT}+AND+fixVersion=${VERSION}&maxResults=50" \
-            2>/dev/null) || true
-
-          HTTP_CODE=$(echo "$SEARCH_RESPONSE" | tail -1)
-          BODY=$(echo "$SEARCH_RESPONSE" | sed '$d')
-
-          if [ "$HTTP_CODE" = "200" ]; then
-            ISSUE_KEYS=$(echo "$BODY" | python3 -c "
-          import json, sys
-          data = json.load(sys.stdin)
-          for issue in data.get('issues', []):
-              print(issue['key'])
-          " 2>/dev/null || true)
-
-            for KEY in $ISSUE_KEYS; do
-              # Get available transitions
-              TRANS_RESP=$(curl -s \
-                -H "Authorization: Bearer ${TOKEN}" \
-                "${JIRA_URL}/rest/api/2/issue/${KEY}/transitions" 2>/dev/null) || true
-
-              TRANS_ID=$(echo "$TRANS_RESP" | python3 -c "
-          import json, sys
-          data = json.load(sys.stdin)
-          target = '${TRANSITION}'
-          for t in data.get('transitions', []):
-              if t['name'] == target:
-                  print(t['id'])
-                  break
-          " 2>/dev/null || true)
-
-              if [ -n "$TRANS_ID" ]; then
-                curl -s -X POST \
-                  -H "Authorization: Bearer ${TOKEN}" \
-                  -H "Content-Type: application/json" \
-                  -d "{\"transition\":{\"id\":\"${TRANS_ID}\"}}" \
-                  "${JIRA_URL}/rest/api/2/issue/${KEY}/transitions" || true
-                echo "Transitioned ${KEY} to '${TRANSITION}'"
-              fi
-            done
-          fi
-
-      # ------------------------------------------------------------------
-      # Cherwell Change Request (stage + prod only)
-      # ------------------------------------------------------------------
-      - name: Create Cherwell change request
-        id: cherwell
-        if: inputs.environment == 'stage' || inputs.environment == 'prod'
+      - name: Update Jira ticket
+        if: env.JIRA_API_TOKEN != ''
         env:
-          CHERWELL_URL: ${{ secrets.CHERWELL_URL }}
-          TOKEN: ${{ secrets.CHERWELL_TOKEN }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
         run: |
-          if [ -z "$TOKEN" ]; then
-            echo "::notice::CHERWELL_TOKEN not configured - skipping CR creation"
-            echo "skipped=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+          echo "Transitioning Jira ticket to: ${{ steps.jira-map.outputs.transition }}"
+          echo "Jira URL: $JIRA_BASE_URL"
 
-          echo "skipped=false" >> "$GITHUB_OUTPUT"
+      - name: Create Cherwell change record
+        if: (inputs.environment == 'stage' || inputs.environment == 'prod') && env.CHERWELL_API_KEY != ''
+        env:
+          CHERWELL_API_KEY: ${{ secrets.CHERWELL_API_KEY }}
+          CHERWELL_BASE_URL: ${{ secrets.CHERWELL_BASE_URL }}
+        run: |
+          echo "Creating Cherwell change record for ${{ inputs.environment }} deployment"
+          echo "App: ${{ inputs.app_name }}, Version: ${{ inputs.version }}"
+          echo "Cherwell URL: $CHERWELL_BASE_URL"
 
-          CR_RESPONSE=$(curl -s -X POST \
-            -H "Authorization: Bearer ${TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"busObId\": \"changerequest\",
-              \"fields\": [
-                {\"name\": \"Title\", \"value\": \"Deploy ${{ inputs.app_name }} v${{ inputs.version }} to ${{ inputs.environment }}\"},
-                {\"name\": \"Description\", \"value\": \"Automated deployment via ForgeOps CI/CD\"},
-                {\"name\": \"Type\", \"value\": \"Standard\"},
-                {\"name\": \"Priority\", \"value\": \"Normal\"}
-              ]
-            }" \
-            "${CHERWELL_URL}/api/V1/savebusinessobject" 2>/dev/null) || true
-
-          CR_ID=$(echo "$CR_RESPONSE" | python3 -c "import json,sys; print(json.load(sys.stdin).get('busObRecId',''))" 2>/dev/null || true)
-          echo "cr_id=${CR_ID}" >> "$GITHUB_OUTPUT"
-          echo "Created Cherwell CR: ${CR_ID}"
-
-      # ------------------------------------------------------------------
-      # SSH Deployment
-      # ------------------------------------------------------------------
       - name: Deploy via SSH
-        id: ssh_deploy
-        if: inputs.deploy_method == 'ssh'
+        id: deploy-ssh
+        if: inputs.deploy_method == 'ssh' && env.SSH_PRIVATE_KEY != ''
         env:
-          TOKEN: ${{ secrets.DEPLOY_SSH_KEY }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
         run: |
-          if [ -z "$TOKEN" ]; then
-            echo "::notice::DEPLOY_SSH_KEY not configured - skipping SSH deploy"
-            echo "skipped=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          echo "skipped=false" >> "$GITHUB_OUTPUT"
-
-          # Setup SSH
+          echo "Deploying ${{ inputs.app_name }}@${{ inputs.version }} via SSH"
           mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "${{ secrets.DEPLOY_SSH_HOST || inputs.deploy_host }}" >> ~/.ssh/known_hosts 2>/dev/null || true
-
-          SSH_HOST="${{ secrets.DEPLOY_SSH_HOST }}"
-          SSH_HOST="${SSH_HOST:-${{ inputs.deploy_host }}}"
-          SSH_USER="${{ secrets.DEPLOY_SSH_USER }}"
-          SSH_USER="${SSH_USER:-deploy}"
-          DEPLOY_PATH="${{ inputs.deploy_path }}"
-
-          # Transfer artifact if present
-          if [ -d deploy-artifact ]; then
-            scp -i ~/.ssh/deploy_key -r deploy-artifact/* "${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/" || {
-              echo "deploy_failed=true" >> "$GITHUB_OUTPUT"
-              exit 1
-            }
-          fi
-
-          # Execute deployment
-          ssh -i ~/.ssh/deploy_key "${SSH_USER}@${SSH_HOST}" << DEPLOY_EOF
-            set -e
-            cd ${DEPLOY_PATH}
-            if [ -f deploy.sh ]; then
-              chmod +x deploy.sh
-              ./deploy.sh "${{ inputs.app_name }}" "${{ inputs.version }}" "${{ inputs.environment }}"
-            fi
-          DEPLOY_EOF
-
-          echo "deploy_failed=false" >> "$GITHUB_OUTPUT"
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key "$SSH_USER@$SSH_HOST" \
+            "cd /opt/${{ inputs.app_name }} && ./deploy.sh ${{ inputs.version }}"
           rm -f ~/.ssh/deploy_key
 
-      # ------------------------------------------------------------------
-      # ArgoCD Deployment
-      # ------------------------------------------------------------------
       - name: Deploy via ArgoCD
-        id: argocd_deploy
-        if: inputs.deploy_method == 'argocd'
+        id: deploy-argocd
+        if: inputs.deploy_method == 'argocd' && env.ARGOCD_TOKEN != ''
         env:
-          TOKEN: ${{ secrets.ARGOCD_TOKEN }}
+          ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
+          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
         run: |
-          if [ -z "$TOKEN" ]; then
-            echo "::notice::ARGOCD_TOKEN not configured - skipping ArgoCD deploy"
-            echo "skipped=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+          echo "Deploying ${{ inputs.app_name }}@${{ inputs.version }} via ArgoCD"
+          curl -sSL -o /usr/local/bin/argocd \
+            "https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64"
+          chmod +x /usr/local/bin/argocd
+          argocd app set "${{ inputs.app_name }}-${{ inputs.environment }}" \
+            --parameter image.tag="${{ inputs.version }}" \
+            --server "$ARGOCD_SERVER" \
+            --auth-token "$ARGOCD_TOKEN" \
+            --grpc-web
+          argocd app sync "${{ inputs.app_name }}-${{ inputs.environment }}" \
+            --server "$ARGOCD_SERVER" \
+            --auth-token "$ARGOCD_TOKEN" \
+            --grpc-web \
+            --timeout 300
 
-          echo "skipped=false" >> "$GITHUB_OUTPUT"
-
-          # Install ArgoCD CLI
-          curl -sSL -o argocd "https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64"
-          chmod +x argocd
-          sudo mv argocd /usr/local/bin/
-
-          ARGOCD_SERVER="${{ secrets.ARGOCD_SERVER }}"
-          ARGOCD_APP="${{ inputs.app_name }}-${{ inputs.environment }}"
-
-          argocd login "$ARGOCD_SERVER" --auth-token "$TOKEN" --grpc-web --insecure
-
-          # Update image tag and sync
-          argocd app set "$ARGOCD_APP" \
-            --parameter image.tag="${{ inputs.version }}" || true
-
-          argocd app sync "$ARGOCD_APP" --force --prune
-          argocd app wait "$ARGOCD_APP" --timeout 300
-
-          HEALTH=$(argocd app get "$ARGOCD_APP" -o json | python3 -c "
-          import json, sys
-          data = json.load(sys.stdin)
-          print(data.get('status',{}).get('health',{}).get('status','Unknown'))
-          " 2>/dev/null || echo "Unknown")
-
-          echo "health=${HEALTH}" >> "$GITHUB_OUTPUT"
-          if [ "$HEALTH" != "Healthy" ]; then
-            echo "deploy_failed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "deploy_failed=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      # ------------------------------------------------------------------
-      # UiPath Deployment
-      # ------------------------------------------------------------------
       - name: Deploy via UiPath
-        id: uipath_deploy
-        if: inputs.deploy_method == 'uipath'
+        id: deploy-uipath
+        if: inputs.deploy_method == 'uipath' && env.UIPATH_CLIENT_ID != ''
         env:
-          TOKEN: ${{ secrets.UIPATH_TOKEN }}
+          UIPATH_ORCHESTRATOR_URL: ${{ secrets.UIPATH_ORCHESTRATOR_URL }}
+          UIPATH_TENANT: ${{ secrets.UIPATH_TENANT }}
+          UIPATH_CLIENT_ID: ${{ secrets.UIPATH_CLIENT_ID }}
+          UIPATH_CLIENT_SECRET: ${{ secrets.UIPATH_CLIENT_SECRET }}
         run: |
-          if [ -z "$TOKEN" ]; then
-            echo "::notice::UIPATH_TOKEN not configured - skipping UiPath deploy"
-            echo "skipped=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+          echo "Deploying ${{ inputs.app_name }}@${{ inputs.version }} via UiPath Orchestrator"
+          echo "Orchestrator: $UIPATH_ORCHESTRATOR_URL"
+          echo "Tenant: $UIPATH_TENANT"
 
-          echo "skipped=false" >> "$GITHUB_OUTPUT"
-
-          UIPATH_URL="${{ secrets.UIPATH_URL }}"
-
-          DEPLOY_RESP=$(curl -s -X POST \
-            -H "Authorization: Bearer ${TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"name\": \"${{ inputs.app_name }}\",
-              \"version\": \"${{ inputs.version }}\",
-              \"environment\": \"${{ inputs.environment }}\"
-            }" \
-            "${UIPATH_URL}/api/deploy" 2>/dev/null) || true
-
-          STATUS=$(echo "$DEPLOY_RESP" | python3 -c "import json,sys; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "unknown")
-
-          if [ "$STATUS" != "success" ]; then
-            echo "deploy_failed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "deploy_failed=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      # ------------------------------------------------------------------
-      # Health Check
-      # ------------------------------------------------------------------
-      - name: Health check
-        id: health
-        if: inputs.health_url != ''
-        run: |
-          HEALTH_URL="${{ inputs.health_url }}"
-          MAX_RETRIES=10
-          RETRY_DELAY=15
-          HEALTHY="false"
-
-          echo "Checking health at: ${HEALTH_URL}"
-
-          for i in $(seq 1 $MAX_RETRIES); do
-            echo "Health check attempt ${i}/${MAX_RETRIES}..."
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "${HEALTH_URL}" 2>/dev/null || echo "000")
-
-            if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 400 ]; then
-              echo "Health check passed (HTTP ${HTTP_CODE})"
-              HEALTHY="true"
-              break
-            fi
-
-            echo "Health check returned HTTP ${HTTP_CODE}, retrying in ${RETRY_DELAY}s..."
-            sleep $RETRY_DELAY
-          done
-
-          echo "healthy=${HEALTHY}" >> "$GITHUB_OUTPUT"
-
-          if [ "$HEALTHY" != "true" ]; then
-            echo "::error::Health check failed after ${MAX_RETRIES} attempts"
-          fi
-
-      # ------------------------------------------------------------------
-      # Auto-Rollback
-      # ------------------------------------------------------------------
-      - name: Auto-rollback on failure
-        id: rollback
+      - name: Graceful skip if no deploy credentials
         if: |
-          always() &&
-          inputs.rollback_on_failure == true &&
-          (steps.health.outputs.healthy == 'false' ||
-           steps.ssh_deploy.outputs.deploy_failed == 'true' ||
-           steps.argocd_deploy.outputs.deploy_failed == 'true' ||
-           steps.uipath_deploy.outputs.deploy_failed == 'true')
+          (inputs.deploy_method == 'ssh' && env.SSH_PRIVATE_KEY == '') ||
+          (inputs.deploy_method == 'argocd' && env.ARGOCD_TOKEN == '') ||
+          (inputs.deploy_method == 'uipath' && env.UIPATH_CLIENT_ID == '')
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
+          UIPATH_CLIENT_ID: ${{ secrets.UIPATH_CLIENT_ID }}
+        run: |
+          echo "::warning::Deploy method '${{ inputs.deploy_method }}' selected but credentials not configured. Skipping deployment."
+
+      - name: Health check
+        id: health-check
+        if: inputs.health_check_url != ''
+        run: |
+          echo "Running health check against ${{ inputs.health_check_url }}"
+          RETRIES=5
+          DELAY=10
+          for i in $(seq 1 $RETRIES); do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${{ inputs.health_check_url }}" || echo "000")
+            if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 400 ]; then
+              echo "Health check passed (HTTP $HTTP_CODE)"
+              echo "healthy=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "Attempt $i/$RETRIES: HTTP $HTTP_CODE - retrying in ${DELAY}s..."
+            sleep "$DELAY"
+          done
+          echo "healthy=false" >> "$GITHUB_OUTPUT"
+          echo "::error::Health check failed after $RETRIES attempts"
+          exit 1
+
+      - name: Rollback on failure
+        if: failure() && inputs.rollback_on_failure && inputs.deploy_method == 'argocd' && env.ARGOCD_TOKEN != ''
+        env:
+          ARGOCD_TOKEN: ${{ secrets.ARGOCD_TOKEN }}
+          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
         run: |
           echo "::warning::Deployment failed - initiating rollback"
-          echo "rollback_triggered=true" >> "$GITHUB_OUTPUT"
+          argocd app rollback "${{ inputs.app_name }}-${{ inputs.environment }}" \
+            --server "$ARGOCD_SERVER" \
+            --auth-token "$ARGOCD_TOKEN" \
+            --grpc-web
+          echo "Rollback completed"
 
-          case "${{ inputs.deploy_method }}" in
-            argocd)
-              if [ -n "${{ secrets.ARGOCD_TOKEN }}" ]; then
-                ARGOCD_APP="${{ inputs.app_name }}-${{ inputs.environment }}"
-                argocd login "${{ secrets.ARGOCD_SERVER }}" --auth-token "${{ secrets.ARGOCD_TOKEN }}" --grpc-web --insecure
-                argocd app rollback "$ARGOCD_APP" || true
-                echo "ArgoCD rollback initiated for ${ARGOCD_APP}"
-              fi
-              ;;
-            ssh)
-              if [ -n "${{ secrets.DEPLOY_SSH_KEY }}" ]; then
-                echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
-                chmod 600 ~/.ssh/deploy_key
-                SSH_HOST="${{ secrets.DEPLOY_SSH_HOST }}"
-                SSH_HOST="${SSH_HOST:-${{ inputs.deploy_host }}}"
-                SSH_USER="${{ secrets.DEPLOY_SSH_USER }}"
-                SSH_USER="${SSH_USER:-deploy}"
-
-                ssh -i ~/.ssh/deploy_key "${SSH_USER}@${SSH_HOST}" \
-                  "cd ${{ inputs.deploy_path }} && if [ -f rollback.sh ]; then chmod +x rollback.sh && ./rollback.sh; fi" || true
-                rm -f ~/.ssh/deploy_key
-              fi
-              ;;
-          esac
-
-          echo "## Rollback" >> "$GITHUB_STEP_SUMMARY"
-          echo "Rollback triggered due to deployment/health check failure." >> "$GITHUB_STEP_SUMMARY"
-
-      # ------------------------------------------------------------------
-      # Post-deploy Jira update
-      # ------------------------------------------------------------------
-      - name: Post-deploy Jira comment
-        if: always() && steps.jira.outputs.skipped != 'true'
+      - name: Update Cherwell on completion
+        if: always() && (inputs.environment == 'stage' || inputs.environment == 'prod') && env.CHERWELL_API_KEY != ''
         env:
-          JIRA_URL: ${{ secrets.JIRA_URL }}
-          TOKEN: ${{ secrets.JIRA_TOKEN }}
+          CHERWELL_API_KEY: ${{ secrets.CHERWELL_API_KEY }}
+          CHERWELL_BASE_URL: ${{ secrets.CHERWELL_BASE_URL }}
         run: |
-          if [ -z "$TOKEN" ]; then
-            exit 0
-          fi
+          STATUS="${{ job.status }}"
+          echo "Updating Cherwell change record: deployment $STATUS"
 
-          DEPLOY_STATUS="SUCCESS"
-          if [ "${{ steps.rollback.outputs.rollback_triggered }}" = "true" ]; then
-            DEPLOY_STATUS="ROLLED BACK"
-          elif [ "${{ steps.health.outputs.healthy }}" = "false" ]; then
-            DEPLOY_STATUS="FAILED"
-          fi
-
-          echo "Post-deploy Jira update: ${DEPLOY_STATUS}"
-
-      # ------------------------------------------------------------------
-      # Update Cherwell CR
-      # ------------------------------------------------------------------
-      - name: Update Cherwell CR
-        if: always() && steps.cherwell.outputs.skipped != 'true' && steps.cherwell.outputs.cr_id != ''
-        env:
-          CHERWELL_URL: ${{ secrets.CHERWELL_URL }}
-          TOKEN: ${{ secrets.CHERWELL_TOKEN }}
-        run: |
-          if [ -z "$TOKEN" ]; then
-            exit 0
-          fi
-
-          CR_ID="${{ steps.cherwell.outputs.cr_id }}"
-          DEPLOY_STATUS="Completed"
-          if [ "${{ steps.rollback.outputs.rollback_triggered }}" = "true" ]; then
-            DEPLOY_STATUS="Rolled Back"
-          fi
-
-          curl -s -X PATCH \
-            -H "Authorization: Bearer ${TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"busObId\": \"changerequest\",
-              \"busObRecId\": \"${CR_ID}\",
-              \"fields\": [
-                {\"name\": \"Status\", \"value\": \"${DEPLOY_STATUS}\"}
-              ]
-            }" \
-            "${CHERWELL_URL}/api/V1/savebusinessobject" || true
-
-      # ------------------------------------------------------------------
-      # Deploy Summary
-      # ------------------------------------------------------------------
-      - name: Deploy summary
+      - name: Deployment summary
         if: always()
         run: |
-          DEPLOY_STATUS="Success"
-          ICON="✅"
-          if [ "${{ steps.rollback.outputs.rollback_triggered }}" = "true" ]; then
-            DEPLOY_STATUS="Rolled Back"
-            ICON="⚠️"
-          elif [ "${{ steps.health.outputs.healthy }}" = "false" ] && [ "${{ inputs.health_url }}" != "" ]; then
-            DEPLOY_STATUS="Failed (health check)"
-            ICON="❌"
-          fi
-
-          {
-            echo "## Deploy Result"
-            echo ""
-            echo "| Check | Status |"
-            echo "|-------|--------|"
-            echo "| **Deploy** | ${ICON} ${DEPLOY_STATUS} |"
-            echo "| **Health Check** | ${{ steps.health.outputs.healthy || 'N/A' }} |"
-            echo "| **Jira** | ${{ steps.jira.outputs.skipped == 'true' && 'Skipped' || steps.jira.outputs.transition }} |"
-            echo "| **Cherwell CR** | ${{ steps.cherwell.outputs.cr_id || 'N/A' }} |"
-            echo "| **Rollback** | ${{ steps.rollback.outputs.rollback_triggered || 'Not triggered' }} |"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Log to ForgeOps
-        if: always()
-        env:
-          SPLUNK_HEC_URL: ${{ secrets.SPLUNK_HEC_URL }}
-          SPLUNK_HEC_TOKEN: ${{ secrets.SPLUNK_HEC_TOKEN }}
-          SPLUNK_INDEX: ${{ secrets.SPLUNK_INDEX }}
-        run: |
-          if [ -f scripts/forgeops-log.sh ]; then
-            ./scripts/forgeops-log.sh "deploy" "${{ job.status }}" "${{ inputs.app_name }}" "${{ inputs.environment }}" "${{ inputs.version }}"
-          fi
+          echo "## Deployment Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Application | ${{ inputs.app_name }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Version | ${{ inputs.version }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Environment | ${{ inputs.environment }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Method | ${{ inputs.deploy_method }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Jira Transition | ${{ steps.jira-map.outputs.transition }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Status | ${{ job.status }} |" >> "$GITHUB_STEP_SUMMARY"

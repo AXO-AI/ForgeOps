@@ -1,4 +1,4 @@
-# How to Rollback a Deployment
-See docs/ROLLBACK.md for full procedures.
-
-Quick steps: Pipelines page → find the environment → click Rollback → confirm.
+# How to Rollback
+**Quick:** Pipelines → find environment → Rollback button → confirm
+**Manual:** Repo → Actions → Rollback workflow → Run workflow → select environment
+See docs/ROLLBACK.md for details.

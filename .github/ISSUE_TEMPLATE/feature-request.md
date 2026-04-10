@@ -10,11 +10,8 @@ assignees: askboppana
 
 ## Proposed solution
 
-## Alternatives considered
-
 ## Who benefits
 - [ ] Developers
 - [ ] Release Engineers
 - [ ] QA Team
 - [ ] DevOps
-- [ ] Leadership

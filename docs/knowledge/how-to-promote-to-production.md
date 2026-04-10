@@ -1,9 +1,8 @@
-# How to Promote Code to Production
-1. Ensure UAT is complete — check Environments page → STAGE card shows "UAT Complete"
-2. Go to Pull Requests → click "STAGE → PROD" button
-3. Create the PR — it will show all Jira tickets and security scan results
-4. Two approvers must approve (Tech Lead + Release Manager)
-5. After approval, merge the PR
-6. Pipeline auto-deploys to production
-7. Jira updates to "Deployed to Production"
-8. All stakeholders receive email and Teams notification
+# How to Promote to Production
+1. Check: Environments page → STAGE shows "UAT Complete"
+2. Pull Requests → "STAGE → PROD" button
+3. Create PR (stage → main)
+4. Two approvers must approve
+5. Merge → auto-deploy to PROD
+6. Jira → "Deployed to Production"
+7. All stakeholders notified

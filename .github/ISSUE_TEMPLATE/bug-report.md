@@ -7,14 +7,17 @@ assignees: askboppana
 ---
 
 ## Description
+
 ## Steps to reproduce
 1.
 2.
 3.
+
 ## Expected behavior
+
 ## Actual behavior
-## Screenshots
-## Browser (for dashboard issues)
+
+## Browser (for dashboard)
 - [ ] Chrome
 - [ ] Edge
 - [ ] Safari
