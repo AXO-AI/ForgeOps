@@ -3,642 +3,440 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>ForgeOps — DevSecOps Portal</title>
+<title>ForgeOps — DevSecOps Platform</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%2326c6da'/><stop offset='1' stop-color='%237c4dff'/></linearGradient></defs><rect width='40' height='40' rx='10' fill='url(%23g)'/><path d='M20 8L11 22h6.5l-2 10L27 18h-6.5l2-10z' fill='white'/></svg>"/>
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#0b0d17;--card:#141825;--card2:#1a1f30;--border:#2a3048;--text:#e8eaf0;--text2:#8892b0;--text3:#5a6380;--teal:#0dbfbf;--teal-dim:rgba(13,191,191,.12);--success:#4cd964;--danger:#f45b69;--warn:#f5a623;--blue:#3b82f6;--r:8px}
+:root{--bg:#07090f;--panel:#0c1017;--card:#111621;--card-h:#151c29;--surf:#1a2233;--brd:#1e2940;--brd-h:#2a3a55;--text:#edf2f7;--soft:#8b9dc3;--dim:#4a5d80;--cyan:#26c6da;--violet:#7c4dff;--ok:#06d6a0;--err:#ef476f;--warn:#ffd166;--info:#118ab2;--r:14px;--rs:10px}
 html,body{height:100%}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.5}
+body{font-family:'Space Grotesk',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;font-size:14px}
+code,.mono{font-family:'JetBrains Mono',monospace}
 button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
-input,textarea,select{font-family:inherit;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);color:var(--text);padding:9px 13px;font-size:13px;outline:none;width:100%}
-input:focus,textarea:focus,select:focus{border-color:var(--teal)}
+input,textarea,select{font-family:'Space Grotesk',sans-serif;background:var(--surf);border:1px solid var(--brd);border-radius:var(--rs);color:var(--text);padding:11px 14px;font-size:13px;outline:none;width:100%;transition:border .2s,box-shadow .2s}
+input:focus,textarea:focus,select:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(38,198,218,.15)}
 textarea{resize:vertical;min-height:80px}
-select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238892b0'%3E%3Cpath d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
-a{color:var(--teal);text-decoration:none}
-::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
-@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238b9dc3'%3E%3Cpath d='M6 9L1 4h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+a{color:var(--cyan);text-decoration:none}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--brd);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--brd-h)}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 @keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
-.fu{animation:fadeUp .3s ease-out}.sk{background:linear-gradient(90deg,var(--card) 0%,#1e2440 50%,var(--card) 100%);background-size:800px 100%;animation:shimmer 1.6s infinite linear;border-radius:var(--r)}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+@keyframes glow{0%,100%{box-shadow:0 0 8px rgba(38,198,218,.3)}50%{box-shadow:0 0 20px rgba(38,198,218,.6)}}
+.fu{animation:fadeUp .3s ease-out}
+.sk{background:linear-gradient(90deg,var(--card) 0%,var(--surf) 50%,var(--card) 100%);background-size:800px 100%;animation:shimmer 1.6s infinite linear;border-radius:var(--r)}
 
+/* Layout */
 .app{display:flex;height:100vh;overflow:hidden}
-.sb{width:230px;background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+.sb{width:240px;background:var(--panel);border-right:1px solid var(--brd);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
 .sb.closed{display:none}
 .mn{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
-.tb{padding:10px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--card);flex-shrink:0}
-.ct{flex:1;overflow-y:auto;padding:20px}
-.logo{padding:16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)}
-.ns{padding:14px 12px 3px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.1px;color:var(--text3)}
-.ni{display:flex;align-items:center;gap:9px;padding:7px 16px;margin:1px 6px;border-radius:var(--r);font-size:13px;color:var(--text2);cursor:pointer;position:relative}
-.ni:hover{background:rgba(255,255,255,.04);color:var(--text)}
-.ni.ac{background:var(--teal-dim);color:var(--teal);font-weight:600}
+.tb{padding:12px 24px;border-bottom:1px solid var(--brd);display:flex;align-items:center;gap:12px;background:var(--panel);flex-shrink:0}
+.ct{flex:1;overflow-y:auto;padding:24px}
+.logo-w{padding:20px 18px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--brd)}
+.logo-tag{font-size:8px;font-weight:700;letter-spacing:2px;background:linear-gradient(90deg,var(--cyan),var(--violet));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-top:1px}
+.ns{padding:18px 14px 5px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--dim)}
+.ni{display:flex;align-items:center;gap:10px;padding:8px 16px;margin:2px 8px;border-radius:var(--rs);font-size:13px;color:var(--soft);cursor:pointer;transition:all .15s;border-left:3px solid transparent}
+.ni:hover{background:rgba(255,255,255,.03);color:var(--text)}
+.ni.ac{background:rgba(38,198,218,.08);color:var(--cyan);font-weight:600;border-left-color:var(--cyan)}
 .ni .ic{font-size:15px;width:20px;text-align:center;flex-shrink:0}
-.nb{margin-left:auto;background:var(--warn);color:#000;font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px;min-width:16px;text-align:center}
-.sf{margin-top:auto;padding:12px 16px;border-top:1px solid var(--border);font-size:10px;color:var(--text3)}
-.sd{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px}
-.c{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px;margin-bottom:14px}
-.c:hover{border-color:#343b58}
-.sg{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:20px}
-.sc{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px}
-.sl{font-size:11px;color:var(--text2);margin-bottom:3px}.sv{font-size:26px;font-weight:700;line-height:1.2}
-.si{font-size:18px;float:right;opacity:.5}
-.bg{display:inline-flex;align-items:center;padding:2px 9px;border-radius:11px;font-size:10px;font-weight:600}
-.bt{padding:7px 15px;border-radius:var(--r);font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:5px;transition:all .15s}
-.bt-t{background:var(--teal);color:#000}.bt-t:hover{filter:brightness(1.1)}
-.bt-s{background:var(--success);color:#000}.bt-d{background:transparent;color:var(--danger);border:1px solid rgba(244,91,105,.3)}
-.bt-d:hover{background:rgba(244,91,105,.08)}.bt-g{background:rgba(255,255,255,.06);color:var(--text2)}.bt-g:hover{background:rgba(255,255,255,.1)}
+.nb{margin-left:auto;background:linear-gradient(135deg,var(--err),#ff6b6b);color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;min-width:18px;text-align:center}
+.sf{margin-top:auto;padding:14px 18px;border-top:1px solid var(--brd);font-size:10px;color:var(--dim)}
+.sf .sd{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;box-shadow:0 0 6px}
+
+/* Card */
+.c{background:var(--card);border:1px solid var(--brd);border-radius:var(--r);padding:20px;margin-bottom:14px;transition:border-color .2s,transform .15s}
+.c:hover{border-color:var(--brd-h)}
+.c-click:hover{transform:translateY(-1px);border-color:var(--cyan)}
+
+/* Stat */
+.sg{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px;margin-bottom:22px}
+.sc{background:var(--card);border:1px solid var(--brd);border-radius:var(--r);padding:18px 20px;position:relative;overflow:hidden}
+.sc::after{content:'';position:absolute;top:-20px;right:-20px;width:80px;height:80px;border-radius:50%;opacity:.06}
+.sc-cyan::after{background:var(--cyan)}.sc-ok::after{background:var(--ok)}.sc-err::after{background:var(--err)}.sc-warn::after{background:var(--warn)}.sc-vio::after{background:var(--violet)}
+.sl{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--soft);margin-bottom:6px;font-weight:600}
+.sv{font-size:30px;font-weight:700;line-height:1.1;font-family:'Space Grotesk',sans-serif}
+.ss{font-size:11px;margin-top:4px}
+
+/* Elements */
+.bg{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:600}
+.tag{font-family:'JetBrains Mono',monospace;font-size:10px;padding:2px 8px;border-radius:6px;font-weight:500}
+.ldot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;flex-shrink:0}
+.bt{padding:8px 16px;border-radius:var(--rs);font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
+.bt-p{background:linear-gradient(135deg,var(--cyan),var(--violet));color:#fff}.bt-p:hover{filter:brightness(1.15);transform:translateY(-1px)}
+.bt-ok{background:var(--ok);color:#000}.bt-err{background:transparent;color:var(--err);border:1px solid rgba(239,71,111,.25)}.bt-err:hover{background:rgba(239,71,111,.08)}
+.bt-g{background:rgba(255,255,255,.05);color:var(--soft);border:1px solid var(--brd)}.bt-g:hover{background:rgba(255,255,255,.08);border-color:var(--brd-h)}
 .bt-w{background:var(--warn);color:#000}
-.lr{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}.lr:last-child{border-bottom:none}
-.g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px}
-.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px}
-.tab{padding:8px 18px;font-size:13px;font-weight:500;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s}
-.tab:hover{color:var(--text)}.tab.ac{color:var(--teal);border-bottom-color:var(--teal)}
-.stg{display:flex;align-items:center;gap:0;overflow-x:auto;padding:10px 0}
-.sbox{padding:5px 10px;border-radius:5px;font-size:10px;font-weight:600;border:2px solid;min-width:55px;text-align:center;cursor:pointer;flex-shrink:0}
-.sar{width:24px;height:2px;background:var(--border);flex-shrink:0}
-.fl{display:flex;flex-direction:column;gap:12px}
-.lbl{font-size:11px;color:var(--text2);margin-bottom:4px;font-weight:500}
-.cw{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-.cb{width:100%;max-width:400px}
-.eb{padding:9px 14px;background:rgba(244,91,105,.1);border:1px solid rgba(244,91,105,.25);border-radius:var(--r);color:var(--danger);font-size:12px;margin-bottom:12px}
-.rb{padding:9px 14px;background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.25);border-radius:var(--r);color:var(--warn);font-size:12px;margin-bottom:12px}
-.toast{position:fixed;top:16px;right:16px;z-index:9999;padding:12px 20px;border-radius:var(--r);font-size:13px;font-weight:500;animation:fadeUp .3s;max-width:400px;box-shadow:0 4px 20px rgba(0,0,0,.4)}
-.toast-s{background:#1a3a2a;border:1px solid var(--success);color:var(--success)}
-.toast-e{background:#3a1a1a;border:1px solid var(--danger);color:var(--danger)}
-.modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
-.modal{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:28px;max-width:480px;width:100%;max-height:80vh;overflow-y:auto}
-.hb{display:none}.sov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99}
-@media(max-width:768px){.sb{position:fixed;z-index:100;height:100%}.sb.closed{display:none}.hb{display:block;font-size:18px;padding:4px 8px;cursor:pointer;color:var(--text2);background:none;border:none}.sov.show{display:block}.ct{padding:14px}.sg{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}.g2{grid-template-columns:1fr}}
-#fe{color:var(--danger);background:rgba(244,91,105,.1);border:1px solid rgba(244,91,105,.3);border-radius:8px;padding:20px;margin:20px}
+.bt-sm{padding:5px 11px;font-size:11px}
+.lr{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--brd)}.lr:last-child{border-bottom:none}
+.g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px}
+.fl{display:flex;flex-direction:column;gap:14px}
+.lbl{font-size:11px;color:var(--soft);margin-bottom:5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--brd);margin-bottom:18px}.tab{padding:10px 20px;font-size:13px;font-weight:500;color:var(--soft);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s}.tab:hover{color:var(--text)}.tab.ac{color:var(--cyan);border-bottom-color:var(--cyan)}
+.stg{display:flex;align-items:center;gap:0;overflow-x:auto;padding:12px 0}
+.sbox{padding:5px 10px;border-radius:8px;font-size:10px;font-weight:600;border:2px solid;min-width:58px;text-align:center;cursor:pointer;flex-shrink:0;transition:all .15s}
+.sbox:hover{transform:scale(1.05)}.sar{width:26px;height:2px;background:var(--brd);flex-shrink:0}
+.toast{position:fixed;bottom:20px;right:20px;z-index:9999;padding:14px 22px;border-radius:var(--rs);font-size:13px;font-weight:500;animation:fadeUp .3s;max-width:420px;box-shadow:0 8px 30px rgba(0,0,0,.5);backdrop-filter:blur(8px)}
+.toast-s{background:rgba(6,214,160,.12);border:1px solid rgba(6,214,160,.3);color:var(--ok)}
+.toast-e{background:rgba(239,71,111,.12);border:1px solid rgba(239,71,111,.3);color:var(--err)}
+.toast-i{background:rgba(38,198,218,.12);border:1px solid rgba(38,198,218,.3);color:var(--cyan)}
+.modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)}
+.modal{background:var(--card);border:1px solid var(--brd);border-radius:16px;padding:28px;max-width:500px;width:100%;max-height:80vh;overflow-y:auto}
+.eb{padding:10px 14px;background:rgba(239,71,111,.08);border:1px solid rgba(239,71,111,.2);border-radius:var(--rs);color:var(--err);font-size:12px;margin-bottom:12px}
+.rb{padding:10px 14px;background:rgba(255,209,102,.08);border:1px solid rgba(255,209,102,.2);border-radius:var(--rs);color:var(--warn);font-size:12px;margin-bottom:12px}
+.hb{display:none}
+.sov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99}
+@media(max-width:768px){.sb{position:fixed;z-index:100;height:100%}.sb.closed{display:none}.hb{display:block;font-size:18px;padding:4px 8px;cursor:pointer;color:var(--soft);background:none;border:none}.sov.show{display:block}.ct{padding:14px}.sg{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}.g2{grid-template-columns:1fr}}
+.login-split{display:flex;min-height:100vh}.login-left{flex:1;display:flex;flex-direction:column;justify-content:center;padding:48px;max-width:480px}.login-right{width:460px;background:linear-gradient(135deg,rgba(38,198,218,.08),rgba(124,77,255,.08));display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px;border-left:1px solid var(--brd);position:relative;overflow:hidden}
+.login-right::before{content:'';position:absolute;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(38,198,218,.12),transparent);top:-50px;right:-50px;animation:float 6s ease-in-out infinite}
+.login-right::after{content:'';position:absolute;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(124,77,255,.1),transparent);bottom:-30px;left:-30px;animation:float 8s ease-in-out infinite reverse}
+@media(max-width:900px){.login-right{display:none}.login-left{max-width:100%}}
+.env-arrow{display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;min-width:44px}
+.env-arrow svg{color:var(--cyan)}
+#fe{color:var(--err);background:rgba(239,71,111,.08);border:1px solid rgba(239,71,111,.2);border-radius:var(--r);padding:24px;margin:24px}
 </style>
 </head>
 <body>
-<div id="root"><div style="display:flex;justify-content:center;align-items:center;height:100vh;color:#0dbfbf;font-family:sans-serif;font-size:15px">⚡ Loading ForgeOps...</div></div>
+<div id="root"><div style="display:flex;justify-content:center;align-items:center;height:100vh;color:#26c6da;font-family:'Space Grotesk',sans-serif;font-size:15px;gap:10px"><svg width="28" height="28" viewBox="0 0 40 40"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#26c6da"/><stop offset="1" stop-color="#7c4dff"/></linearGradient></defs><rect width="40" height="40" rx="10" fill="url(#lg)"/><path d="M20 8L11 22h6.5l-2 10L27 18h-6.5l2-10z" fill="white"/></svg>Loading ForgeOps...</div></div>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js"></script>
 <script type="text/babel">
-try {
-const {useState,useEffect,useCallback,useRef,useMemo}=React;
+try{
+const{useState,useEffect,useCallback,useRef,useMemo}=React;
 
-/* === CACHE === */
-const cache = {};
-function cached(key, ttl, fetcher) {
-  if (cache[key] && Date.now() - cache[key].t < ttl) return Promise.resolve(cache[key].d);
-  return fetcher().then(d => { cache[key] = { d, t: Date.now() }; return d; });
-}
+/* ═══ Logo SVG ═══ */
+const Logo=({s})=><svg width={s||32} height={s||32} viewBox="0 0 40 40"><defs><linearGradient id="lg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#26c6da"/><stop offset="1" stopColor="#7c4dff"/></linearGradient></defs><rect width="40" height="40" rx="10" fill="url(#lg2)"/><path d="M20 8L11 22h6.5l-2 10L27 18h-6.5l2-10z" fill="white"/></svg>;
 
-/* === API === */
+/* ═══ API + Cache ═══ */
+const cache={};
+function cached(k,ttl,fn){if(cache[k]&&Date.now()-cache[k].t<ttl)return Promise.resolve(cache[k].d);return fn().then(d=>{cache[k]={d,t:Date.now()};return d;});}
 async function api(path,opts={}){
-  const tk=sessionStorage.getItem('fo_t');
+  const tk=sessionStorage.getItem('fg_token');
   const r=await fetch('https://api.github.com'+path,{...opts,headers:{Authorization:'Bearer '+tk,Accept:'application/vnd.github.v3+json','Content-Type':'application/json',...(opts.headers||{})}});
-  if(r.status===403&&r.headers.get('x-ratelimit-remaining')==='0'){const s=Math.ceil((parseInt(r.headers.get('x-ratelimit-reset')||'0')*1000-Date.now())/1000);throw new Error('RATE_LIMITED:'+s);}
-  if(r.status===404)return null;
-  if(r.status===204)return{};
-  if(!r.ok){const t=await r.text().catch(()=>'');throw new Error(r.status+': '+t.slice(0,200));}
-  return r.json();
+  if(r.status===403){const x=r.headers.get('x-ratelimit-remaining');if(x==='0'){const rs=r.headers.get('x-ratelimit-reset');throw new Error('RATE_LIMITED:'+(rs?Math.ceil((parseInt(rs)*1000-Date.now())/1000):'60'));}}
+  if(r.status===204)return null;if(r.status===404)return null;
+  if(!r.ok){const t=await r.text().catch(()=>'');throw new Error(r.status+' '+t.slice(0,150));}return r.json();
 }
-const owner=()=>sessionStorage.getItem('fo_u')||'';
+const O=()=>sessionStorage.getItem('fg_user')||'';
+const fetchBr=r=>cached('br_'+r,60000,()=>api('/repos/'+O()+'/'+r+'/branches?per_page=100').then(d=>(d||[]).map(b=>b.name)));
+const fetchWf=r=>cached('wf_'+r,60000,()=>api('/repos/'+O()+'/'+r+'/actions/workflows').then(d=>(d&&d.workflows)||[]));
+const fetchArt=(r,id)=>api(id?'/repos/'+O()+'/'+r+'/actions/runs/'+id+'/artifacts':'/repos/'+O()+'/'+r+'/actions/artifacts?per_page=5').then(d=>(d&&d.artifacts)||[]);
 
-/* === Shared Fetchers === */
-function fetchBranches(repo) {
-  return cached('br_'+repo, 60000, () => api('/repos/'+owner()+'/'+repo+'/branches?per_page=100').then(d=>(d||[]).map(b=>b.name)));
-}
-function fetchWorkflows(repo) {
-  return cached('wf_'+repo, 60000, () => api('/repos/'+owner()+'/'+repo+'/actions/workflows').then(d=>(d&&d.workflows)||[]));
-}
-function fetchArtifacts(repo, runId) {
-  const path = runId ? '/repos/'+owner()+'/'+repo+'/actions/runs/'+runId+'/artifacts' : '/repos/'+owner()+'/'+repo+'/actions/artifacts?per_page=5';
-  return api(path).then(d=>(d&&d.artifacts)||[]);
-}
+/* ═══ Helpers ═══ */
+const ago=d=>{if(!d)return'';const s=Math.floor((Date.now()-new Date(d))/1000);if(s<60)return s+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';};
+const dur=(a,b)=>{if(!a||!b)return'—';const s=Math.round((new Date(b)-new Date(a))/1000);if(s<0)return'—';if(s<60)return s+'s';return Math.floor(s/60)+'m '+s%60+'s';};
+const fmtSz=b=>{if(!b)return'—';if(b<1024)return b+'B';if(b<1048576)return(b/1024).toFixed(1)+'KB';return(b/1048576).toFixed(1)+'MB';};
+const sE=c=>({success:'✅',completed:'✅',failure:'❌',cancelled:'🚫',in_progress:'🔄',queued:'⏳',waiting:'⏸️',action_required:'⚠️',skipped:'⏭️'}[c]||'⚪');
+const sC=c=>({success:'var(--ok)',completed:'var(--ok)',failure:'var(--err)',in_progress:'var(--cyan)',queued:'var(--warn)',waiting:'var(--warn)',action_required:'var(--warn)',cancelled:'var(--dim)'}[c]||'var(--dim)');
+const jK=t=>(t||'').match(/[A-Z]+-\d+/g)||[];
+const envClr=e=>({DEV:'var(--cyan)',INT:'var(--cyan)',QA:'var(--warn)',STAGE:'var(--warn)',PROD:'var(--err)'}[e]||'var(--dim)');
+let toastTmr;
 
-/* === Helpers === */
-const ago=(d)=>{if(!d)return'';const s=Math.floor((Date.now()-new Date(d))/1000);if(s<60)return s+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';};
-const dur=(a,b)=>{if(!a||!b)return'—';const s=Math.round((new Date(b)-new Date(a))/1000);if(s<0)return'—';if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m '+s%60+'s';return Math.floor(s/3600)+'h '+Math.floor(s%3600/60)+'m';};
-const sE=c=>({success:'✅',completed:'✅',failure:'❌',cancelled:'🚫',in_progress:'🔄',queued:'⏳',waiting:'⏸️',action_required:'⚠️',skipped:'⏭️',pending:'⏳'}[c]||'⚪');
-const sC=c=>({success:'var(--success)',completed:'var(--success)',failure:'var(--danger)',cancelled:'var(--text3)',in_progress:'var(--blue)',queued:'var(--warn)',waiting:'var(--warn)',action_required:'var(--warn)'}[c]||'var(--text3)');
-const dot=(c,s)=><span style={{display:'inline-block',width:s||8,height:s||8,borderRadius:'50%',background:sC(c),flexShrink:0}}/>;
-const jiraKeys=t=>(t||'').match(/[A-Z]+-\d+/g)||[];
-const fmtSize=b=>{if(!b)return'0 B';if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(1)+' MB';};
-
-/* === Toast === */
-let toastTimer;
+/* ═══ Shared Components ═══ */
 function Toast({msg,type}){if(!msg)return null;return<div className={'toast toast-'+(type||'s')}>{msg}</div>;}
+function Modal({open,onClose,title,children}){if(!open)return null;return<div className="modal-ov" onClick={onClose}><div className="modal" onClick={e=>e.stopPropagation()}><div style={{display:'flex',alignItems:'center',marginBottom:18}}><span style={{flex:1,fontSize:17,fontWeight:600}}>{title}</span><button onClick={onClose} style={{fontSize:18,color:'var(--dim)'}}>✕</button></div>{children}</div></div>;}
+function StatusPill({s}){return<span className="bg" style={{background:sC(s).replace('var(','rgba(').replace(')',',.12)'),color:sC(s),border:'1px solid '+sC(s).replace('var(','rgba(').replace(')',',.2)')}}>{sE(s)} {s}</span>;}
+function CSSBar({data}){const mx=Math.max(1,...data.map(d=>d.s+d.f+d.o));return<div style={{display:'flex',alignItems:'flex-end',gap:6,height:130,padding:'8px 0'}}>{data.map((d,i)=><div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:3}}><div style={{display:'flex',flexDirection:'column-reverse',gap:1,flex:1,width:'100%',maxWidth:36}}>{d.s>0&&<div style={{height:d.s/mx*100+'px',background:'var(--ok)',borderRadius:'3px 3px 0 0'}}/>}{d.f>0&&<div style={{height:d.f/mx*100+'px',background:'var(--err)'}}/>}{d.o>0&&<div style={{height:d.o/mx*100+'px',background:'var(--dim)',borderRadius:'3px 3px 0 0'}}/>}</div><div className="mono" style={{fontSize:9,color:'var(--dim)'}}>{d.day}</div></div>)}</div>;}
 
-/* === Modal === */
-function Modal({open,onClose,title,children}){if(!open)return null;return<div className="modal-ov" onClick={onClose}><div className="modal" onClick={e=>e.stopPropagation()}><div style={{display:'flex',alignItems:'center',marginBottom:16}}><span style={{flex:1,fontSize:16,fontWeight:600}}>{title}</span><button onClick={onClose} style={{fontSize:18,color:'var(--text3)'}}>✕</button></div>{children}</div></div>;}
-
-/* === CSS Bar Chart === */
-function BarChart({data}){
-  const mx=Math.max(1,...data.map(d=>d.s+d.f+d.o));
-  return<div style={{display:'flex',alignItems:'flex-end',gap:5,height:120,padding:'6px 0'}}>{data.map((d,i)=><div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:3}}><div style={{display:'flex',flexDirection:'column-reverse',gap:1,flex:1,width:'100%',maxWidth:32}}>{d.s>0&&<div style={{height:d.s/mx*95+'px',background:'var(--success)',borderRadius:'2px 2px 0 0'}}/>}{d.f>0&&<div style={{height:d.f/mx*95+'px',background:'var(--danger)'}}/>}{d.o>0&&<div style={{height:d.o/mx*95+'px',background:'var(--text3)',borderRadius:'2px 2px 0 0'}}/>}</div><div style={{fontSize:9,color:'var(--text3)'}}>{d.day}</div></div>)}</div>;
-}
-
-/* ======================================
-   PAGE: LOGIN
-   ====================================== */
+/* ═══════════════════════════════════════
+   PAGE 1: LOGIN
+   ═══════════════════════════════════════ */
 function LoginPage({onConnect}){
   const[tk,setTk]=useState('');const[u,setU]=useState('askboppana');const[err,setErr]=useState('');const[ld,setLd]=useState(false);
-  const go=async()=>{if(!tk.trim()||!u.trim()){setErr('Both fields required');return;}setLd(true);setErr('');try{sessionStorage.setItem('fo_t',tk.trim());sessionStorage.setItem('fo_u',u.trim());const d=await api('/user');onConnect(d);}catch(e){setErr('Connection failed: '+e.message);sessionStorage.removeItem('fo_t');sessionStorage.removeItem('fo_u');}setLd(false);};
-  return<div className="cw fu"><div className="cb"><div className="c" style={{padding:36}}><div style={{textAlign:'center',marginBottom:28}}><div style={{fontSize:48,marginBottom:6}}>⚡</div><div style={{fontSize:24,fontWeight:700,marginBottom:4}}>ForgeOps</div><div style={{color:'var(--text2)',fontSize:13}}>DevSecOps Portal — Connect to GitHub</div></div><div className="fl"><div><label className="lbl">GitHub Username</label><input value={u} onChange={e=>setU(e.target.value)} placeholder="askboppana"/></div><div><label className="lbl">Personal Access Token</label><input type="password" value={tk} onChange={e=>setTk(e.target.value)} placeholder="ghp_..." onKeyDown={e=>e.key==='Enter'&&go()}/></div><div style={{fontSize:10,color:'var(--text3)'}}>Needs <code style={{background:'var(--bg)',padding:'1px 4px',borderRadius:3}}>repo</code> + <code style={{background:'var(--bg)',padding:'1px 4px',borderRadius:3}}>actions</code> scopes. Stored in sessionStorage only.</div>{err&&<div className="eb">❌ {err}</div>}<button className="bt bt-t" onClick={go} disabled={ld} style={{width:'100%',padding:11,fontSize:14,justifyContent:'center'}}>{ld?'⏳ Connecting...':'Connect to GitHub'}</button></div></div></div></div>;
+  const go=async()=>{if(!tk.trim()||!u.trim()){setErr('Both fields required');return;}setLd(true);setErr('');try{sessionStorage.setItem('fg_token',tk.trim());sessionStorage.setItem('fg_user',u.trim());const d=await api('/user');if(!d)throw new Error('Invalid token');onConnect(d);}catch(e){setErr(e.message);sessionStorage.removeItem('fg_token');sessionStorage.removeItem('fg_user');}setLd(false);};
+  const stats=[{v:'53',l:'Deploys/wk'},{v:'94%',l:'Success'},{v:'2.4h',l:'Lead Time'},{v:'6%',l:'Fail Rate'}];
+  const badges=['GitHub Actions','SonarQube','Black Duck','Jira','Splunk','Cherwell'];
+  return<div className="login-split fu">
+    <div className="login-left">
+      <div style={{marginBottom:40}}><Logo s={44}/><div style={{fontSize:26,fontWeight:700,marginTop:12}}>ForgeOps</div><div className="logo-tag" style={{fontSize:10}}>DEVSECOPS PLATFORM</div></div>
+      <div className="fl" style={{maxWidth:360}}>
+        <div><label className="lbl">Username</label><input value={u} onChange={e=>setU(e.target.value)} placeholder="askboppana"/></div>
+        <div><label className="lbl">Personal Access Token</label><input type="password" value={tk} onChange={e=>setTk(e.target.value)} placeholder="ghp_..." onKeyDown={e=>e.key==='Enter'&&go()}/></div>
+        {err&&<div className="eb">❌ {err}</div>}
+        <button className="bt bt-p" onClick={go} disabled={ld} style={{width:'100%',padding:13,fontSize:15,justifyContent:'center',borderRadius:12}}>{ld?'⏳ Connecting...':'Connect to GitHub →'}</button>
+        <div style={{fontSize:10,color:'var(--dim)'}}>Token stored in sessionStorage only. Cleared when tab closes.</div>
+      </div>
+    </div>
+    <div className="login-right">
+      <Logo s={64}/><div style={{fontSize:22,fontWeight:700,marginTop:16}}>Enterprise CI/CD</div>
+      <p style={{color:'var(--soft)',fontSize:12,textAlign:'center',marginTop:8,maxWidth:320}}>GitHub Actions pipelines with security scanning, environment promotion, approval gates, and full ALM integration.</p>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginTop:24,width:'100%',maxWidth:300}}>
+        {stats.map(s=><div key={s.l} style={{background:'rgba(255,255,255,.04)',border:'1px solid var(--brd)',borderRadius:10,padding:'10px 14px',textAlign:'center'}}><div style={{fontSize:22,fontWeight:700}}>{s.v}</div><div style={{fontSize:9,color:'var(--dim)',textTransform:'uppercase',letterSpacing:1}}>{s.l}</div></div>)}
+      </div>
+      <div style={{display:'flex',flexWrap:'wrap',gap:6,marginTop:20,justifyContent:'center'}}>{badges.map(b=><span key={b} className="tag" style={{background:'rgba(255,255,255,.04)',color:'var(--soft)',border:'1px solid var(--brd)'}}>{b}</span>)}</div>
+    </div>
+  </div>;
 }
 
-/* ======================================
-   PAGE: OVERVIEW
-   ====================================== */
+/* ═══════════════════════════════════════
+   PAGE 2: OVERVIEW
+   ═══════════════════════════════════════ */
 function OverviewPage({runs,prs,repos,setPage}){
   const active=runs.filter(r=>r.status==='in_progress').length;
-  const pending=runs.filter(r=>r.status==='waiting'||r.status==='action_required').length;
-  const today=new Date().toISOString().slice(0,10);
-  const depToday=runs.filter(r=>r.created_at?.startsWith(today)&&r.conclusion==='success').length;
-  const openPrs=prs.filter(p=>p.state==='open').length;
-
+  const comp=runs.filter(r=>r.status==='completed');const rate=comp.length?Math.round(comp.filter(r=>r.conclusion==='success').length/comp.length*100):0;
+  const openPr=prs.filter(p=>p.state==='open').length;
+  const pend=runs.filter(r=>r.status==='waiting'||r.status==='action_required').length;
   const bar=useMemo(()=>{const d={};for(let i=6;i>=0;i--){const x=new Date();x.setDate(x.getDate()-i);const k=(x.getMonth()+1)+'/'+x.getDate();d[k]={day:k,s:0,f:0,o:0};}runs.forEach(r=>{const x=new Date(r.created_at);const k=(x.getMonth()+1)+'/'+x.getDate();if(d[k]){if(r.conclusion==='success')d[k].s++;else if(r.conclusion==='failure')d[k].f++;else d[k].o++;}});return Object.values(d);},[runs]);
-
   const ENVS=['DEV','INT','QA','STAGE','PROD'];
-  const envMap=useMemo(()=>{const m={};ENVS.forEach(e=>{m[e]=runs.filter(r=>{const n=(r.name||r.display_title||'').toUpperCase();return n.includes(e)&&(n.includes('DEPLOY')||n.includes('→'));}).slice(0,3);});return m;},[runs]);
-
-  const[artifacts,setArtifacts]=useState([]);
-  useEffect(()=>{
-    if(repos.length===0)return;
-    Promise.all(repos.slice(0,5).map(r=>fetchArtifacts(r.name).then(a=>a.map(x=>({...x,_repo:r.name}))).catch(()=>[]))).then(all=>setArtifacts(all.flat().slice(0,10)));
-  },[repos]);
+  const eMap=useMemo(()=>{const m={};ENVS.forEach(e=>{m[e]=runs.filter(r=>{const n=(r.name||'').toUpperCase();return n.includes(e)&&(n.includes('DEPLOY')||n.includes('→'));}).slice(0,2);});return m;},[runs]);
 
   return<div className="fu">
-    <h2 style={{fontSize:17,fontWeight:600,marginBottom:14}}>📊 Overview</h2>
-    <div style={{display:'flex',gap:10,marginBottom:18,flexWrap:'wrap'}}>
-      <button className="bt bt-g" onClick={()=>setPage('prs')} style={{flex:'1 1 120px',justifyContent:'center',padding:12}}>✏️ Create PR</button>
-      <button className="bt bt-g" onClick={()=>setPage('pipelines')} style={{flex:'1 1 120px',justifyContent:'center',padding:12}}>▶ Run Pipeline</button>
-      <button className="bt bt-g" onClick={()=>setPage('deploy')} style={{flex:'1 1 120px',justifyContent:'center',padding:12}}>🚀 Deploy</button>
-      <button className="bt bt-g" onClick={()=>setPage('approvals')} style={{flex:'1 1 120px',justifyContent:'center',padding:12}}>⏸️ Approvals</button>
-    </div>
+    <div style={{display:'flex',gap:8,marginBottom:18,flexWrap:'wrap'}}>{[{i:'✏️',l:'Create PR',p:'prs'},{i:'▶',l:'Run Pipeline',p:'pipelines'},{i:'🚀',l:'Deploy',p:'deploy'},{i:'⏸️',l:'Approvals',p:'approvals'}].map(a=><button key={a.p} className="bt bt-g" onClick={()=>setPage(a.p)}>{a.i} {a.l}</button>)}</div>
     <div className="sg">
-      <div className="sc"><div className="si">🔄</div><div className="sl">Active Pipelines</div><div className="sv" style={{color:'var(--blue)'}}>{active}</div></div>
-      <div className="sc"><div className="si">⏸️</div><div className="sl">Pending Approvals</div><div className="sv" style={{color:'var(--warn)'}}>{pending}</div></div>
-      <div className="sc"><div className="si">🚀</div><div className="sl">Deployments Today</div><div className="sv" style={{color:'var(--success)'}}>{depToday}</div></div>
-      <div className="sc"><div className="si">🔀</div><div className="sl">Open PRs</div><div className="sv" style={{color:'var(--teal)'}}>{openPrs}</div></div>
+      <div className="sc sc-cyan"><div className="sl">Active Pipelines</div><div className="sv" style={{color:'var(--cyan)'}}>{active}</div><div className="ss" style={{color:'var(--soft)'}}>in progress now</div></div>
+      <div className="sc sc-ok"><div className="sl">Success Rate</div><div className="sv" style={{color:rate>=80?'var(--ok)':'var(--err)'}}>{rate}%</div><div className="ss" style={{color:'var(--soft)'}}>last {comp.length} runs</div></div>
+      <div className="sc sc-vio"><div className="sl">Open PRs</div><div className="sv" style={{color:'var(--violet)'}}>{openPr}</div><div className="ss" style={{color:'var(--soft)'}}>across all repos</div></div>
+      <div className="sc sc-warn"><div className="sl">Pending Approvals</div><div className="sv" style={{color:'var(--warn)'}}>{pend}</div><div className="ss" style={{color:'var(--soft)'}}>awaiting review</div></div>
     </div>
     <div className="g2" style={{marginBottom:18}}>
-      <div className="c"><div style={{fontSize:12,color:'var(--text2)',fontWeight:500,marginBottom:6}}>📈 Pipeline Activity (7d)</div><div style={{display:'flex',gap:6,marginBottom:6,fontSize:9}}><span style={{color:'var(--success)'}}>■ Pass</span><span style={{color:'var(--danger)'}}>■ Fail</span><span style={{color:'var(--text3)'}}>■ Other</span></div><BarChart data={bar}/></div>
-      <div className="c"><div style={{fontSize:12,color:'var(--text2)',fontWeight:500,marginBottom:6}}>🕐 Recent Activity</div><div style={{maxHeight:200,overflowY:'auto'}}>{runs.slice(0,20).map(r=><div key={r.id} className="lr" style={{padding:'6px 0',gap:7}}><span style={{fontSize:13}}>{sE(r.conclusion||r.status)}</span><div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r._repo} — {r.name||r.display_title}</div><div style={{fontSize:10,color:'var(--text3)'}}>{r.head_branch} · #{r.run_number} · by {r.actor?.login||'?'}</div></div><div style={{fontSize:10,color:'var(--text3)',textAlign:'right',flexShrink:0}}><div>{dur(r.run_started_at,r.updated_at)}</div><div>{ago(r.created_at)}</div></div></div>)}{runs.length===0&&<div style={{padding:16,textAlign:'center',color:'var(--text3)',fontSize:12}}>No runs</div>}</div></div>
+      <div className="c"><div style={{fontSize:12,fontWeight:600,color:'var(--soft)',marginBottom:8}}>📈 Deployment Volume (7d)</div><div style={{display:'flex',gap:6,fontSize:9,marginBottom:4}}><span style={{color:'var(--ok)'}}>● Pass</span><span style={{color:'var(--err)'}}>● Fail</span><span style={{color:'var(--dim)'}}>● Other</span></div><CSSBar data={bar}/></div>
+      <div className="c"><div style={{fontSize:12,fontWeight:600,color:'var(--soft)',marginBottom:8}}>🕐 Recent Pipeline Activity</div><div style={{maxHeight:220,overflowY:'auto'}}>{runs.slice(0,15).map(r=><div key={r.id} className="lr" style={{padding:'7px 0',gap:8}}><StatusPill s={r.conclusion||r.status}/><div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r._repo}</div><div className="mono" style={{fontSize:10,color:'var(--dim)'}}>{r.head_branch} · #{r.run_number}</div></div><span className="mono" style={{fontSize:10,color:'var(--dim)'}}>{dur(r.run_started_at,r.updated_at)}</span><span style={{fontSize:10,color:'var(--dim)'}}>{ago(r.created_at)}</span></div>)}{runs.length===0&&<div style={{padding:20,textAlign:'center',color:'var(--dim)'}}>No runs found</div>}</div></div>
     </div>
-    <div className="c"><div style={{fontSize:12,color:'var(--text2)',fontWeight:500,marginBottom:10}}>🌐 Environment Status</div><div style={{display:'flex',gap:8,overflowX:'auto'}}>{ENVS.map((e,i)=><React.Fragment key={e}><div style={{minWidth:130,flex:'1 1 130px',background:'var(--bg)',borderRadius:'var(--r)',padding:10}}><div style={{fontWeight:700,fontSize:13,marginBottom:6}}>{e}</div>{envMap[e].length>0?envMap[e].map(r=><div key={r.id} style={{fontSize:10,color:'var(--text2)',marginBottom:3}}>{dot(r.conclusion||r.status,6)} {r._repo} <span style={{color:'var(--text3)'}}>{ago(r.created_at)}</span></div>):<div style={{fontSize:10,color:'var(--text3)'}}>No deploys</div>}</div>{i<4&&<div style={{display:'flex',alignItems:'center',color:'var(--teal)',flexShrink:0}}>→</div>}</React.Fragment>)}</div></div>
-    <div className="c"><div style={{fontSize:12,color:'var(--text2)',fontWeight:500,marginBottom:10}}>📦 Latest Artifacts</div>
-      {artifacts.length===0?<div style={{padding:12,textAlign:'center',color:'var(--text3)',fontSize:12}}>No artifacts found</div>:
-      artifacts.map((a,i)=><div key={a.id||i} className="lr" style={{gap:8,fontSize:11}}>
-        <span>📦</span><div style={{flex:1}}><div style={{fontWeight:500}}>{a.name}</div><div style={{fontSize:10,color:'var(--text3)'}}>{a._repo} · {fmtSize(a.size_in_bytes)} · {ago(a.created_at)}</div></div>
-        <a href={a.archive_download_url} target="_blank" rel="noopener" style={{fontSize:10}}>Download ↗</a>
-      </div>)}
-    </div>
+    <div className="c"><div style={{fontSize:12,fontWeight:600,color:'var(--soft)',marginBottom:10}}>🌐 Environment Status</div><div style={{display:'flex',gap:6,overflowX:'auto'}}>{ENVS.map((e,i)=><React.Fragment key={e}><div style={{minWidth:130,flex:'1 1 130px',background:'var(--surf)',borderRadius:var('--rs'),padding:10,borderTop:'3px solid '+envClr(e)}}><div style={{fontWeight:700,fontSize:13,marginBottom:6}}>{e}</div>{(eMap[e]||[]).map(r=><div key={r.id} style={{fontSize:10,color:'var(--soft)',marginBottom:2}}><span style={{display:'inline-block',width:6,height:6,borderRadius:'50%',background:sC(r.conclusion||r.status),marginRight:4}}/>{r._repo} <span style={{color:'var(--dim)'}}>{ago(r.created_at)}</span></div>)}{(eMap[e]||[]).length===0&&<div style={{fontSize:10,color:'var(--dim)'}}>—</div>}</div>{i<4&&<div className="env-arrow">→</div>}</React.Fragment>)}</div></div>
   </div>;
 }
 
-/* ======================================
-   PAGE: PIPELINES
-   ====================================== */
+/* ═══════════════════════════════════════
+   PAGE 3: PIPELINES
+   ═══════════════════════════════════════ */
 function PipelinesPage({repos,runs,toast}){
   const[exp,setExp]=useState(null);const[jc,setJc]=useState({});const[sel,setSel]=useState(null);
-  const[showRun,setShowRun]=useState(null);const[wfs,setWfs]=useState({});const[branch,setBranch]=useState('');const[triggering,setTriggering]=useState(false);
-  const[artOpen,setArtOpen]=useState(null);const[artData,setArtData]=useState({});
+  const[arts,setArts]=useState({});const[filter,setFilter]=useState('all');
+  const[showRun,setShowRun]=useState(null);const[wfs,setWfs]=useState([]);const[brs,setBrs]=useState([]);const[runBr,setRunBr]=useState('');const[runWf,setRunWf]=useState('');const[trig,setTrig]=useState(false);
 
   const rl=useMemo(()=>{const m={};runs.forEach(r=>{if(!m[r._repo])m[r._repo]=r;});return m;},[runs]);
+  const filtered=useMemo(()=>{const list=repos.filter(r=>rl[r.name]);if(filter==='all')return list;return list.filter(r=>{const run=rl[r.name];if(filter==='running')return run.status==='in_progress';if(filter==='success')return run.conclusion==='success';if(filter==='failed')return run.conclusion==='failure';if(filter==='waiting')return run.status==='waiting';return true;});},[repos,rl,filter]);
 
-  const loadJobs=async(repo,id)=>{const k=repo+'/'+id;if(jc[k])return;try{const d=await api('/repos/'+owner()+'/'+repo+'/actions/runs/'+id+'/jobs');setJc(p=>({...p,[k]:(d&&d.jobs)||[]}));}catch(e){}};
+  const loadJobs=async(repo,id)=>{const k=repo+'/'+id;if(jc[k])return;try{const d=await api('/repos/'+O()+'/'+repo+'/actions/runs/'+id+'/jobs');setJc(p=>({...p,[k]:(d&&d.jobs)||[]}));}catch(e){}};
   const toggle=(repo,id)=>{const k=repo+'/'+id;if(exp===k){setExp(null);setSel(null);}else{setExp(k);setSel(null);loadJobs(repo,id);}};
+  const loadArts=async(repo,id)=>{const k=repo+'/'+id;if(arts[k])return;try{const d=await fetchArt(repo,id);setArts(p=>({...p,[k]:d}));}catch(e){}};
 
-  const openRunModal=async(repo)=>{setShowRun(repo);setBranch('main');if(!wfs[repo]){try{const d=await api('/repos/'+owner()+'/'+repo+'/actions/workflows');setWfs(p=>({...p,[repo]:(d&&d.workflows)||[]}));}catch(e){}}};
-  const triggerRun=async(repo,wfId)=>{setTriggering(true);try{await api('/repos/'+owner()+'/'+repo+'/actions/workflows/'+wfId+'/dispatches',{method:'POST',body:JSON.stringify({ref:branch||'main'})});toast('✅ Pipeline triggered on '+branch);setShowRun(null);}catch(e){toast('❌ '+e.message,'e');}setTriggering(false);};
-
-  const toggleArt=async(repo,runId)=>{const k=repo+'/'+runId;if(artOpen===k){setArtOpen(null);return;}setArtOpen(k);if(!artData[k]){try{const a=await fetchArtifacts(repo,runId);setArtData(p=>({...p,[k]:a}));}catch(e){setArtData(p=>({...p,[k]:[]}));}}};
+  const openRunModal=async r=>{setShowRun(r);setRunBr('main');setRunWf('');try{const w=await fetchWf(r);setWfs(w);const b=await fetchBr(r);setBrs(b);}catch(e){}};
+  const triggerRun=async()=>{if(!runWf){toast('Select a workflow','e');return;}setTrig(true);try{await api('/repos/'+O()+'/'+showRun+'/actions/workflows/'+runWf+'/dispatches',{method:'POST',body:JSON.stringify({ref:runBr||'main'})});toast('✅ Pipeline triggered on '+runBr);setShowRun(null);}catch(e){toast('❌ '+e.message,'e');}setTrig(false);};
 
   return<div className="fu">
-    <h2 style={{fontSize:17,fontWeight:600,marginBottom:18}}>🔀 Pipelines</h2>
-    {repos.filter(r=>rl[r.name]).map(repo=>{const run=rl[repo.name];const k=repo.name+'/'+run.id;const op=exp===k;const jobs=jc[k]||[];const artK=repo.name+'/'+run.id;
-      return<div key={repo.name} className="c" style={{marginBottom:8}}>
+    <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:18,flexWrap:'wrap'}}><h2 style={{fontSize:17,fontWeight:600,flex:1}}>🔀 Pipelines</h2>
+      <div style={{display:'flex',gap:4}}>{['all','running','success','failed','waiting'].map(f=><button key={f} className={'bt bt-sm '+(filter===f?'bt-p':'bt-g')} onClick={()=>setFilter(f)}>{f}</button>)}</div>
+    </div>
+    {filtered.map(repo=>{const run=rl[repo.name];const k=repo.name+'/'+run.id;const op=exp===k;const jobs=jc[k]||[];const artList=arts[k]||[];
+      return<div key={repo.name} className="c" style={{marginBottom:8,borderLeft:'3px solid '+sC(run.conclusion||run.status)}}>
         <div style={{display:'flex',alignItems:'center',gap:8}}>
-          <span onClick={()=>toggle(repo.name,run.id)} style={{cursor:'pointer',fontSize:11,color:'var(--text3)'}}>{op?'▼':'▶'}</span>
-          {dot(run.conclusion||run.status,9)}
-          <div style={{flex:1,minWidth:0,cursor:'pointer'}} onClick={()=>toggle(repo.name,run.id)}>
-            <span style={{fontWeight:600,fontSize:13}}>{repo.name}</span>
-            <span style={{fontSize:11,color:'var(--text3)',marginLeft:8}}>{run.head_branch} · {run.event} · #{run.run_number}</span>
-          </div>
-          <span className="bg" style={{background:sC(run.conclusion||run.status)+'22',color:sC(run.conclusion||run.status)}}>{run.conclusion||run.status}</span>
-          <span style={{fontSize:10,color:'var(--text3)'}}>{dur(run.run_started_at,run.updated_at)}</span>
-          <span style={{fontSize:10,color:'var(--text3)'}}>{ago(run.created_at)}</span>
-          {(run.conclusion==='success'||run.conclusion==='failure')&&<button className="bt bt-g" style={{fontSize:11,padding:'4px 8px'}} onClick={()=>toggleArt(repo.name,run.id)}>📦</button>}
-          <button className="bt bt-g" style={{fontSize:11,padding:'4px 10px'}} onClick={()=>openRunModal(repo.name)}>▶ Run</button>
+          <span onClick={()=>toggle(repo.name,run.id)} style={{cursor:'pointer',fontSize:11,color:'var(--dim)'}}>{op?'▼':'▶'}</span>
+          <StatusPill s={run.conclusion||run.status}/>
+          <div style={{flex:1,minWidth:0,cursor:'pointer'}} onClick={()=>toggle(repo.name,run.id)}><span style={{fontWeight:600,fontSize:13}}>{repo.name}</span><span className="tag" style={{background:'rgba(38,198,218,.08)',color:'var(--cyan)',marginLeft:8}}>{run.head_branch}</span></div>
+          <span className="mono" style={{fontSize:10,color:'var(--dim)'}}>{dur(run.run_started_at,run.updated_at)}</span>
+          <span style={{fontSize:10,color:'var(--dim)'}}>{ago(run.created_at)}</span>
+          <button className="bt bt-g bt-sm" onClick={()=>openRunModal(repo.name)}>▶ Run</button>
+          {run.conclusion&&<button className="bt bt-g bt-sm" onClick={()=>loadArts(repo.name,run.id)}>📦</button>}
         </div>
-        {artOpen===artK&&<div style={{marginTop:8,padding:10,background:'var(--bg)',borderRadius:'var(--r)',fontSize:11}}>
-          <div style={{fontWeight:600,color:'var(--text2)',marginBottom:6}}>📦 Artifacts</div>
-          {!(artData[artK])?<div style={{color:'var(--text3)'}}>Loading...</div>:
-          (artData[artK]||[]).length===0?<div style={{color:'var(--text3)'}}>No artifacts</div>:
-          (artData[artK]).map(a=><div key={a.id} style={{display:'flex',gap:8,padding:'3px 0',alignItems:'center'}}>
-            <span style={{flex:1}}>{a.name}</span><span style={{color:'var(--text3)'}}>{fmtSize(a.size_in_bytes)}</span>
-            <a href={a.archive_download_url} target="_blank" rel="noopener" style={{fontSize:10}}>Download ↗</a>
-          </div>)}
-        </div>}
-        {op&&<div style={{marginTop:14,paddingTop:12,borderTop:'1px solid var(--border)'}}>
-          {jobs.length>0?<><div className="stg">{jobs.map((j,i)=><React.Fragment key={j.id}><div className="sbox" onClick={()=>setSel(sel===j.id?null:j.id)} style={{borderColor:sC(j.conclusion||j.status),color:sC(j.conclusion||j.status),background:sel===j.id?sC(j.conclusion||j.status)+'22':'transparent'}}>{sE(j.conclusion||j.status)} {j.name.length>12?j.name.slice(0,10)+'…':j.name}</div>{i<jobs.length-1&&<div className="sar"/>}</React.Fragment>)}</div>
-          {sel&&(()=>{const job=jobs.find(j=>j.id===sel);if(!job)return null;const logUrl='https://github.com/'+owner()+'/'+repo.name+'/actions/runs/'+run.id+'/jobs/'+job.id;return<div style={{marginTop:10,padding:12,background:'var(--bg)',borderRadius:'var(--r)'}}>
-            <div style={{display:'flex',alignItems:'center',marginBottom:8}}><span style={{flex:1,fontSize:12,fontWeight:600,color:'var(--teal)'}}>📋 {job.name}</span><a href={logUrl} target="_blank" rel="noopener" style={{fontSize:11}}>📋 View Logs ↗</a></div>
-            {(job.steps||[]).map((s,i)=><div key={i} style={{display:'flex',gap:6,padding:'3px 0',fontSize:11}}><span>{sE(s.conclusion||s.status)}</span><span style={{flex:1,color:'var(--text2)'}}>{s.name}</span><span style={{color:'var(--text3)'}}>{dur(s.started_at,s.completed_at)}</span></div>)}
-          </div>;})()}
-          {jobs.map(j=>{const jLogUrl='https://github.com/'+owner()+'/'+repo.name+'/actions/runs/'+run.id+'/jobs/'+j.id;return<div key={j.id} style={{display:'flex',gap:6,padding:'4px 0',fontSize:11,borderBottom:'1px solid var(--border)'}}><span>{sE(j.conclusion||j.status)}</span><span style={{flex:1,color:'var(--text2)'}}>{j.name}</span><a href={jLogUrl} target="_blank" rel="noopener" style={{fontSize:10,color:'var(--text3)'}}>Logs↗</a><span style={{color:'var(--text3)'}}>{dur(j.started_at,j.completed_at)}</span></div>;})}
-          </>:<div style={{padding:10,color:'var(--text3)',fontSize:12}}>⏳ Loading...</div>}
+        {artList.length>0&&<div style={{marginTop:8,padding:8,background:'var(--surf)',borderRadius:'var(--rs)',fontSize:11}}>{artList.map(a=><div key={a.id} style={{display:'flex',gap:8,padding:'3px 0'}}><span>📦</span><span style={{flex:1}}>{a.name}</span><span className="mono" style={{color:'var(--dim)'}}>{fmtSz(a.size_in_bytes)}</span><a href={a.archive_download_url} target="_blank" rel="noopener">⬇</a></div>)}</div>}
+        {op&&<div style={{marginTop:14,paddingTop:12,borderTop:'1px solid var(--brd)'}}>
+          {jobs.length>0?<><div className="stg">{jobs.map((j,i)=><React.Fragment key={j.id}><div className="sbox" onClick={()=>setSel(sel===j.id?null:j.id)} style={{borderColor:sC(j.conclusion||j.status),color:sC(j.conclusion||j.status),background:sel===j.id?sC(j.conclusion||j.status).replace('var(','rgba(').replace(')',',.1)'):'transparent'}}>{sE(j.conclusion||j.status)} {j.name.length>12?j.name.slice(0,11)+'…':j.name}</div>{i<jobs.length-1&&<div className="sar"/>}</React.Fragment>)}</div>
+          {sel&&(()=>{const job=jobs.find(j=>j.id===sel);if(!job)return null;return<div style={{marginTop:10,padding:14,background:'var(--surf)',borderRadius:'var(--rs)'}}>
+            <div style={{display:'flex',alignItems:'center',marginBottom:8,gap:8}}><span style={{flex:1,fontSize:12,fontWeight:600,color:'var(--cyan)'}}>📋 {job.name}</span><a href={'https://github.com/'+O()+'/'+repo.name+'/actions/runs/'+run.id+'/jobs/'+job.id} target="_blank" rel="noopener" className="bt bt-g bt-sm">📋 Logs ↗</a></div>
+            {(job.steps||[]).map((s,i)=><div key={i} style={{display:'flex',gap:6,padding:'3px 0',fontSize:11}}><span>{sE(s.conclusion||s.status)}</span><span style={{flex:1,color:'var(--soft)'}}>{s.name}</span><span className="mono" style={{color:'var(--dim)'}}>{dur(s.started_at,s.completed_at)}</span></div>)}
+          </div>;})()}</>:<div style={{padding:12,color:'var(--dim)',fontSize:12}}>⏳ Loading jobs...</div>}
         </div>}
       </div>;})}
-    {repos.filter(r=>rl[r.name]).length===0&&<div className="c" style={{textAlign:'center',padding:30,color:'var(--text3)'}}>No pipeline runs found</div>}
-    <Modal open={!!showRun} onClose={()=>setShowRun(null)} title={'▶ Trigger Pipeline — '+showRun}>
-      <div className="fl">
-        <div><label className="lbl">Branch</label><input value={branch} onChange={e=>setBranch(e.target.value)} placeholder="main"/></div>
-        <div><label className="lbl">Workflow</label>
-        {(wfs[showRun]||[]).length>0?(wfs[showRun]||[]).map(w=><button key={w.id} className="bt bt-g" style={{width:'100%',marginBottom:6,justifyContent:'flex-start'}} onClick={()=>triggerRun(showRun,w.id)} disabled={triggering}>▶ {w.name}</button>):<div style={{fontSize:12,color:'var(--text3)'}}>Loading workflows...</div>}
-        </div>
-      </div>
+    {filtered.length===0&&<div className="c" style={{textAlign:'center',padding:36,color:'var(--dim)'}}><Logo s={40}/><div style={{marginTop:12}}>No pipelines match "{filter}"</div></div>}
+    <Modal open={!!showRun} onClose={()=>setShowRun(null)} title={'▶ Trigger — '+showRun}>
+      <div className="fl"><div><label className="lbl">Workflow</label><select value={runWf} onChange={e=>setRunWf(e.target.value)}><option value="">Select workflow...</option>{wfs.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select></div>
+      <div><label className="lbl">Branch</label><select value={runBr} onChange={e=>setRunBr(e.target.value)}>{brs.map(b=><option key={b} value={b}>{b}</option>)}{brs.length===0&&<option>main</option>}</select></div>
+      <button className="bt bt-p" onClick={triggerRun} disabled={trig} style={{alignSelf:'flex-start'}}>{trig?'⏳':'▶'} Run Pipeline</button></div>
     </Modal>
   </div>;
 }
 
-/* ======================================
-   PAGE: DEPLOY (NEW)
-   ====================================== */
-function DeployPage({repos,runs,toast,setPage}){
-  const[selRepo,setSelRepo]=useState('');
-  const[wfs,setWfs]=useState([]);const[branches,setBranches]=useState([]);
-  const[selWf,setSelWf]=useState('');const[selBranch,setSelBranch]=useState('');const[selEnv,setSelEnv]=useState('DEV');
-  const[arts,setArts]=useState([]);const[deploying,setDeploying]=useState(false);const[loadingRepo,setLoadingRepo]=useState(false);
-  const[promoModal,setPromoModal]=useState(null);const[promoting,setPromoting]=useState(false);
-
-  const onRepoChange=async(repo)=>{setSelRepo(repo);setWfs([]);setBranches([]);setArts([]);setSelWf('');setSelBranch('');
-    if(!repo)return;setLoadingRepo(true);
-    try{
-      const[w,b,a]=await Promise.all([fetchWorkflows(repo),fetchBranches(repo),fetchArtifacts(repo)]);
-      setWfs(w);setBranches(b);setArts(a);
-      setSelBranch(b.includes('develop')?'develop':b.includes('main')?'main':(b[0]||''));
-      if(w.length>0)setSelWf(String(w[0].id));
-    }catch(e){}setLoadingRepo(false);
-  };
-
-  const doDeploy=async()=>{if(!selRepo||!selWf||!selBranch){toast('❌ Select repo, workflow, and branch','e');return;}
-    setDeploying(true);try{
-      await api('/repos/'+owner()+'/'+selRepo+'/actions/workflows/'+selWf+'/dispatches',{method:'POST',body:JSON.stringify({ref:selBranch})});
-      toast('✅ Deploy triggered: '+selRepo+' / '+selBranch+' → '+selEnv);setPage('pipelines');
-    }catch(e){toast('❌ '+e.message,'e');}setDeploying(false);
-  };
-
-  const deployRuns=useMemo(()=>runs.filter(r=>(r.name||r.display_title||'').toLowerCase().includes('deploy')),[runs]);
-  const envColor=(name)=>{const n=(name||'').toUpperCase();if(n.includes('PROD'))return'var(--danger)';if(n.includes('QA')||n.includes('STAGE'))return'var(--warn)';return'var(--blue)';};
-
-  const doPromote=async(from,to)=>{setPromoting(true);try{
-    const repo=repos[0]?.name;if(!repo){toast('❌ No repos available','e');setPromoting(false);return;}
-    const wfList=await fetchWorkflows(repo);
-    const wf=wfList.find(w=>w.name.toLowerCase().includes('deploy'))||wfList[0];
-    if(!wf){toast('❌ No deploy workflow found','e');setPromoting(false);return;}
-    await api('/repos/'+owner()+'/'+repo+'/actions/workflows/'+wf.id+'/dispatches',{method:'POST',body:JSON.stringify({ref:'main',inputs:{environment:to.toLowerCase()}})});
-    toast('✅ Promotion '+from+' → '+to+' triggered');setPromoModal(null);
-  }catch(e){toast('❌ '+e.message,'e');}setPromoting(false);};
-
-  return<div className="fu">
-    <h2 style={{fontSize:17,fontWeight:600,marginBottom:18}}>🚀 Deploy</h2>
-
-    <div className="c">
-      <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>🚀 Deploy Artifact</div>
-      <div className="fl">
-        <div><label className="lbl">Repository</label><select value={selRepo} onChange={e=>onRepoChange(e.target.value)}><option value="">Select repo...</option>{repos.map(r=><option key={r.name} value={r.name}>{r.name}</option>)}</select></div>
-        {loadingRepo&&<div style={{fontSize:11,color:'var(--text3)'}}>Loading branches and workflows...</div>}
-        <div className="g2">
-          <div><label className="lbl">Workflow</label><select value={selWf} onChange={e=>setSelWf(e.target.value)}><option value="">Select workflow...</option>{wfs.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select></div>
-          <div><label className="lbl">Branch</label><select value={selBranch} onChange={e=>setSelBranch(e.target.value)}><option value="">Select branch...</option>{branches.map(b=><option key={b} value={b}>{b}</option>)}</select></div>
-        </div>
-        <div><label className="lbl">Environment</label><select value={selEnv} onChange={e=>setSelEnv(e.target.value)}>{['DEV','INT','QA','STAGE','PROD'].map(e=><option key={e} value={e}>{e}</option>)}</select></div>
-        {arts.length>0&&<div><div style={{fontSize:11,color:'var(--text2)',marginBottom:6}}>Latest Artifacts</div>{arts.slice(0,5).map(a=><div key={a.id} style={{display:'flex',gap:8,fontSize:11,padding:'3px 0',alignItems:'center'}}><span>📦</span><span style={{flex:1}}>{a.name}</span><span style={{color:'var(--text3)'}}>{fmtSize(a.size_in_bytes)}</span><span style={{color:'var(--text3)'}}>{ago(a.created_at)}</span><a href={a.archive_download_url} target="_blank" rel="noopener" style={{fontSize:10}}>Download ↗</a></div>)}</div>}
-        <button className="bt bt-t" onClick={doDeploy} disabled={deploying} style={{alignSelf:'flex-start'}}>{deploying?'⏳ Deploying...':'🚀 Deploy'}</button>
-      </div>
-    </div>
-
-    <div className="c">
-      <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>📜 Deployment History</div>
-      {deployRuns.length===0?<div style={{padding:12,textAlign:'center',color:'var(--text3)',fontSize:12}}>No deployment runs found</div>:
-      <div style={{overflowX:'auto'}}><table style={{width:'100%',fontSize:11,borderCollapse:'collapse'}}><thead><tr style={{borderBottom:'1px solid var(--border)'}}>
-        <th style={{textAlign:'left',padding:'6px 8px',color:'var(--text3)',fontWeight:500}}>Time</th>
-        <th style={{textAlign:'left',padding:'6px 8px',color:'var(--text3)',fontWeight:500}}>Repo</th>
-        <th style={{textAlign:'left',padding:'6px 8px',color:'var(--text3)',fontWeight:500}}>Branch</th>
-        <th style={{textAlign:'left',padding:'6px 8px',color:'var(--text3)',fontWeight:500}}>Status</th>
-        <th style={{textAlign:'left',padding:'6px 8px',color:'var(--text3)',fontWeight:500}}>By</th>
-        <th style={{textAlign:'left',padding:'6px 8px',color:'var(--text3)',fontWeight:500}}>Duration</th>
-      </tr></thead><tbody>
-        {deployRuns.slice(0,20).map(r=><tr key={r.id} style={{borderBottom:'1px solid var(--border)',borderLeft:'3px solid '+envColor(r.name||r.display_title)}}>
-          <td style={{padding:'6px 8px',color:'var(--text2)'}}>{ago(r.created_at)}</td>
-          <td style={{padding:'6px 8px'}}>{r._repo}</td>
-          <td style={{padding:'6px 8px',color:'var(--text2)'}}>{r.head_branch}</td>
-          <td style={{padding:'6px 8px'}}><span className="bg" style={{background:sC(r.conclusion||r.status)+'22',color:sC(r.conclusion||r.status)}}>{sE(r.conclusion||r.status)} {r.conclusion||r.status}</span></td>
-          <td style={{padding:'6px 8px',color:'var(--text2)'}}>{r.actor?.login||'?'}</td>
-          <td style={{padding:'6px 8px',color:'var(--text3)'}}>{dur(r.run_started_at,r.updated_at)}</td>
-        </tr>)}
-      </tbody></table></div>}
-    </div>
-
-    <div className="c">
-      <div style={{fontSize:13,fontWeight:600,marginBottom:12}}>⚡ Quick Promote</div>
-      <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
-        <button className="bt bt-g" style={{flex:'1 1 140px',justifyContent:'center',padding:14,fontSize:13}} onClick={()=>setPromoModal({from:'INT',to:'QA'})}>INT → QA</button>
-        <button className="bt bt-w" style={{flex:'1 1 140px',justifyContent:'center',padding:14,fontSize:13}} onClick={()=>setPromoModal({from:'QA',to:'STAGE'})}>QA → STAGE</button>
-        <button className="bt bt-d" style={{flex:'1 1 140px',justifyContent:'center',padding:14,fontSize:13,background:'rgba(244,91,105,.12)'}} onClick={()=>setPromoModal({from:'STAGE',to:'PROD'})}>STAGE → PROD</button>
-      </div>
-    </div>
-
-    <Modal open={!!promoModal} onClose={()=>setPromoModal(null)} title={'🚀 Promote: '+(promoModal?promoModal.from+' → '+promoModal.to:'')}>
-      {promoModal&&<div className="fl">
-        <div style={{padding:12,background:'var(--bg)',borderRadius:'var(--r)',fontSize:12}}><strong>Source:</strong> {promoModal.from} → <strong>Target:</strong> {promoModal.to}</div>
-        {promoModal.to==='PROD'&&<div className="eb" style={{background:'rgba(244,91,105,.08)'}}>⚠️ This will deploy to <strong>PRODUCTION</strong>. Ensure all checks pass.</div>}
-        <div style={{display:'flex',gap:8}}><button className="bt bt-t" onClick={()=>doPromote(promoModal.from,promoModal.to)} disabled={promoting}>{promoting?'⏳ Promoting...':'✅ Confirm Promotion'}</button><button className="bt bt-g" onClick={()=>setPromoModal(null)}>Cancel</button></div>
-      </div>}
-    </Modal>
-  </div>;
-}
-
-/* ======================================
-   PAGE: PULL REQUESTS
-   ====================================== */
-function PRPage({repos,prs,toast,refreshPRs}){
+/* ═══════════════════════════════════════
+   PAGE 4: PULL REQUESTS
+   ═══════════════════════════════════════ */
+function PRPage({repos,prs,toast,refresh}){
   const[tab,setTab]=useState('open');
   const[cr,setCr]=useState({repo:'',src:'',tgt:'',title:'',desc:'',jira:''});
-  const[branches,setBranches]=useState([]);const[brLoading,setBrLoading]=useState(false);const[creating,setCreating]=useState(false);
-  const[reviewComment,setReviewComment]=useState('');const[acting,setActing]=useState('');
+  const[brs,setBrs]=useState([]);const[brLd,setBrLd]=useState(false);const[creating,setCreating]=useState(false);const[acting,setActing]=useState('');
 
-  const loadBranches=async(repo)=>{if(!repo){setBranches([]);return;}setBrLoading(true);
-    try{const b=await fetchBranches(repo);setBranches(b);const tgt=b.includes('develop')?'develop':b.includes('main')?'main':(b[0]||'');setCr(p=>({...p,tgt}));}catch(e){setBranches([]);}setBrLoading(false);};
-  const updateCr=(k,v)=>{const n={...cr,[k]:v};if(k==='repo'){n.src='';n.tgt='';loadBranches(v);}setCr(n);};
+  const pickRepo=async v=>{setCr(p=>({...p,repo:v,src:'',tgt:''}));if(!v){setBrs([]);return;}setBrLd(true);try{const b=await fetchBr(v);setBrs(b);const tgt=b.includes('develop')?'develop':b.includes('main')?'main':b[0]||'';setCr(p=>({...p,tgt}));}catch(e){}setBrLd(false);};
 
-  const createPR=async()=>{if(!cr.repo||!cr.src||!cr.title){toast('❌ Fill repo, source branch, and title','e');return;}setCreating(true);
-    try{const title=(cr.jira?cr.jira+' ':'')+cr.title;const body=(cr.jira?'Jira: '+cr.jira+'\n\n':'')+cr.desc;
-      const d=await api('/repos/'+owner()+'/'+cr.repo+'/pulls',{method:'POST',body:JSON.stringify({title,body,head:cr.src,base:cr.tgt||'develop'})});
-      toast('✅ PR #'+d.number+' created!');setCr({repo:cr.repo,src:'',tgt:branches.includes('develop')?'develop':'main',title:'',desc:'',jira:''});refreshPRs();
+  const createPR=async()=>{if(!cr.repo||!cr.src||!cr.title){toast('Fill repo, source branch, and title','e');return;}setCreating(true);
+    try{const t=(cr.jira?cr.jira+' ':'')+cr.title;const b=(cr.jira?'Jira: '+cr.jira+'\n\n':'')+cr.desc;
+      const d=await api('/repos/'+O()+'/'+cr.repo+'/pulls',{method:'POST',body:JSON.stringify({title:t,body:b,head:cr.src,base:cr.tgt||'develop'})});
+      toast('✅ PR #'+d.number+' created!');setCr(p=>({...p,src:'',title:'',desc:'',jira:''}));refresh();
     }catch(e){toast('❌ '+e.message,'e');}setCreating(false);};
 
-  const approvePR=async(repo,num)=>{setActing(repo+'/'+num+'/approve');try{await api('/repos/'+owner()+'/'+repo+'/pulls/'+num+'/reviews',{method:'POST',body:JSON.stringify({event:'APPROVE'})});toast('✅ PR #'+num+' approved');refreshPRs();}catch(e){toast('❌ '+e.message,'e');}setActing('');};
-  const requestChanges=async(repo,num)=>{setActing(repo+'/'+num+'/rc');try{await api('/repos/'+owner()+'/'+repo+'/pulls/'+num+'/reviews',{method:'POST',body:JSON.stringify({event:'REQUEST_CHANGES',body:reviewComment||'Changes requested via ForgeOps'})});toast('✅ Changes requested on PR #'+num);setReviewComment('');refreshPRs();}catch(e){toast('❌ '+e.message,'e');}setActing('');};
-  const mergePR=async(repo,num,title)=>{if(!confirm('Merge PR #'+num+'?\n\n'+title))return;setActing(repo+'/'+num+'/merge');try{await api('/repos/'+owner()+'/'+repo+'/pulls/'+num+'/merge',{method:'PUT',body:JSON.stringify({merge_method:'squash'})});toast('✅ PR #'+num+' merged!');refreshPRs();}catch(e){toast('❌ '+e.message,'e');}setActing('');};
+  const approvePR=async(r,n)=>{setActing(r+n+'a');try{await api('/repos/'+O()+'/'+r+'/pulls/'+n+'/reviews',{method:'POST',body:JSON.stringify({event:'APPROVE'})});toast('✅ PR #'+n+' approved');refresh();}catch(e){toast('❌ '+e.message,'e');}setActing('');};
+  const mergePR=async(r,n,t)=>{if(!confirm('Merge PR #'+n+'?\n'+t))return;setActing(r+n+'m');try{await api('/repos/'+O()+'/'+r+'/pulls/'+n+'/merge',{method:'PUT',body:JSON.stringify({merge_method:'squash'})});toast('✅ PR #'+n+' merged!');refresh();}catch(e){toast('❌ '+e.message,'e');}setActing('');};
 
-  const openPRs=prs.filter(p=>p.state==='open');
-  const mergedPRs=prs.filter(p=>p.merged_at).slice(0,20);
+  const openPRs=prs.filter(p=>p.state==='open');const merged=prs.filter(p=>p.merged_at).slice(0,20);
 
   return<div className="fu">
     <h2 style={{fontSize:17,fontWeight:600,marginBottom:14}}>🔀 Pull Requests</h2>
-    <div className="tabs"><div className={'tab'+(tab==='create'?' ac':'')} onClick={()=>setTab('create')}>✏️ Create PR</div><div className={'tab'+(tab==='open'?' ac':'')} onClick={()=>setTab('open')}>📬 Open ({openPRs.length})</div><div className={'tab'+(tab==='merged'?' ac':'')} onClick={()=>setTab('merged')}>✅ Merged</div></div>
-
+    <div className="tabs"><div className={'tab'+(tab==='create'?' ac':'')} onClick={()=>setTab('create')}>✏️ Create</div><div className={'tab'+(tab==='open'?' ac':'')} onClick={()=>setTab('open')}>📬 Open ({openPRs.length})</div><div className={'tab'+(tab==='merged'?' ac':'')} onClick={()=>setTab('merged')}>✅ Merged</div></div>
     {tab==='create'&&<div className="c"><div className="fl">
-      <div><label className="lbl">Repository</label><select value={cr.repo} onChange={e=>updateCr('repo',e.target.value)}><option value="">Select repo...</option>{repos.map(r=><option key={r.name} value={r.name}>{r.name}</option>)}</select></div>
-      {brLoading&&<div style={{fontSize:11,color:'var(--text3)'}}>Loading branches...</div>}
-      <div className="g2">
-        <div><label className="lbl">Source Branch</label><select value={cr.src} onChange={e=>updateCr('src',e.target.value)}><option value="">Select branch...</option>{branches.map(b=><option key={b} value={b}>{b}</option>)}</select></div>
-        <div><label className="lbl">Target Branch</label><select value={cr.tgt} onChange={e=>updateCr('tgt',e.target.value)}><option value="">Select branch...</option>{branches.map(b=><option key={b} value={b}>{b}</option>)}</select></div>
-      </div>
-      <div><label className="lbl">Jira Ticket (optional)</label><input value={cr.jira} onChange={e=>updateCr('jira',e.target.value)} placeholder="PROJ-123"/></div>
-      <div><label className="lbl">Title</label><input value={cr.title} onChange={e=>updateCr('title',e.target.value)} placeholder="Add feature X"/></div>
-      <div><label className="lbl">Description</label><textarea value={cr.desc} onChange={e=>updateCr('desc',e.target.value)} placeholder="Describe your changes..."/></div>
-      <button className="bt bt-t" onClick={createPR} disabled={creating} style={{alignSelf:'flex-start'}}>{creating?'⏳ Creating...':'✏️ Create Pull Request'}</button>
+      <div><label className="lbl">Repository</label><select value={cr.repo} onChange={e=>pickRepo(e.target.value)}><option value="">Select repo...</option>{repos.map(r=><option key={r.name} value={r.name}>{r.name}</option>)}</select></div>
+      <div className="g2"><div><label className="lbl">Source Branch</label><select value={cr.src} onChange={e=>setCr(p=>({...p,src:e.target.value}))} disabled={brLd}>{brLd?<option>Loading...</option>:<><option value="">Select...</option>{brs.map(b=><option key={b} value={b}>{b}</option>)}</>}</select></div>
+      <div><label className="lbl">Target Branch</label><select value={cr.tgt} onChange={e=>setCr(p=>({...p,tgt:e.target.value}))} disabled={brLd}>{brLd?<option>Loading...</option>:brs.map(b=><option key={b} value={b}>{b}</option>)}</select></div></div>
+      <div><label className="lbl">Jira Ticket</label><input value={cr.jira} onChange={e=>setCr(p=>({...p,jira:e.target.value}))} placeholder="PROJ-123"/></div>
+      <div><label className="lbl">Title</label><input value={cr.title} onChange={e=>setCr(p=>({...p,title:e.target.value}))} placeholder="Add feature X"/></div>
+      <div><label className="lbl">Description</label><textarea value={cr.desc} onChange={e=>setCr(p=>({...p,desc:e.target.value}))} placeholder="Describe your changes..."/></div>
+      <button className="bt bt-p" onClick={createPR} disabled={creating} style={{alignSelf:'flex-start'}}>{creating?'⏳':'✏️'} Create Pull Request</button>
     </div></div>}
-
-    {tab==='open'&&<div>{openPRs.length===0&&<div className="c" style={{textAlign:'center',padding:30}}><div style={{fontSize:32,marginBottom:6}}>✅</div><div style={{color:'var(--text2)'}}>No open pull requests</div></div>}
-      {openPRs.map(p=>{const tickets=jiraKeys(p.title);const repo=p._repo;const isActing=acting.startsWith(repo+'/'+p.number);
-        return<div key={p.id} className="c" style={{marginBottom:8,borderLeft:'3px solid '+(p._checks==='success'?'var(--success)':p._checks==='failure'?'var(--danger)':'var(--warn)')}}>
-          <div style={{display:'flex',alignItems:'flex-start',gap:10,flexWrap:'wrap'}}>
-            <div style={{flex:1,minWidth:200}}>
-              <div style={{fontWeight:600,fontSize:13}}>{p.title}</div>
-              <div style={{fontSize:11,color:'var(--text3)',marginTop:2}}>{repo} · {p.user?.login} · {p.head?.ref} → {p.base?.ref} · {ago(p.created_at)}</div>
-              <div style={{display:'flex',gap:4,marginTop:6,flexWrap:'wrap'}}>
-                {tickets.map(t=><span key={t} className="bg" style={{background:'var(--blue)22',color:'var(--blue)'}}>{t}</span>)}
-                <span className="bg" style={{background:sC(p._checks)+'22',color:sC(p._checks)}}>{p._checks==='success'?'✅ Checks pass':p._checks==='failure'?'❌ Checks fail':'⏳ Checks pending'}</span>
-              </div>
-            </div>
-            <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
-              <button className="bt bt-s" onClick={()=>approvePR(repo,p.number)} disabled={isActing} style={{fontSize:11}}>✅ Approve</button>
-              <button className="bt bt-d" onClick={()=>requestChanges(repo,p.number)} disabled={isActing} style={{fontSize:11}}>❌ Changes</button>
-              <button className="bt bt-t" onClick={()=>mergePR(repo,p.number,p.title)} disabled={isActing} style={{fontSize:11}}>🔀 Merge</button>
-              <a href={p.html_url} target="_blank" rel="noopener" className="bt bt-g" style={{fontSize:11}}>👁️ GitHub</a>
-            </div>
-          </div>
-        </div>;})}
+    {tab==='open'&&<div>{openPRs.length===0&&<div className="c" style={{textAlign:'center',padding:30}}><Logo s={36}/><div style={{marginTop:8,color:'var(--soft)'}}>No open pull requests</div></div>}
+    {openPRs.map(p=>{const r=p._repo;const tix=jK(p.title);return<div key={p.id} className="c" style={{borderLeft:'3px solid '+(p._checks==='success'?'var(--ok)':p._checks==='failure'?'var(--err)':'var(--warn)')}}>
+      <div style={{display:'flex',gap:10,flexWrap:'wrap'}}><div style={{flex:1,minWidth:200}}><div style={{fontWeight:600,fontSize:13}}>{p.title}</div><div style={{fontSize:11,color:'var(--dim)',marginTop:2}}>{r} · {p.user?.login} · <span className="mono">{p.head?.ref}</span> → <span className="mono">{p.base?.ref}</span> · {ago(p.created_at)}</div>
+        <div style={{display:'flex',gap:4,marginTop:6,flexWrap:'wrap'}}>{tix.map(t=><span key={t} className="tag" style={{background:'rgba(17,138,178,.12)',color:'var(--info)'}}>{t}</span>)}<StatusPill s={p._checks||'pending'}/></div>
+      </div>
+      <div style={{display:'flex',gap:5,flexWrap:'wrap',alignItems:'flex-start'}}><button className="bt bt-ok bt-sm" onClick={()=>approvePR(r,p.number)} disabled={!!acting}>✅</button><button className="bt bt-p bt-sm" onClick={()=>mergePR(r,p.number,p.title)} disabled={!!acting}>🔀 Merge</button><a href={p.html_url} target="_blank" rel="noopener" className="bt bt-g bt-sm">↗</a></div></div></div>;})}
     </div>}
-
-    {tab==='merged'&&<div>{mergedPRs.length===0&&<div className="c" style={{textAlign:'center',padding:30,color:'var(--text3)'}}>No recent merges</div>}
-      {mergedPRs.map(p=><div key={p.id} className="lr" style={{gap:8}}>
-        <span>✅</span><div style={{flex:1}}><div style={{fontSize:12,fontWeight:500}}>{p._repo}: {p.title}</div><div style={{fontSize:10,color:'var(--text3)'}}>{p.user?.login} · merged {ago(p.merged_at)}</div></div>
-        {jiraKeys(p.title).map(t=><span key={t} className="bg" style={{background:'var(--blue)22',color:'var(--blue)',fontSize:9}}>{t}</span>)}
-      </div>)}
-    </div>}
+    {tab==='merged'&&<div>{merged.length===0&&<div className="c" style={{padding:20,textAlign:'center',color:'var(--dim)'}}>No recent merges</div>}{merged.map(p=><div key={p.id} className="lr"><span>✅</span><div style={{flex:1}}><div style={{fontSize:12,fontWeight:500}}>{p._repo}: {p.title}</div><div style={{fontSize:10,color:'var(--dim)'}}>merged {ago(p.merged_at)}</div></div>{jK(p.title).map(t=><span key={t} className="tag" style={{background:'rgba(17,138,178,.08)',color:'var(--info)',fontSize:9}}>{t}</span>)}</div>)}</div>}
   </div>;
 }
 
-/* ======================================
-   PAGE: ENVIRONMENTS
-   ====================================== */
-function EnvPage({runs,repos,toast}){
-  const[confirm,setConfirm]=useState(null);const[promoting,setPromoting]=useState(false);
-  const ENVS=[{n:'DEV',c:'var(--blue)',auto:true},{n:'INT',c:'var(--blue)',auto:true},{n:'QA',c:'var(--warn)'},{n:'STAGE',c:'var(--warn)'},{n:'PROD',c:'var(--danger)'}];
+/* ═══════════════════════════════════════
+   PAGE 5: DEPLOY
+   ═══════════════════════════════════════ */
+function DeployPage({repos,runs,toast,setPage}){
+  const[dr,setDr]=useState('');const[dwf,setDwf]=useState('');const[dbr,setDbr]=useState('');const[denv,setDenv]=useState('DEV');
+  const[wfs,setWfs]=useState([]);const[brs,setBrs]=useState([]);const[artList,setArtList]=useState([]);
+  const[deploying,setDeploying]=useState(false);const[promo,setPromo]=useState(null);
 
-  const envMap=useMemo(()=>{const m={};ENVS.forEach(e=>{m[e.n]=runs.filter(r=>{const n=(r.name||r.display_title||'').toUpperCase();return n.includes(e.n)&&(n.includes('DEPLOY')||n.includes('→'));});});return m;},[runs]);
+  const pickRepo=async v=>{setDr(v);setDwf('');setDbr('');if(!v)return;try{const w=await fetchWf(v);setWfs(w);const b=await fetchBr(v);setBrs(b);if(b.length)setDbr(b.includes('main')?'main':b[0]);const a=await fetchArt(v);setArtList(a);}catch(e){}};
 
-  const promote=async(env,repo)=>{setPromoting(true);
-    try{
-      const wfResp=await api('/repos/'+owner()+'/'+repo+'/actions/workflows');
-      const wf=(wfResp&&wfResp.workflows||[]).find(w=>w.name.toLowerCase().includes(env.toLowerCase())||w.name.toLowerCase().includes('deploy'));
-      if(wf){await api('/repos/'+owner()+'/'+repo+'/actions/workflows/'+wf.id+'/dispatches',{method:'POST',body:JSON.stringify({ref:'main',inputs:{environment:env.toLowerCase()}})});toast('✅ Promotion to '+env+' triggered for '+repo);}
-      else toast('⚠️ No matching workflow found — trigger manually','e');
-    }catch(e){toast('❌ '+e.message,'e');}setPromoting(false);setConfirm(null);};
+  const deploy=async()=>{if(!dr||!dwf){toast('Select repo and workflow','e');return;}setDeploying(true);try{await api('/repos/'+O()+'/'+dr+'/actions/workflows/'+dwf+'/dispatches',{method:'POST',body:JSON.stringify({ref:dbr||'main'})});toast('✅ Deploying to '+denv+'...');setPage('pipelines');}catch(e){toast('❌ '+e.message,'e');}setDeploying(false);};
+
+  const depRuns=useMemo(()=>runs.filter(r=>(r.name||'').toLowerCase().includes('deploy')),[runs]);
+  const promoteRun=async(env)=>{if(!dr){toast('Select a repo first','e');return;}setDeploying(true);try{const w=wfs.length?wfs[0]:null;if(!w){toast('No workflow found','e');setDeploying(false);return;}await api('/repos/'+O()+'/'+dr+'/actions/workflows/'+w.id+'/dispatches',{method:'POST',body:JSON.stringify({ref:dbr||'main'})});toast('✅ Promoting to '+env);setPromo(null);setPage('pipelines');}catch(e){toast('❌ '+e.message,'e');}setDeploying(false);};
 
   return<div className="fu">
-    <h2 style={{fontSize:17,fontWeight:600,marginBottom:18}}>🌐 Environments</h2>
-    <div style={{display:'flex',gap:6,overflowX:'auto',paddingBottom:12,alignItems:'stretch'}}>
-      {ENVS.map((env,i)=><React.Fragment key={env.n}>
-        <div style={{minWidth:160,flex:'1 1 160px',background:'var(--card)',border:'1px solid var(--border)',borderRadius:'var(--r)',overflow:'hidden'}}>
-          <div style={{background:env.c,padding:3,borderRadius:'6px 6px 0 0'}}/>
-          <div style={{padding:12}}>
-            <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:8}}><span style={{fontWeight:700,fontSize:14}}>{env.n}</span>{env.n==='PROD'&&<span className="bg" style={{background:'rgba(244,91,105,.15)',color:'var(--danger)',fontSize:8}}>🔒 Protected — requires approval</span>}</div>
-            {(envMap[env.n]||[]).slice(0,5).map(r=><div key={r.id} style={{fontSize:10,color:'var(--text2)',marginBottom:3}}>{dot(r.conclusion||r.status,5)} {r._repo} <span style={{color:'var(--teal)',marginLeft:4}}>{r.head_branch}</span> <span style={{color:'var(--text3)'}}>{ago(r.created_at)}</span></div>)}
-            {(envMap[env.n]||[]).length===0&&<div style={{fontSize:10,color:'var(--text3)'}}>No deployments</div>}
-            <div style={{fontSize:9,color:'var(--text3)',marginTop:4}}>{(envMap[env.n]||[]).length} deploys total</div>
-          </div>
+    <h2 style={{fontSize:17,fontWeight:600,marginBottom:18}}>🚀 Deploy</h2>
+    <div className="g2" style={{marginBottom:18}}>
+      <div className="c"><div style={{fontSize:13,fontWeight:600,color:'var(--soft)',marginBottom:14}}>🚀 Deploy Artifact</div>
+        <div className="fl">
+          <div><label className="lbl">Repository</label><select value={dr} onChange={e=>pickRepo(e.target.value)}><option value="">Select repo...</option>{repos.map(r=><option key={r.name} value={r.name}>{r.name}</option>)}</select></div>
+          <div className="g2"><div><label className="lbl">Workflow</label><select value={dwf} onChange={e=>setDwf(e.target.value)}><option value="">Select...</option>{wfs.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select></div>
+          <div><label className="lbl">Branch</label><select value={dbr} onChange={e=>setDbr(e.target.value)}>{brs.map(b=><option key={b} value={b}>{b}</option>)}{brs.length===0&&<option>main</option>}</select></div></div>
+          <div><label className="lbl">Target Environment</label><select value={denv} onChange={e=>setDenv(e.target.value)}>{['DEV','INT','QA','STAGE','PROD'].map(e=><option key={e} value={e}>{e}</option>)}</select></div>
+          {artList.length>0&&<div><label className="lbl">Latest Artifacts</label><div style={{background:'var(--surf)',borderRadius:'var(--rs)',padding:10}}>{artList.slice(0,5).map(a=><div key={a.id} style={{display:'flex',gap:8,padding:'4px 0',fontSize:11}}><span>📦</span><span style={{flex:1}}>{a.name}</span><span className="mono" style={{color:'var(--dim)'}}>{fmtSz(a.size_in_bytes)}</span><span style={{color:'var(--dim)'}}>{ago(a.created_at)}</span></div>)}</div></div>}
+          <button className="bt bt-p" onClick={deploy} disabled={deploying} style={{alignSelf:'flex-start'}}>{deploying?'⏳':'🚀'} Deploy Now</button>
         </div>
-        {i<4&&<div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',flexShrink:0,gap:2,minWidth:50}}>
-          <span style={{color:'var(--teal)',fontSize:16}}>→</span>
-          {i>=1&&!ENVS[i+1]?.auto?<button className="bt bt-g" style={{fontSize:9,padding:'3px 8px',whiteSpace:'nowrap'}} onClick={()=>setConfirm({from:env.n,to:ENVS[i+1].n})}>{ENVS[i+1].n==='PROD'?'🚀 Prod':'▶ '+ENVS[i+1].n}</button>:i<2?<span style={{fontSize:8,color:'var(--text3)'}}>Auto</span>:null}
-        </div>}
-      </React.Fragment>)}
+      </div>
+      <div className="c"><div style={{fontSize:13,fontWeight:600,color:'var(--soft)',marginBottom:14}}>⚡ Quick Promote</div>
+        <div className="fl">{[{f:'INT',t:'QA'},{f:'QA',t:'STAGE'},{f:'STAGE',t:'PROD'}].map(p=><button key={p.t} className={'bt '+(p.t==='PROD'?'bt-err':'bt-g')} style={{width:'100%',justifyContent:'center',padding:12}} onClick={()=>setPromo(p)}>{p.f} → {p.t} {p.t==='PROD'?'🔒':''}</button>)}</div>
+      </div>
     </div>
-    <Modal open={!!confirm} onClose={()=>setConfirm(null)} title={'🚀 Promote to '+(confirm?.to||'')}>
-      {confirm&&<div className="fl">
-        <div style={{padding:12,background:'var(--bg)',borderRadius:'var(--r)',fontSize:12}}><strong>From:</strong> {confirm.from} → <strong>To:</strong> {confirm.to}</div>
-        {confirm.to==='PROD'&&<div className="eb" style={{background:'rgba(244,91,105,.08)'}}>⚠️ This will deploy to <strong>PRODUCTION</strong>. Ensure all security scans pass and UAT is complete.</div>}
-        <div><label className="lbl">Select Repository</label><select id="promo-repo"><option value="">Select...</option>{repos.map(r=><option key={r.name} value={r.name}>{r.name}</option>)}</select></div>
-        <div style={{display:'flex',gap:8}}><button className="bt bt-t" onClick={()=>{const repo=document.getElementById('promo-repo')?.value;if(repo)promote(confirm.to,repo);else toast('Select a repo','e');}} disabled={promoting}>{promoting?'⏳':'✅'} Confirm</button><button className="bt bt-g" onClick={()=>setConfirm(null)}>Cancel</button></div>
+    <div className="c"><div style={{fontSize:13,fontWeight:600,color:'var(--soft)',marginBottom:10}}>📜 Deployment History</div>
+      {depRuns.slice(0,15).map(r=>{const n=(r.name||'').toUpperCase();const env=n.includes('PROD')?'PROD':n.includes('STAGE')?'STAGE':n.includes('QA')?'QA':n.includes('INT')?'INT':'DEV';
+        return<div key={r.id} className="lr" style={{borderLeft:'3px solid '+envClr(env),paddingLeft:8}}><StatusPill s={r.conclusion||r.status}/><div style={{flex:1}}><span style={{fontWeight:500,fontSize:12}}>{r._repo}</span><span className="tag" style={{background:envClr(env).replace('var(','rgba(').replace(')',',.1)'),color:envClr(env),marginLeft:6}}>{env}</span></div><span className="mono" style={{fontSize:10,color:'var(--dim)'}}>{r.head_branch}</span><span style={{fontSize:10,color:'var(--dim)'}}>{r.actor?.login}</span><span style={{fontSize:10,color:'var(--dim)'}}>{ago(r.created_at)}</span></div>;})}
+      {depRuns.length===0&&<div style={{padding:16,textAlign:'center',color:'var(--dim)',fontSize:12}}>No deployment runs found</div>}
+    </div>
+    <Modal open={!!promo} onClose={()=>setPromo(null)} title={'🚀 Promote '+promo?.f+' → '+promo?.t}>
+      {promo&&<div className="fl">{promo.t==='PROD'&&<div className="eb">⚠️ This will deploy to <strong>PRODUCTION</strong>. Ensure security scans pass and UAT is complete.</div>}
+        <div style={{padding:12,background:'var(--surf)',borderRadius:'var(--rs)',fontSize:12}}>Promoting from <strong>{promo.f}</strong> to <strong>{promo.t}</strong>{dr&&<span> for <strong>{dr}</strong></span>}</div>
+        <div style={{display:'flex',gap:8}}><button className="bt bt-p" onClick={()=>promoteRun(promo.t)} disabled={deploying}>{deploying?'⏳':'✅'} Confirm</button><button className="bt bt-g" onClick={()=>setPromo(null)}>Cancel</button></div>
       </div>}
     </Modal>
   </div>;
 }
 
-/* ======================================
-   PAGE: APPROVALS
-   ====================================== */
-function ApprovalsPage({runs,prs,toast,refreshData}){
+/* ═══════════════════════════════════════
+   PAGE 6: ENVIRONMENTS
+   ═══════════════════════════════════════ */
+function EnvPage({runs}){
+  const ENVS=[{n:'DEV',c:'var(--cyan)'},{n:'INT',c:'var(--cyan)'},{n:'QA',c:'var(--warn)'},{n:'STAGE',c:'var(--warn)'},{n:'PROD',c:'var(--err)'}];
+  const eMap=useMemo(()=>{const m={};ENVS.forEach(e=>{m[e.n]=runs.filter(r=>{const n=(r.name||'').toUpperCase();return n.includes(e.n)&&(n.includes('DEPLOY')||n.includes('→'));});});return m;},[runs]);
+  return<div className="fu">
+    <h2 style={{fontSize:17,fontWeight:600,marginBottom:18}}>🌐 Environments</h2>
+    <div style={{display:'flex',gap:8,overflowX:'auto',paddingBottom:16,alignItems:'stretch'}}>
+      {ENVS.map((env,i)=><React.Fragment key={env.n}>
+        <div style={{minWidth:170,flex:'1 1 170px',background:'var(--card)',border:'1px solid var(--brd)',borderRadius:'var(--r)',overflow:'hidden'}}>
+          <div style={{background:env.c,padding:4,borderRadius:'12px 12px 0 0'}}/>
+          <div style={{padding:14}}>
+            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}><span style={{fontWeight:700,fontSize:15}}>{env.n}</span>{env.n==='PROD'&&<span className="bg" style={{background:'rgba(239,71,111,.1)',color:'var(--err)',fontSize:8}}>🔒 Approval required</span>}</div>
+            {(eMap[env.n]||[]).slice(0,4).map(r=><div key={r.id} style={{fontSize:10,color:'var(--soft)',marginBottom:4,display:'flex',alignItems:'center',gap:4}}>
+              <span style={{display:'inline-block',width:6,height:6,borderRadius:'50%',background:sC(r.conclusion||r.status),flexShrink:0}}/><span style={{fontWeight:500}}>{r._repo}</span><span className="mono" style={{color:'var(--dim)',fontSize:9}}>{r.head_branch}</span><span style={{color:'var(--dim)',marginLeft:'auto'}}>{ago(r.created_at)}</span>
+            </div>)}
+            {(eMap[env.n]||[]).length===0&&<div style={{fontSize:11,color:'var(--dim)'}}>No deployments</div>}
+            <div style={{fontSize:9,color:'var(--dim)',marginTop:6,borderTop:'1px solid var(--brd)',paddingTop:6}}>{(eMap[env.n]||[]).length} total deploys</div>
+          </div>
+        </div>
+        {i<4&&<div className="env-arrow"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg><span style={{fontSize:8,color:'var(--dim)'}}>{i<2?'auto':'manual'}</span></div>}
+      </React.Fragment>)}
+    </div>
+  </div>;
+}
+
+/* ═══════════════════════════════════════
+   PAGES 7-10: Security, ALM, Approvals, Runners, Settings
+   ═══════════════════════════════════════ */
+function SecurityPage({runs}){
+  const sec=useMemo(()=>runs.filter(r=>{const n=(r.name||'').toLowerCase();return n.includes('security')||n.includes('sast')||n.includes('sca')||n.includes('scan')||n.includes('gitleaks');}),[runs]);
+  const p=sec.filter(r=>r.conclusion==='success').length;const f=sec.filter(r=>r.conclusion==='failure').length;const rate=sec.length?Math.round(p/sec.length*100):0;
+  const scans=[{n:'SonarQube SAST',k:'sast',c:'var(--cyan)'},{n:'Black Duck SCA',k:'sca',c:'var(--violet)'},{n:'Gitleaks Secrets',k:'secret',c:'var(--warn)'},{n:'Trivy Container',k:'container',c:'var(--info)'},{n:'ZAP DAST',k:'dast',c:'var(--err)'}];
+  return<div className="fu"><h2 style={{fontSize:17,fontWeight:600,marginBottom:18}}>🛡️ Security</h2>
+    <div className="sg"><div className="sc sc-cyan"><div className="sl">Total Scans</div><div className="sv" style={{color:'var(--cyan)'}}>{sec.length}</div></div><div className="sc sc-ok"><div className="sl">Passed</div><div className="sv" style={{color:'var(--ok)'}}>{p}</div></div><div className="sc sc-err"><div className="sl">Failed</div><div className="sv" style={{color:'var(--err)'}}>{f}</div></div><div className="sc sc-warn"><div className="sl">Pass Rate</div><div className="sv" style={{color:rate>=80?'var(--ok)':'var(--err)'}}>{rate}%</div></div></div>
+    <div className="c"><div style={{fontSize:12,fontWeight:600,color:'var(--soft)',marginBottom:12}}>Scan Coverage</div>{scans.map(s=>{const c=sec.filter(r=>(r.name||'').toLowerCase().includes(s.k)).length;const pct=sec.length?Math.round(c/sec.length*100):0;return<div key={s.k} style={{marginBottom:10}}><div style={{display:'flex',justifyContent:'space-between',fontSize:11,marginBottom:3}}><span>{s.n}</span><span className="mono" style={{color:'var(--dim)'}}>{pct}%</span></div><div style={{height:6,background:'var(--surf)',borderRadius:3,overflow:'hidden'}}><div style={{height:'100%',width:pct+'%',background:pct===100?'linear-gradient(90deg,var(--cyan),var(--violet))':s.c,borderRadius:3,transition:'width .5s'}}/></div></div>;})}</div>
+    <div className="c"><div style={{fontSize:12,fontWeight:600,color:'var(--soft)',marginBottom:10}}>Recent Results</div>{sec.slice(0,12).map(r=><div key={r.id} className="lr" style={{gap:6}}><StatusPill s={r.conclusion||r.status}/><div style={{flex:1}}><span style={{fontSize:11,fontWeight:500}}>{r._repo}</span><span style={{fontSize:10,color:'var(--dim)',marginLeft:6}}>{r.name}</span></div><span style={{fontSize:10,color:'var(--dim)'}}>{ago(r.created_at)}</span></div>)}{sec.length===0&&<div style={{padding:20,textAlign:'center',color:'var(--dim)'}}><Logo s={30}/><div style={{marginTop:8}}>No security scans found. Connect SonarQube to see real data.</div></div>}</div>
+  </div>;
+}
+
+function ALMPage({toast,prs}){
+  const[jUrl,setJUrl]=useState(sessionStorage.getItem('fg_jira_url')||'');const[jTk,setJTk]=useState(sessionStorage.getItem('fg_jira_token')||'');const[connected,setConnected]=useState(!!sessionStorage.getItem('fg_jira_url'));
+  const connect=()=>{if(!jUrl){toast('URL required','e');return;}sessionStorage.setItem('fg_jira_url',jUrl);sessionStorage.setItem('fg_jira_token',jTk);setConnected(true);toast('✅ Jira connected');};
+  const disconnect=()=>{sessionStorage.removeItem('fg_jira_url');sessionStorage.removeItem('fg_jira_token');setConnected(false);};
+  const tickets=useMemo(()=>{const all=[];prs.forEach(p=>{jK(p.title).forEach(k=>{if(!all.find(t=>t.key===k))all.push({key:k,pr:p.title,repo:p._repo,state:p.state});});});return all;},[prs]);
+  return<div className="fu"><h2 style={{fontSize:17,fontWeight:600,marginBottom:18}}>🎫 ALM / Jira</h2>
+    {!connected?<div className="c" style={{maxWidth:440}}><div style={{textAlign:'center',marginBottom:16}}><span style={{fontSize:36}}>🎫</span><div style={{color:'var(--soft)',fontSize:13,marginTop:6}}>Connect Jira to track work items</div></div>
+      <div className="fl"><div><label className="lbl">Jira URL</label><input value={jUrl} onChange={e=>setJUrl(e.target.value)} placeholder="https://yourcompany.atlassian.net"/></div><div><label className="lbl">API Token</label><input type="password" value={jTk} onChange={e=>setJTk(e.target.value)} placeholder="Token"/></div><button className="bt bt-p" onClick={connect}>🔗 Connect</button></div>
+    </div>:<>
+      <div style={{display:'flex',gap:8,marginBottom:14}}><button className="bt bt-g" onClick={disconnect}>Disconnect Jira</button></div>
+      <div className="c" style={{background:'rgba(38,198,218,.04)',border:'1px solid rgba(38,198,218,.15)'}}><div style={{fontSize:12,color:'var(--cyan)',marginBottom:6}}>ℹ️ Browser CORS Note</div><div style={{fontSize:11,color:'var(--soft)'}}>Jira integration works via GitHub Actions pipelines. Direct browser access requires a CORS proxy. Your pipelines sync tickets automatically via scripts/jira-integration.py.</div></div>
+      <div className="c"><div style={{fontSize:12,fontWeight:600,color:'var(--soft)',marginBottom:10}}>Jira Tickets in PRs ({tickets.length})</div>{tickets.length===0?<div style={{padding:12,textAlign:'center',color:'var(--dim)',fontSize:12}}>No Jira tickets found in PR titles</div>:tickets.map(t=><div key={t.key} className="lr"><span className="tag" style={{background:'rgba(17,138,178,.12)',color:'var(--info)',fontWeight:700}}>{t.key}</span><div style={{flex:1}}><div style={{fontSize:11}}>{t.pr}</div><div style={{fontSize:10,color:'var(--dim)'}}>{t.repo} · {t.state}</div></div></div>)}</div>
+    </>}
+  </div>;
+}
+
+function ApprovalsPage({runs,toast,refresh}){
   const[acting,setActing]=useState('');
   const waiting=runs.filter(r=>r.status==='waiting'||r.status==='action_required');
-  const reviewPRs=prs.filter(p=>p.state==='open'&&p.requested_reviewers?.length>0);
-
-  const actDeploy=async(run,state)=>{setActing(run.id+state);try{const pend=await api('/repos/'+owner()+'/'+run._repo+'/actions/runs/'+run.id+'/pending_deployments');if(!pend||pend.length===0){toast('No pending deployments found','e');setActing('');return;}await api('/repos/'+owner()+'/'+run._repo+'/actions/runs/'+run.id+'/pending_deployments',{method:'POST',body:JSON.stringify({environment_ids:pend.map(d=>d.environment.id),state,comment:state+' via ForgeOps'})});toast('✅ '+state+' — run #'+run.run_number);refreshData();}catch(e){toast('❌ '+e.message,'e');}setActing('');};
-
-  return<div className="fu">
-    <h2 style={{fontSize:17,fontWeight:600,marginBottom:18}}>⏸️ Approvals</h2>
-    <div style={{fontSize:13,fontWeight:500,color:'var(--text2)',marginBottom:10}}>🚀 Deployment Approvals ({waiting.length})</div>
-    {waiting.length===0&&<div className="c" style={{textAlign:'center',padding:28}}><div style={{fontSize:30,marginBottom:6}}>✅</div><div style={{color:'var(--text2)',fontSize:13}}>No pending deployment approvals</div></div>}
-    {waiting.map(r=><div key={r.id} className="c" style={{marginBottom:8}}><div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
-      <span style={{fontSize:18}}>⚠️</span>
-      <div style={{flex:1,minWidth:180}}><div style={{fontWeight:600,fontSize:13}}>{r._repo}</div><div style={{fontSize:11,color:'var(--text3)'}}>{r.display_title||r.name} · #{r.run_number} · {r.head_branch}</div><div style={{fontSize:10,color:'var(--text3)'}}>by {r.actor?.login} · waiting {ago(r.created_at)}</div></div>
-      <div style={{display:'flex',gap:5}}><button className="bt bt-s" onClick={()=>actDeploy(r,'approved')} disabled={!!acting}>{acting===r.id+'approved'?'⏳':'✅'} Approve</button><button className="bt bt-d" onClick={()=>actDeploy(r,'rejected')} disabled={!!acting}>{acting===r.id+'rejected'?'⏳':'❌'} Reject</button><a href={r.html_url} target="_blank" rel="noopener" className="bt bt-g" style={{fontSize:11}}>🔗</a></div>
-    </div></div>)}
-    <div style={{fontSize:13,fontWeight:500,color:'var(--text2)',margin:'18px 0 10px'}}>👁️ PR Reviews Needed ({reviewPRs.length})</div>
-    {reviewPRs.length===0&&<div className="c" style={{textAlign:'center',padding:20,color:'var(--text3)',fontSize:12}}>No reviews requested</div>}
-    {reviewPRs.map(p=><div key={p.id} className="lr"><span>🔀</span><div style={{flex:1}}><div style={{fontSize:12,fontWeight:500}}>{p._repo}: {p.title}</div><div style={{fontSize:10,color:'var(--text3)'}}>{p.user?.login} · {p.head?.ref} → {p.base?.ref}</div></div><a href={p.html_url} target="_blank" rel="noopener" className="bt bt-g" style={{fontSize:10}}>Review ↗</a></div>)}
+  const act=async(run,state)=>{setActing(run.id+state);try{const pend=await api('/repos/'+O()+'/'+run._repo+'/actions/runs/'+run.id+'/pending_deployments');if(!pend||!pend.length){toast('No pending deployments','e');setActing('');return;}await api('/repos/'+O()+'/'+run._repo+'/actions/runs/'+run.id+'/pending_deployments',{method:'POST',body:JSON.stringify({environment_ids:pend.map(d=>d.environment.id),state,comment:state+' via ForgeOps'})});toast('✅ '+state);refresh();}catch(e){toast('❌ '+e.message,'e');}setActing('');};
+  return<div className="fu"><h2 style={{fontSize:17,fontWeight:600,marginBottom:18}}>⏸️ Approvals ({waiting.length})</h2>
+    {waiting.length===0&&<div className="c" style={{textAlign:'center',padding:36}}><Logo s={36}/><div style={{marginTop:10,color:'var(--soft)'}}>No pending approvals</div></div>}
+    {waiting.map(r=><div key={r.id} className="c"><div style={{display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}><span style={{fontSize:20}}>⚠️</span><div style={{flex:1,minWidth:180}}><div style={{fontWeight:600,fontSize:13}}>{r._repo}</div><div style={{fontSize:11,color:'var(--dim)'}}>{r.display_title||r.name} · #{r.run_number} · {r.head_branch}</div><div style={{fontSize:10,color:'var(--dim)'}}>by {r.actor?.login} · {ago(r.created_at)}</div></div>
+      <div style={{display:'flex',gap:5}}><button className="bt bt-ok bt-sm" onClick={()=>act(r,'approved')} disabled={!!acting}>✅ Approve</button><button className="bt bt-err bt-sm" onClick={()=>act(r,'rejected')} disabled={!!acting}>❌ Reject</button><a href={r.html_url} target="_blank" rel="noopener" className="bt bt-g bt-sm">↗</a></div></div></div>)}
   </div>;
 }
 
-/* ======================================
-   PAGE: SECURITY
-   ====================================== */
-function SecurityPage({runs}){
-  const sec=useMemo(()=>runs.filter(r=>{const n=(r.name||r.display_title||'').toLowerCase();return n.includes('security')||n.includes('sast')||n.includes('sca')||n.includes('scan')||n.includes('gitleaks')||n.includes('trivy');}),[runs]);
-  const passed=sec.filter(r=>r.conclusion==='success').length;const failed=sec.filter(r=>r.conclusion==='failure').length;
-  const rate=sec.length?Math.round(passed/sec.length*100):0;
-  const types=[{n:'SAST',k:'sast',e:'🔍'},{n:'SCA',k:'sca',e:'🛡️'},{n:'Secrets',k:'secret',e:'🔑'},{n:'Container',k:'container',e:'📦'},{n:'SBOM',k:'sbom',e:'📋'}];
-  const reposWithSec=new Set(sec.map(r=>r._repo));
-
-  return<div className="fu">
-    <h2 style={{fontSize:17,fontWeight:600,marginBottom:18}}>🛡️ Security</h2>
-    <div className="sg">
-      <div className="sc"><div className="si">🔍</div><div className="sl">Total Scans</div><div className="sv" style={{color:'var(--teal)'}}>{sec.length}</div></div>
-      <div className="sc"><div className="si">✅</div><div className="sl">Passed</div><div className="sv" style={{color:'var(--success)'}}>{passed}</div></div>
-      <div className="sc"><div className="si">❌</div><div className="sl">Failed</div><div className="sv" style={{color:'var(--danger)'}}>{failed}</div></div>
-      <div className="sc"><div className="si">📊</div><div className="sl">Pass Rate</div><div className="sv" style={{color:rate>=80?'var(--success)':'var(--danger)'}}>{rate}%</div></div>
-    </div>
-    <div className="g2" style={{marginBottom:16}}>
-      <div className="c"><div style={{fontSize:12,fontWeight:500,color:'var(--text2)',marginBottom:10}}>Scan Breakdown</div>{types.map(t=>{const c=sec.filter(r=>(r.name||'').toLowerCase().includes(t.k)).length;return<div key={t.k} style={{marginBottom:8}}><div style={{fontSize:11,marginBottom:3}}>{t.e} {t.n} <span style={{color:'var(--text3)'}}>({c})</span></div><div style={{height:4,background:'var(--border)',borderRadius:2,overflow:'hidden'}}><div style={{height:'100%',width:(sec.length?c/sec.length*100:0)+'%',background:'var(--teal)',borderRadius:2}}/></div></div>;})}</div>
-      <div className="c"><div style={{fontSize:12,fontWeight:500,color:'var(--text2)',marginBottom:10}}>Coverage</div><div style={{fontSize:12,color:'var(--text2)',marginBottom:6}}>{reposWithSec.size} repos with security scans</div>{[...reposWithSec].map(r=><div key={r} style={{fontSize:11,padding:'3px 0',color:'var(--text2)'}}>✅ {r}</div>)}</div>
-    </div>
-    <div className="c"><div style={{fontSize:12,fontWeight:500,color:'var(--text2)',marginBottom:10}}>Recent Scan Results</div>{sec.slice(0,15).map(r=><div key={r.id} className="lr" style={{gap:6}}><span style={{fontSize:12}}>{sE(r.conclusion||r.status)}</span><div style={{flex:1}}><span style={{fontSize:11,fontWeight:500}}>{r._repo}</span><span style={{fontSize:10,color:'var(--text3)',marginLeft:6}}>{r.name||r.display_title}</span></div><span className="bg" style={{background:sC(r.conclusion||r.status)+'22',color:sC(r.conclusion||r.status),fontSize:9}}>{r.conclusion||r.status}</span><span style={{fontSize:10,color:'var(--text3)'}}>{ago(r.created_at)}</span></div>)}{sec.length===0&&<div style={{padding:16,textAlign:'center',color:'var(--text3)',fontSize:12}}>No security scans found</div>}</div>
-  </div>;
-}
-
-/* ======================================
-   PAGE: ALM / JIRA
-   ====================================== */
-function ALMPage({toast}){
-  const[jiraUrl,setJiraUrl]=useState(sessionStorage.getItem('fo_jira_url')||'');
-  const[jiraToken,setJiraToken]=useState(sessionStorage.getItem('fo_jira_token')||'');
-  const[jiraProject,setJiraProject]=useState(sessionStorage.getItem('fo_jira_proj')||'');
-  const[connected,setConnected]=useState(!!(sessionStorage.getItem('fo_jira_url')&&sessionStorage.getItem('fo_jira_token')));
-  const[tickets,setTickets]=useState([]);const[loading,setLoading]=useState(false);const[search,setSearch]=useState('');
-
-  const connect=()=>{if(!jiraUrl||!jiraToken){toast('URL and token required','e');return;}sessionStorage.setItem('fo_jira_url',jiraUrl);sessionStorage.setItem('fo_jira_token',jiraToken);sessionStorage.setItem('fo_jira_proj',jiraProject);setConnected(true);toast('✅ Jira connected');fetchTickets();};
-  const disconnect=()=>{sessionStorage.removeItem('fo_jira_url');sessionStorage.removeItem('fo_jira_token');sessionStorage.removeItem('fo_jira_proj');setConnected(false);setTickets([]);};
-
-  const fetchTickets=async()=>{setLoading(true);try{
-    const url=sessionStorage.getItem('fo_jira_url');const tk=sessionStorage.getItem('fo_jira_token');
-    const jql=search?'text~"'+search+'"':'assignee=currentUser() AND status!=Done ORDER BY updated DESC';
-    const r=await fetch(url+'/rest/api/2/search?jql='+encodeURIComponent(jql)+'&maxResults=20',{headers:{Authorization:'Bearer '+tk,Accept:'application/json'}});
-    if(!r.ok)throw new Error('Jira '+r.status);const d=await r.json();setTickets(d.issues||[]);
-  }catch(e){toast('Jira error: '+e.message,'e');setTickets([]);}setLoading(false);};
-
-  useEffect(()=>{if(connected)fetchTickets();},[connected]);
-
-  if(!connected)return<div className="fu"><h2 style={{fontSize:17,fontWeight:600,marginBottom:18}}>🎫 ALM / Work Items</h2><div className="c" style={{maxWidth:450}}>
-    <div style={{fontSize:28,textAlign:'center',marginBottom:10}}>🎫</div><div style={{textAlign:'center',color:'var(--text2)',fontSize:13,marginBottom:18}}>Connect Jira to track work items alongside deployments</div>
-    <div className="fl"><div><label className="lbl">Jira URL</label><input value={jiraUrl} onChange={e=>setJiraUrl(e.target.value)} placeholder="https://yourcompany.atlassian.net"/></div><div><label className="lbl">API Token</label><input type="password" value={jiraToken} onChange={e=>setJiraToken(e.target.value)} placeholder="Jira API token"/></div><div><label className="lbl">Default Project Key</label><input value={jiraProject} onChange={e=>setJiraProject(e.target.value)} placeholder="PROJ"/></div><button className="bt bt-t" onClick={connect}>🔗 Connect Jira</button></div>
-  </div></div>;
-
-  return<div className="fu"><h2 style={{fontSize:17,fontWeight:600,marginBottom:18}}>🎫 ALM / Work Items</h2>
-    <div style={{display:'flex',gap:8,marginBottom:14}}><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search tickets..." style={{flex:1}} onKeyDown={e=>e.key==='Enter'&&fetchTickets()}/><button className="bt bt-t" onClick={fetchTickets}>🔍 Search</button><button className="bt bt-d" onClick={disconnect}>Disconnect</button></div>
-    {loading?[1,2,3].map(i=><div key={i} className="sk" style={{height:50,marginBottom:8}}/>):
-    <div className="c">{tickets.length===0?<div style={{padding:16,textAlign:'center',color:'var(--text3)',fontSize:12}}>No tickets found</div>:
-      tickets.map(t=><div key={t.id} className="lr" style={{gap:8}}>
-        <span className="bg" style={{background:'var(--blue)22',color:'var(--blue)',fontSize:10,fontWeight:700}}>{t.key}</span>
-        <div style={{flex:1}}><div style={{fontSize:12,fontWeight:500}}>{t.fields?.summary}</div><div style={{fontSize:10,color:'var(--text3)'}}>{t.fields?.status?.name} · {t.fields?.priority?.name} · {t.fields?.issuetype?.name}</div></div>
-        <a href={sessionStorage.getItem('fo_jira_url')+'/browse/'+t.key} target="_blank" rel="noopener" style={{fontSize:10}}>Open ↗</a>
-      </div>)
-    }</div>}
-  </div>;
-}
-
-/* ======================================
-   PAGE: RUNNERS
-   ====================================== */
-function RunnersPage({}){
+function RunnersPage(){
   const[runners,setRunners]=useState([]);const[ld,setLd]=useState(true);const[err,setErr]=useState('');
-  useEffect(()=>{(async()=>{try{let d=await api('/orgs/'+owner()+'/actions/runners').catch(()=>null);if(!d)d=await api('/repos/'+owner()+'/ForgeOps/actions/runners').catch(()=>null);if(d&&d.runners)setRunners(d.runners);else setErr('No runners found or insufficient permissions.');}catch(e){setErr(e.message);}setLd(false);})();},[]);
-
+  useEffect(()=>{(async()=>{try{let d=await api('/orgs/'+O()+'/actions/runners').catch(()=>null);if(!d)d=await api('/repos/'+O()+'/ForgeOps/actions/runners').catch(()=>null);if(d&&d.runners)setRunners(d.runners);else setErr('Using GitHub-hosted runners (ubuntu-latest). Self-hosted not configured.');}catch(e){setErr(e.message);}setLd(false);})();},[]);
   return<div className="fu"><h2 style={{fontSize:17,fontWeight:600,marginBottom:18}}>🖥️ Runners</h2>
-    {ld?[1,2].map(i=><div key={i} className="sk" style={{height:60,marginBottom:8}}/>):
-    err||runners.length===0?<div className="c" style={{textAlign:'center',padding:30}}><div style={{fontSize:30,marginBottom:8}}>🖥️</div><div style={{fontWeight:500,marginBottom:4}}>{runners.length===0?'Using GitHub-hosted runners':'No runners accessible'}</div><div style={{color:'var(--text3)',fontSize:12}}>{err||'Self-hosted runners will appear here when configured. Currently using ubuntu-latest / windows-latest.'}</div></div>:
-    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))',gap:10}}>{runners.map(r=><div key={r.id} className="c"><div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}><span style={{fontSize:14}}>{r.status==='online'?'🟢':'🔴'}</span><div style={{flex:1}}><div style={{fontWeight:600,fontSize:12.5}}>{r.name}</div><div style={{fontSize:10,color:'var(--text3)'}}>{r.os} · {r.status}</div></div><span className="bg" style={{background:r.busy?'rgba(59,130,246,.12)':'rgba(76,217,100,.12)',color:r.busy?'var(--blue)':'var(--success)',fontSize:9}}>{r.busy?'🔄 Busy':'✅ Idle'}</span></div><div style={{display:'flex',flexWrap:'wrap',gap:3}}>{(r.labels||[]).map(l=><span key={l.name||l} style={{padding:'1px 6px',background:'var(--bg)',borderRadius:3,fontSize:9,color:'var(--text3)'}}>{l.name||l}</span>)}</div></div>)}</div>}
+    {ld?[1,2].map(i=><div key={i} className="sk" style={{height:60,marginBottom:10}}/>):
+    runners.length===0?<div className="c" style={{textAlign:'center',padding:36}}><Logo s={36}/><div style={{marginTop:10,fontWeight:500}}>GitHub-Hosted Runners</div><div style={{color:'var(--dim)',fontSize:12,marginTop:4}}>{err}</div><a href="https://github.com/askboppana/ForgeOps/blob/main/docs/MIGRATION-TO-SELF-HOSTED.md" target="_blank" rel="noopener" style={{fontSize:11,marginTop:8,display:'inline-block'}}>📖 Migration Guide</a></div>:
+    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(270px,1fr))',gap:12}}>{runners.map(r=><div key={r.id} className="c"><div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}><span style={{fontSize:14}}>{r.status==='online'?'🟢':'🔴'}</span><div style={{flex:1}}><div style={{fontWeight:600,fontSize:12.5}}>{r.name}</div><div style={{fontSize:10,color:'var(--dim)'}}>{r.os} · {r.status}</div></div><span className="bg" style={{background:r.busy?'rgba(38,198,218,.1)':'rgba(6,214,160,.1)',color:r.busy?'var(--cyan)':'var(--ok)',fontSize:9}}>{r.busy?'🔄 Busy':'✅ Idle'}</span></div><div style={{display:'flex',flexWrap:'wrap',gap:3}}>{(r.labels||[]).map(l=><span key={l.name||l} className="tag" style={{background:'var(--surf)',color:'var(--dim)'}}>{l.name||l}</span>)}</div></div>)}</div>}
   </div>;
 }
 
-/* ======================================
-   PAGE: SETTINGS
-   ====================================== */
 function SettingsPage({repos,onDisconnect,toast}){
-  const u=sessionStorage.getItem('fo_u')||'';const tk=sessionStorage.getItem('fo_t')||'';
-  const masked=tk?tk.slice(0,6)+'••••••'+tk.slice(-4):'';
-  const jiraOk=!!sessionStorage.getItem('fo_jira_url');
-
-  const integrations=[
-    {n:'Jira',s:jiraOk,d:'Connected: '+sessionStorage.getItem('fo_jira_url')},
-    {n:'SonarQube',s:false,d:'Set SONAR_HOST_URL + SONAR_TOKEN secrets'},
-    {n:'Black Duck',s:false,d:'Set BLACKDUCK_URL + BLACKDUCK_TOKEN secrets'},
-    {n:'Gitleaks',s:true,d:'Always active'},
-    {n:'Trivy',s:false,d:'Active when container image provided'},
-    {n:'Syft',s:true,d:'Always active'},
-    {n:'Cherwell/ServiceNow',s:false,d:'Set CHERWELL_URL or SERVICENOW_URL secrets'},
-    {n:'Splunk',s:false,d:'Set SPLUNK_HEC_URL + SPLUNK_HEC_TOKEN secrets'},
-    {n:'Slack',s:false,d:'Set SLACK_WEBHOOK_URL secret'},
-  ];
-
+  const u=O();const tk=sessionStorage.getItem('fg_token')||'';const masked=tk?tk.slice(0,6)+'••••'+tk.slice(-4):'';
+  const jiraOk=!!sessionStorage.getItem('fg_jira_url');
+  const ints=[{n:'GitHub Actions',s:true,d:'Connected'},{n:'Jira',s:jiraOk,d:jiraOk?sessionStorage.getItem('fg_jira_url'):'Not configured'},{n:'SonarQube',s:false,d:'Configure via secrets'},{n:'Splunk',s:false,d:'Configure via secrets'},{n:'Cherwell',s:false,d:'Configure via secrets'}];
   return<div className="fu"><h2 style={{fontSize:17,fontWeight:600,marginBottom:18}}>⚙️ Settings</h2>
-    <div className="c"><div style={{fontSize:12,fontWeight:500,color:'var(--text2)',marginBottom:12}}>Connection</div>
-      <table style={{width:'100%',fontSize:12,borderCollapse:'collapse'}}><tbody>
-        {[['Username',u],['Token',masked],['Repos',repos.length],['Storage','sessionStorage']].map(([k,v])=><tr key={k}><td style={{padding:'6px 0',color:'var(--text3)',width:120,borderBottom:'1px solid var(--border)'}}>{k}</td><td style={{padding:'6px 0',borderBottom:'1px solid var(--border)',fontFamily:k==='Token'?'monospace':'inherit'}}>{v}</td></tr>)}
-      </tbody></table>
-      <div style={{marginTop:12,display:'flex',gap:8,flexWrap:'wrap'}}>
-        <button className="bt bt-d" onClick={onDisconnect}>🔌 Disconnect</button>
-        <a href="https://github.com/settings/tokens" target="_blank" rel="noopener" className="bt bt-g">🔑 Tokens</a>
-        <a href="https://github.com/askboppana/ForgeOps" target="_blank" rel="noopener" className="bt bt-g">📖 Docs</a>
-      </div>
+    <div className="c"><div style={{fontSize:12,fontWeight:600,color:'var(--soft)',marginBottom:12}}>Connection</div>
+      <table style={{width:'100%',fontSize:12,borderCollapse:'collapse'}}><tbody>{[['Username',u],['Token',masked],['Repos',repos.length],['Storage','sessionStorage']].map(([k,v])=><tr key={k}><td style={{padding:'7px 0',color:'var(--dim)',width:130,borderBottom:'1px solid var(--brd)'}}>{k}</td><td style={{padding:'7px 0',borderBottom:'1px solid var(--brd)',fontFamily:k==='Token'?'JetBrains Mono,monospace':'inherit'}}>{v}</td></tr>)}</tbody></table>
+      <div style={{marginTop:14,display:'flex',gap:8}}><button className="bt bt-err" onClick={onDisconnect}>🔌 Disconnect</button><a href="https://github.com/settings/tokens" target="_blank" rel="noopener" className="bt bt-g">🔑 Tokens</a><a href="https://github.com/askboppana/ForgeOps" target="_blank" rel="noopener" className="bt bt-g">📖 Docs</a></div>
     </div>
-    <div className="c"><div style={{fontSize:12,fontWeight:500,color:'var(--text2)',marginBottom:12}}>Integrations</div>
-      {integrations.map(i=><div key={i.n} className="lr" style={{gap:8}}><div style={{flex:1}}><div style={{fontSize:12,fontWeight:500}}>{i.n}</div><div style={{fontSize:10,color:'var(--text3)'}}>{i.d}</div></div><span className="bg" style={{background:i.s?'rgba(76,217,100,.12)':'rgba(90,99,128,.12)',color:i.s?'var(--success)':'var(--text3)',fontSize:9}}>{i.s?'✅ Active':'⏭️ Not configured'}</span></div>)}
-    </div>
-    <div className="c"><div style={{fontSize:12,fontWeight:500,color:'var(--text2)',marginBottom:10}}>Connected Repos</div>
-      <div style={{maxHeight:200,overflowY:'auto'}}>{repos.slice(0,30).map(r=><div key={r.name} style={{fontSize:11,padding:'3px 0',color:'var(--text2)'}}>{r.private?'🔒':'📂'} {r.name} <span style={{color:'var(--text3)'}}>· updated {ago(r.updated_at)}</span></div>)}</div>
-    </div>
+    <div className="c"><div style={{fontSize:12,fontWeight:600,color:'var(--soft)',marginBottom:12}}>Integrations</div>{ints.map(i=><div key={i.n} className="lr"><div style={{flex:1}}><div style={{fontSize:12,fontWeight:500}}>{i.n}</div><div style={{fontSize:10,color:'var(--dim)'}}>{i.d}</div></div><span className="bg" style={{background:i.s?'rgba(6,214,160,.1)':'rgba(74,93,128,.1)',color:i.s?'var(--ok)':'var(--dim)',fontSize:9}}>{i.s?'✅ Active':'⏭️ Not set'}</span></div>)}</div>
   </div>;
 }
 
-/* ======================================
+/* ═══════════════════════════════════════
    NAV + MAIN APP
-   ====================================== */
+   ═══════════════════════════════════════ */
 const NAV=[
-  {s:'Delivery'},
-  {k:'overview',l:'Overview',i:'📊'},
-  {k:'pipelines',l:'Pipelines',i:'🔀'},
-  {k:'deploy',l:'Deploy',i:'🚀'},
-  {k:'envs',l:'Environments',i:'🌐'},
-  {k:'prs',l:'Pull Requests',i:'📬'},
-  {s:'Quality'},
-  {k:'security',l:'Security',i:'🛡️'},
-  {k:'alm',l:'ALM / Jira',i:'🎫'},
-  {s:'Operations'},
-  {k:'approvals',l:'Approvals',i:'⏸️'},
-  {k:'runners',l:'Runners',i:'🖥️'},
-  {k:'settings',l:'Settings',i:'⚙️'},
+  {s:'Delivery'},{k:'overview',l:'Overview',i:'📊'},{k:'pipelines',l:'Pipelines',i:'🔀'},{k:'deploy',l:'Deploy',i:'🚀'},{k:'envs',l:'Environments',i:'🌐'},{k:'prs',l:'Pull Requests',i:'📬'},
+  {s:'Quality'},{k:'security',l:'Security',i:'🛡️'},{k:'alm',l:'ALM / Jira',i:'🎫'},
+  {s:'Operations'},{k:'approvals',l:'Approvals',i:'⏸️'},{k:'runners',l:'Runners',i:'🖥️'},{k:'settings',l:'Settings',i:'⚙️'}
 ];
 
 function App(){
@@ -648,59 +446,43 @@ function App(){
   const[lastRef,setLastRef]=useState(null);const[sbOpen,setSbOpen]=useState(window.innerWidth>768);
   const[toastMsg,setToastMsg]=useState('');const[toastType,setToastType]=useState('s');
   const timer=useRef(null);
+  const showToast=(m,t)=>{setToastMsg(m);setToastType(t||'s');clearTimeout(toastTmr);toastTmr=setTimeout(()=>setToastMsg(''),4000);};
 
-  const showToast=(msg,type)=>{setToastMsg(msg);setToastType(type||'s');clearTimeout(toastTimer);toastTimer=setTimeout(()=>setToastMsg(''),4000);};
+  useEffect(()=>{const t=sessionStorage.getItem('fg_token'),u=sessionStorage.getItem('fg_user');if(t&&u)setUser({login:u});},[]);
 
-  useEffect(()=>{const t=sessionStorage.getItem('fo_t'),u=sessionStorage.getItem('fo_u');if(t&&u){setUser({login:u});}},[]); // auto-reconnect
-
-  const fetchData=useCallback(async()=>{
-    if(!sessionStorage.getItem('fo_t'))return;
-    setLoading(true);setError('');setRateMsg('');
+  const fetchData=useCallback(async()=>{if(!sessionStorage.getItem('fg_token'))return;setLoading(true);setError('');setRateMsg('');
     try{
-      const repoList=await cached('repos',60000,()=>api('/users/'+owner()+'/repos?per_page=100&sort=updated'));
-      if(!repoList)throw new Error('Could not fetch repos');
-      setRepos(repoList);
-
-      const runBatches=await Promise.all(repoList.slice(0,15).map(r=>api('/repos/'+owner()+'/'+r.name+'/actions/runs?per_page=20').then(d=>((d&&d.workflow_runs)||[]).map(run=>({...run,_repo:r.name}))).catch(()=>[])));
-      setRuns(runBatches.flat().sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)));
-
-      const prBatches=await Promise.all(repoList.slice(0,15).map(r=>api('/repos/'+owner()+'/'+r.name+'/pulls?state=all&per_page=15&sort=updated&direction=desc').then(d=>(d||[]).map(p=>({...p,_repo:r.name,_checks:'pending'}))).catch(()=>[])));
-      const allPrs=prBatches.flat().sort((a,b)=>new Date(b.updated_at)-new Date(a.updated_at));
-
-      const openOnes=allPrs.filter(p=>p.state==='open').slice(0,10);
-      await Promise.all(openOnes.map(async p=>{try{const d=await api('/repos/'+owner()+'/'+p._repo+'/commits/'+p.head.sha+'/check-runs');const checks=(d&&d.check_runs)||[];if(checks.length===0)p._checks='pending';else if(checks.every(c=>c.conclusion==='success'))p._checks='success';else if(checks.some(c=>c.conclusion==='failure'))p._checks='failure';else p._checks='pending';}catch(e){}}));
-      setPrs(allPrs);
-      setLastRef(new Date());
-    }catch(e){
-      if(e.message&&e.message.startsWith('RATE_LIMITED:')){setRateMsg('Rate limited — retrying in '+e.message.split(':')[1]+'s...');}
-      else setError(e.message);
-    }
-    setLoading(false);
+      const rl=await cached('repos',60000,()=>api('/user/repos?per_page=100&sort=updated'));if(!rl)throw new Error('Cannot fetch repos');setRepos(rl);
+      const rb=await Promise.all(rl.slice(0,15).map(r=>api('/repos/'+O()+'/'+r.name+'/actions/runs?per_page=20').then(d=>((d&&d.workflow_runs)||[]).map(x=>({...x,_repo:r.name}))).catch(()=>[])));
+      setRuns(rb.flat().sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)));
+      const pb=await Promise.all(rl.slice(0,15).map(r=>api('/repos/'+O()+'/'+r.name+'/pulls?state=all&per_page=15&sort=updated&direction=desc').then(d=>(d||[]).map(x=>({...x,_repo:r.name,_checks:'pending'}))).catch(()=>[])));
+      const allPr=pb.flat().sort((a,b)=>new Date(b.updated_at)-new Date(a.updated_at));
+      const openOnes=allPr.filter(p=>p.state==='open').slice(0,10);
+      await Promise.all(openOnes.map(async p=>{try{const d=await api('/repos/'+O()+'/'+p._repo+'/commits/'+p.head.sha+'/check-runs');const c=(d&&d.check_runs)||[];if(!c.length)p._checks='pending';else if(c.every(x=>x.conclusion==='success'))p._checks='success';else if(c.some(x=>x.conclusion==='failure'))p._checks='failure';else p._checks='pending';}catch(e){}}));
+      setPrs(allPr);setLastRef(new Date());
+    }catch(e){if(e.message&&e.message.startsWith('RATE_LIMITED:'))setRateMsg('Rate limited — retrying in '+e.message.split(':')[1]+'s');else setError(e.message);}setLoading(false);
   },[]);
 
-  const refreshPRs=()=>{fetchData();};
-
   useEffect(()=>{if(user){fetchData();timer.current=setInterval(fetchData,20000);}return()=>{if(timer.current)clearInterval(timer.current);};},[user,fetchData]);
-
-  const disconnect=()=>{sessionStorage.removeItem('fo_t');sessionStorage.removeItem('fo_u');setUser(null);setRepos([]);setRuns([]);setPrs([]);};
+  const disconnect=()=>{sessionStorage.removeItem('fg_token');sessionStorage.removeItem('fg_user');setUser(null);setRepos([]);setRuns([]);setPrs([]);};
 
   if(!user)return<LoginPage onConnect={d=>setUser(d)}/>;
-
-  const pendingN=runs.filter(r=>r.status==='waiting'||r.status==='action_required').length;
-  const openPRN=prs.filter(p=>p.state==='open').length;
+  const pendN=runs.filter(r=>r.status==='waiting'||r.status==='action_required').length;
+  const prN=prs.filter(p=>p.state==='open').length;
   const mob=window.innerWidth<=768;
+  const dateStr=new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
 
   const renderPage=()=>{
-    if(loading&&runs.length===0)return<div><div className="sg">{[1,2,3,4].map(i=><div key={i} className="sk" style={{height:80}}/>)}</div><div className="sk" style={{height:200,marginTop:14}}/></div>;
+    if(loading&&runs.length===0)return<div><div className="sg">{[1,2,3,4].map(i=><div key={i} className="sk" style={{height:85}}/>)}</div><div className="sk" style={{height:220,marginTop:14}}/></div>;
     switch(page){
       case'overview':return<OverviewPage runs={runs} prs={prs} repos={repos} setPage={setPage}/>;
       case'pipelines':return<PipelinesPage repos={repos} runs={runs} toast={showToast}/>;
       case'deploy':return<DeployPage repos={repos} runs={runs} toast={showToast} setPage={setPage}/>;
-      case'prs':return<PRPage repos={repos} prs={prs} toast={showToast} refreshPRs={refreshPRs}/>;
-      case'envs':return<EnvPage runs={runs} repos={repos} toast={showToast}/>;
-      case'approvals':return<ApprovalsPage runs={runs} prs={prs} toast={showToast} refreshData={fetchData}/>;
+      case'prs':return<PRPage repos={repos} prs={prs} toast={showToast} refresh={fetchData}/>;
+      case'envs':return<EnvPage runs={runs}/>;
       case'security':return<SecurityPage runs={runs}/>;
-      case'alm':return<ALMPage toast={showToast}/>;
+      case'alm':return<ALMPage toast={showToast} prs={prs}/>;
+      case'approvals':return<ApprovalsPage runs={runs} toast={showToast} refresh={fetchData}/>;
       case'runners':return<RunnersPage/>;
       case'settings':return<SettingsPage repos={repos} onDisconnect={disconnect} toast={showToast}/>;
       default:return null;
@@ -711,25 +493,27 @@ function App(){
     <Toast msg={toastMsg} type={toastType}/>
     {sbOpen&&mob&&<div className="sov show" onClick={()=>setSbOpen(false)}/>}
     <aside className={'sb'+(sbOpen?'':' closed')}>
-      <div className="logo"><span style={{fontSize:20}}>⚡</span><span style={{fontSize:16,fontWeight:700}}>ForgeOps</span></div>
-      <nav style={{flex:1,padding:'2px 0'}}>
+      <div className="logo-w"><Logo s={32}/><div><div style={{fontSize:16,fontWeight:700}}>ForgeOps</div><div className="logo-tag">DEVSECOPS PLATFORM</div></div></div>
+      <nav style={{flex:1,padding:'4px 0'}}>
         {NAV.map((n,i)=>{if(n.s)return<div key={'s'+i} className="ns">{n.s}</div>;
           return<div key={n.k} className={'ni'+(page===n.k?' ac':'')} onClick={()=>{setPage(n.k);if(mob)setSbOpen(false);}}>
             <span className="ic">{n.i}</span>{n.l}
-            {n.k==='approvals'&&pendingN>0&&<span className="nb">{pendingN}</span>}
-            {n.k==='prs'&&openPRN>0&&<span className="nb" style={{background:'var(--teal)'}}>{openPRN}</span>}
+            {n.k==='approvals'&&pendN>0&&<span className="nb">{pendN}</span>}
+            {n.k==='prs'&&prN>0&&<span className="nb" style={{background:'linear-gradient(135deg,var(--cyan),var(--violet))'}}>{prN}</span>}
           </div>;
         })}
       </nav>
-      <div className="sf"><div><span className="sd" style={{background:error?'var(--danger)':'var(--success)'}}/>{error?'Error':'Connected'}</div><div style={{marginTop:2}}>{owner()}</div>{lastRef&&<div style={{marginTop:2}}>Updated {lastRef.toLocaleTimeString()}</div>}</div>
+      <div className="sf"><div><span className="sd" style={{background:error?'var(--err)':'var(--ok)',boxShadow:'0 0 6px '+(error?'var(--err)':'var(--ok)')}}/>{error?'Error':'Connected'}</div><div style={{marginTop:2}}>{O()}</div>{lastRef&&<div style={{marginTop:2}}>Updated {lastRef.toLocaleTimeString()}</div>}<div style={{marginTop:4,color:'var(--dim)',fontSize:9}}>v2.0.0</div></div>
     </aside>
     <div className="mn">
       <header className="tb">
         <button className="hb" onClick={()=>setSbOpen(!sbOpen)}>☰</button>
-        <div style={{flex:1,fontSize:14,fontWeight:600}}>{(NAV.find(n=>n.k===page)||{}).l||''}</div>
-        {loading&&<span style={{color:'var(--teal)',fontSize:12}}>⟳ loading</span>}
-        {lastRef&&<span style={{fontSize:10,color:'var(--text3)'}}>Last: {lastRef.toLocaleTimeString()}</span>}
-        <button className="bt bt-g" onClick={fetchData} style={{fontSize:11,padding:'4px 10px'}}>🔄 Refresh</button>
+        <div style={{flex:1,fontSize:16,fontWeight:600}}>{(NAV.find(n=>n.k===page)||{}).l||''}</div>
+        <span className="mono" style={{fontSize:11,color:'var(--dim)'}}>{dateStr}</span>
+        {loading&&<span style={{color:'var(--cyan)',fontSize:12,animation:'spin 1s linear infinite',display:'inline-block'}}>⟳</span>}
+        {lastRef&&<span style={{fontSize:10,color:'var(--dim)'}}>{lastRef.toLocaleTimeString()}</span>}
+        <button className="bt bt-g bt-sm" onClick={fetchData}>🔄</button>
+        <div style={{width:30,height:30,borderRadius:'50%',background:'linear-gradient(135deg,var(--cyan),var(--violet))',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,color:'#fff'}}>{(O()[0]||'?').toUpperCase()}</div>
       </header>
       <div className="ct">
         {error&&<div className="eb">⚠️ {error}</div>}
@@ -741,10 +525,7 @@ function App(){
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
-
-}catch(err){
-  document.getElementById('root').innerHTML='<div id="fe"><h2>⚡ ForgeOps — Failed to Load</h2><p style="margin-top:10px">'+err.message+'</p><pre style="margin-top:10px;font-size:11px;color:#8892b0;overflow:auto;max-height:200px">'+err.stack+'</pre><p style="margin-top:10px;color:#8892b0;font-size:12px">Try refreshing. Check browser console for details.</p></div>';
-}
+}catch(err){document.getElementById('root').innerHTML='<div id="fe"><h2>⚡ ForgeOps — Load Error</h2><p style="margin-top:10px">'+err.message+'</p><pre style="margin-top:10px;font-size:11px;color:#8b9dc3;overflow:auto;max-height:200px">'+(err.stack||'')+'</pre><p style="margin-top:10px;color:#4a5d80;font-size:12px">Refresh or check console.</p></div>';}
 </script>
 </body>
 </html>
