@@ -3,7 +3,8 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
-    labels: ["dependencies", "self-healing"]
+      interval: "monthly"
+    labels: ["dependencies"]
     commit-message:
       prefix: "fix(deps)"
+    open-pull-requests-limit: 3
