@@ -1,4 +1,11 @@
-name: Deploy (Reusable)
+##############################################################################
+# _deploy.yml  --  Reusable deployment workflow for ForgeOps
+#
+# Called via `workflow_call` from app-specific pipelines.
+# Supports SSH, ArgoCD, and UiPath Orchestrator deploy methods with
+# automatic rollback, health-checking, ITSM integration, and audit trail.
+##############################################################################
+name: Deploy
 
 on:
   workflow_call:
@@ -12,63 +19,61 @@ on:
       environment:
         required: true
         type: string
-        description: "dev, int, qa, stage, or prod"
+        description: "Target environment: dev | int | qa | stage | prod"
       deploy_method:
-        required: true
+        required: false
         type: string
-        description: "ssh, argocd, or uipath-orchestrator"
+        default: "ssh"
+        description: "Deployment method: ssh | argocd | uipath-orchestrator"
+      deploy_host:
+        required: false
+        type: string
+        default: ""
+      deploy_path:
+        required: false
+        type: string
+        default: "/opt/apps"
       health_url:
         required: false
         type: string
         default: ""
+      artifact_name:
+        required: false
+        type: string
+        default: "build-artifacts"
       rollback_on_failure:
         required: false
         type: boolean
         default: true
-      ssh_host:
-        required: false
-        type: string
-        default: ""
-      ssh_deploy_path:
-        required: false
-        type: string
-        default: "/opt/apps"
-      argocd_app_name:
-        required: false
-        type: string
-        default: ""
-      uipath_org:
-        required: false
-        type: string
-        default: ""
-      uipath_tenant:
-        required: false
-        type: string
-        default: ""
-      uipath_folder:
-        required: false
-        type: string
-        default: ""
+
     secrets:
-      SSH_PRIVATE_KEY:
+      DEPLOY_SSH_KEY:
         required: false
-      SSH_USER:
+      DEPLOY_SSH_USER:
+        required: false
+      DEV_DEPLOY_HOST:
+        required: false
+      INT_DEPLOY_HOST:
+        required: false
+      QA_DEPLOY_HOST:
+        required: false
+      STAGE_DEPLOY_HOST:
+        required: false
+      PROD_DEPLOY_HOST:
         required: false
       ARGOCD_SERVER:
         required: false
       ARGOCD_AUTH_TOKEN:
         required: false
-      UIPATH_ORCHESTRATOR_URL:
+      UIPATH_ORCH_URL:
         required: false
       UIPATH_CLIENT_ID:
         required: false
       UIPATH_CLIENT_SECRET:
         required: false
-      SPLUNK_HEC_URL:
+      UIPATH_TENANT:
         required: false
-      SPLUNK_HEC_TOKEN:
-        required: false
-      SPLUNK_INDEX:
+      UIPATH_FOLDER:
         required: false
       JIRA_URL:
         required: false
@@ -80,287 +85,518 @@ on:
         required: false
       CHERWELL_CLIENT_SECRET:
         required: false
+      SERVICENOW_URL:
+        required: false
+      SERVICENOW_USER:
+        required: false
+      SERVICENOW_PASSWORD:
+        required: false
       SLACK_WEBHOOK_URL:
+        required: false
+      SPLUNK_HEC_URL:
+        required: false
+      SPLUNK_HEC_TOKEN:
+        required: false
+      SPLUNK_INDEX:
         required: false
 
 jobs:
   deploy:
-    name: "Deploy to ${{ inputs.environment }}"
-    runs-on: [self-hosted, linux, deploy]
-    environment: ${{ inputs.environment }}
+    name: Deploy ${{ inputs.app_name }} ${{ inputs.version }} to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
+    env:
+      SPLUNK_HEC_URL: ${{ secrets.SPLUNK_HEC_URL }}
+      SPLUNK_HEC_TOKEN: ${{ secrets.SPLUNK_HEC_TOKEN }}
+      SPLUNK_INDEX: ${{ secrets.SPLUNK_INDEX }}
+
     steps:
+      # ------------------------------------------------------------------ #
+      # 1. Checkout repository
+      # ------------------------------------------------------------------ #
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Download Build Artifact
+      # ------------------------------------------------------------------ #
+      # 2. Download build artifacts
+      # ------------------------------------------------------------------ #
+      - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: build-artifact
-          path: ./artifact
+          name: ${{ inputs.artifact_name }}
+          path: ./artifacts
 
-      - name: Log Deploy Start to Splunk
-        env:
-          SPLUNK_HEC_URL: ${{ secrets.SPLUNK_HEC_URL }}
-          SPLUNK_HEC_TOKEN: ${{ secrets.SPLUNK_HEC_TOKEN }}
-          SPLUNK_INDEX: ${{ secrets.SPLUNK_INDEX }}
+      # ------------------------------------------------------------------ #
+      # 3. Deploy header -- summary + audit log
+      # ------------------------------------------------------------------ #
+      - name: Deploy header
         run: |
-          bash scripts/splunk-log.sh "deploy_start" \
-            "{\"app\":\"${{ inputs.app_name }}\",\"version\":\"${{ inputs.version }}\",\"environment\":\"${{ inputs.environment }}\",\"method\":\"${{ inputs.deploy_method }}\",\"run_id\":\"${{ github.run_id }}\"}"
+          mkdir -p .forgeops
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## Deployment Started
+          | Field | Value |
+          |-------|-------|
+          | **Application** | \`${{ inputs.app_name }}\` |
+          | **Version** | \`${{ inputs.version }}\` |
+          | **Environment** | \`${{ inputs.environment }}\` |
+          | **Method** | \`${{ inputs.deploy_method }}\` |
+          | **Actor** | \`${{ github.actor }}\` |
+          | **Timestamp** | \`$(date -u +"%Y-%m-%dT%H:%M:%SZ")\` |
+          EOF
 
-      - name: Transition Jira Issues - Deploying
-        env:
-          JIRA_URL: ${{ secrets.JIRA_URL }}
-          JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
-        run: |
-          COMMIT_RANGE="${{ github.event.before || 'HEAD~1' }}..${{ github.sha }}"
-          python3 scripts/jira-integration.py transition \
-            --url "${JIRA_URL}" \
-            --token "${JIRA_TOKEN}" \
-            --commit-range "${COMMIT_RANGE}" \
-            --status "Deploying to ${{ inputs.environment }}" \
-            --comment "Deployment to ${{ inputs.environment }} started. Version: ${{ inputs.version }} | Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-
-      - name: Create Cherwell Change Request
-        id: cherwell
-        if: inputs.environment == 'stage' || inputs.environment == 'prod'
-        env:
-          CHERWELL_URL: ${{ secrets.CHERWELL_URL }}
-          CHERWELL_CLIENT_ID: ${{ secrets.CHERWELL_CLIENT_ID }}
-          CHERWELL_CLIENT_SECRET: ${{ secrets.CHERWELL_CLIENT_SECRET }}
-        run: |
-          CR_ID=$(python3 scripts/cherwell-integration.py create-cr \
-            --url "${CHERWELL_URL}" \
-            --client-id "${CHERWELL_CLIENT_ID}" \
-            --client-secret "${CHERWELL_CLIENT_SECRET}" \
-            --app "${{ inputs.app_name }}" \
-            --version "${{ inputs.version }}" \
-            --environment "${{ inputs.environment }}" \
-            --approver "${{ github.actor }}")
-          echo "cr_id=${CR_ID}" >> "$GITHUB_OUTPUT"
-          echo "Cherwell CR created: ${CR_ID}"
-
-      # ── Deploy via SSH ──
-      - name: Deploy via SSH
-        if: inputs.deploy_method == 'ssh'
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-        run: |
-          echo "Deploying ${{ inputs.app_name }} v${{ inputs.version }} to ${{ inputs.environment }} via SSH..."
-
-          mkdir -p ~/.ssh
-          echo "${SSH_PRIVATE_KEY}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-
-          DEPLOY_PATH="${{ inputs.ssh_deploy_path }}/${{ inputs.app_name }}"
-
-          # Backup current version
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-            "${SSH_USER}@${{ inputs.ssh_host }}" \
-            "if [ -d ${DEPLOY_PATH} ]; then cp -r ${DEPLOY_PATH} ${DEPLOY_PATH}.rollback; fi"
-
-          # Deploy new version
-          scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-            -r ./artifact/* \
-            "${SSH_USER}@${{ inputs.ssh_host }}:${DEPLOY_PATH}/"
-
-          # Restart service
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-            "${SSH_USER}@${{ inputs.ssh_host }}" \
-            "sudo systemctl restart ${{ inputs.app_name }} || true"
-
-          rm -f ~/.ssh/deploy_key
-
-      # ── Deploy via ArgoCD ──
-      - name: Deploy via ArgoCD
-        if: inputs.deploy_method == 'argocd'
-        env:
-          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
-          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
-        run: |
-          echo "Deploying ${{ inputs.app_name }} v${{ inputs.version }} to ${{ inputs.environment }} via ArgoCD..."
-
-          ARGO_APP="${{ inputs.argocd_app_name || inputs.app_name }}-${{ inputs.environment }}"
-
-          argocd app set "${ARGO_APP}" \
-            --server "${ARGOCD_SERVER}" \
-            --auth-token "${ARGOCD_AUTH_TOKEN}" \
-            --grpc-web \
-            -p image.tag=${{ inputs.version }}
-
-          argocd app sync "${ARGO_APP}" \
-            --server "${ARGOCD_SERVER}" \
-            --auth-token "${ARGOCD_AUTH_TOKEN}" \
-            --grpc-web \
-            --force \
-            --prune
-
-          argocd app wait "${ARGO_APP}" \
-            --server "${ARGOCD_SERVER}" \
-            --auth-token "${ARGOCD_AUTH_TOKEN}" \
-            --grpc-web \
-            --timeout 300
-
-      # ── Deploy via UiPath Orchestrator ──
-      - name: Deploy via UiPath Orchestrator
-        if: inputs.deploy_method == 'uipath-orchestrator'
-        env:
-          UIPATH_ORCHESTRATOR_URL: ${{ secrets.UIPATH_ORCHESTRATOR_URL }}
-          UIPATH_CLIENT_ID: ${{ secrets.UIPATH_CLIENT_ID }}
-          UIPATH_CLIENT_SECRET: ${{ secrets.UIPATH_CLIENT_SECRET }}
-        run: |
-          echo "Deploying ${{ inputs.app_name }} v${{ inputs.version }} to ${{ inputs.environment }} via UiPath Orchestrator..."
-
-          NUPKG_FILE=$(find ./artifact -name "*.nupkg" | head -1)
-
-          uipcli package deploy "${UIPATH_ORCHESTRATOR_URL}" \
-            "${NUPKG_FILE}" \
-            --organizationUnit "${{ inputs.uipath_folder }}" \
-            --tenant "${{ inputs.uipath_tenant }}" \
-            --accountName "${{ inputs.uipath_org }}" \
-            --applicationId "${UIPATH_CLIENT_ID}" \
-            --applicationSecret "${UIPATH_CLIENT_SECRET}" \
-            --applicationScope "OR.Assets OR.BackgroundTasks OR.Execution OR.Folders OR.Jobs OR.Machines OR.Monitoring OR.Robots OR.Settings OR.Users"
-
-      # ── Health Check ──
-      - name: Health Check
-        id: healthcheck
-        if: inputs.health_url != ''
-        run: |
-          echo "Running health check against ${{ inputs.health_url }}..."
-          HEALTHY=false
-
-          for i in $(seq 1 10); do
-            echo "Attempt ${i}/10..."
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ inputs.health_url }}" --max-time 10 || echo "000")
-
-            if [ "${HTTP_STATUS}" = "200" ]; then
-              echo "Health check PASSED (HTTP ${HTTP_STATUS})"
-              HEALTHY=true
-              break
-            fi
-
-            echo "Health check returned HTTP ${HTTP_STATUS}, retrying in 15s..."
-            sleep 15
-          done
-
-          if [ "${HEALTHY}" = "false" ]; then
-            echo "healthy=false" >> "$GITHUB_OUTPUT"
-            echo "::error::Health check FAILED after 10 attempts"
-            exit 1
-          else
-            echo "healthy=true" >> "$GITHUB_OUTPUT"
+          if [ -x scripts/forgeops-log.sh ]; then
+            bash scripts/forgeops-log.sh \
+              --event "deploy-started" \
+              --app "${{ inputs.app_name }}" \
+              --version "${{ inputs.version }}" \
+              --env "${{ inputs.environment }}" \
+              --method "${{ inputs.deploy_method }}" \
+              --actor "${{ github.actor }}"
           fi
 
-      # ── Auto-Rollback ──
-      - name: Auto-Rollback on Failure
-        if: failure() && inputs.rollback_on_failure && inputs.deploy_method == 'ssh'
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_USER: ${{ secrets.SSH_USER }}
+      # ------------------------------------------------------------------ #
+      # 4. Jira transition
+      # ------------------------------------------------------------------ #
+      - name: Jira transition
         run: |
-          echo "::warning::Deployment failed! Initiating rollback..."
+          if [ -z "${{ secrets.JIRA_URL }}" ] || [ -z "${{ secrets.JIRA_TOKEN }}" ]; then
+            echo "::notice::Jira integration not configured -- skipping transition."
+            cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          > **Jira**: Skipped -- `JIRA_URL` / `JIRA_TOKEN` not set.
+          EOF
+            exit 0
+          fi
 
+          case "${{ inputs.environment }}" in
+            dev)   JIRA_STATUS="In Development" ;;
+            int)   JIRA_STATUS="In Integration" ;;
+            qa)    JIRA_STATUS="In QA" ;;
+            stage) JIRA_STATUS="In Staging" ;;
+            prod)  JIRA_STATUS="Done" ;;
+            *)     JIRA_STATUS="In Progress" ;;
+          esac
+
+          python3 scripts/jira-integration.py transition \
+            --url "${{ secrets.JIRA_URL }}" \
+            --token "${{ secrets.JIRA_TOKEN }}" \
+            --app "${{ inputs.app_name }}" \
+            --version "${{ inputs.version }}" \
+            --status "$JIRA_STATUS"
+
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          > **Jira**: Transitioned to **${JIRA_STATUS}**
+          EOF
+
+      # ------------------------------------------------------------------ #
+      # 5. ITSM Change Request (stage / prod only)
+      # ------------------------------------------------------------------ #
+      - name: ITSM Change Request
+        if: inputs.environment == 'stage' || inputs.environment == 'prod'
+        id: itsm
+        run: |
+          if [ -z "${{ secrets.CHERWELL_URL }}" ] && [ -z "${{ secrets.SERVICENOW_URL }}" ]; then
+            echo "::notice::No ITSM provider configured -- skipping CR creation."
+            cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          > **ITSM**: Skipped -- neither Cherwell nor ServiceNow configured.
+          EOF
+            exit 0
+          fi
+
+          CR_ID=""
+          if [ -n "${{ secrets.CHERWELL_URL }}" ]; then
+            CR_ID=$(python3 scripts/cherwell-integration.py create-cr \
+              --url "${{ secrets.CHERWELL_URL }}" \
+              --client-id "${{ secrets.CHERWELL_CLIENT_ID }}" \
+              --client-secret "${{ secrets.CHERWELL_CLIENT_SECRET }}" \
+              --app "${{ inputs.app_name }}" \
+              --version "${{ inputs.version }}" \
+              --env "${{ inputs.environment }}")
+          fi
+
+          echo "cr_id=${CR_ID}" >> "$GITHUB_OUTPUT"
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          > **ITSM CR**: \`${CR_ID}\`
+          EOF
+
+      # ------------------------------------------------------------------ #
+      # 6. Deploy -- SSH
+      # ------------------------------------------------------------------ #
+      - name: Deploy via SSH
+        if: inputs.deploy_method == 'ssh'
+        id: deploy_ssh
+        run: |
+          # Resolve host: explicit input > environment-specific secret
+          DEPLOY_HOST="${{ inputs.deploy_host }}"
+          if [ -z "$DEPLOY_HOST" ]; then
+            case "${{ inputs.environment }}" in
+              dev)   DEPLOY_HOST="${{ secrets.DEV_DEPLOY_HOST }}" ;;
+              int)   DEPLOY_HOST="${{ secrets.INT_DEPLOY_HOST }}" ;;
+              qa)    DEPLOY_HOST="${{ secrets.QA_DEPLOY_HOST }}" ;;
+              stage) DEPLOY_HOST="${{ secrets.STAGE_DEPLOY_HOST }}" ;;
+              prod)  DEPLOY_HOST="${{ secrets.PROD_DEPLOY_HOST }}" ;;
+            esac
+          fi
+
+          SSH_KEY="${{ secrets.DEPLOY_SSH_KEY }}"
+          SSH_USER="${{ secrets.DEPLOY_SSH_USER }}"
+
+          if [ -z "$SSH_KEY" ] || [ -z "$DEPLOY_HOST" ]; then
+            cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          > **SSH Deploy**: :next_track_button: SSH deploy not configured -- dry run
+          >
+          > Artifacts that would have been deployed:
+          EOF
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            ls -lhR ./artifacts >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # Write SSH key
           mkdir -p ~/.ssh
-          echo "${SSH_PRIVATE_KEY}" > ~/.ssh/deploy_key
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
+          SSH_OPTS="-o StrictHostKeyChecking=no -i ~/.ssh/deploy_key"
 
-          DEPLOY_PATH="${{ inputs.ssh_deploy_path }}/${{ inputs.app_name }}"
+          REMOTE="${SSH_USER}@${DEPLOY_HOST}"
+          APP_DIR="${{ inputs.deploy_path }}/${{ inputs.app_name }}"
 
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-            "${SSH_USER}@${{ inputs.ssh_host }}" \
-            "if [ -d ${DEPLOY_PATH}.rollback ]; then rm -rf ${DEPLOY_PATH} && mv ${DEPLOY_PATH}.rollback ${DEPLOY_PATH} && sudo systemctl restart ${{ inputs.app_name }}; fi"
+          # Backup current release
+          ssh $SSH_OPTS "$REMOTE" \
+            "if [ -d ${APP_DIR}/current ]; then cp -a ${APP_DIR}/current ${APP_DIR}/previous; fi"
 
-          rm -f ~/.ssh/deploy_key
-          echo "Rollback completed"
+          # Upload artifacts
+          scp $SSH_OPTS -r ./artifacts/* "$REMOTE:${APP_DIR}/current/"
 
-      - name: Auto-Rollback ArgoCD
-        if: failure() && inputs.rollback_on_failure && inputs.deploy_method == 'argocd'
-        env:
-          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
-          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+          # Restart service
+          ssh $SSH_OPTS "$REMOTE" \
+            "if [ -x ${APP_DIR}/current/restart.sh ]; then ${APP_DIR}/current/restart.sh; elif systemctl is-active --quiet ${{ inputs.app_name }}; then sudo systemctl restart ${{ inputs.app_name }}; fi"
+
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          > **SSH Deploy**: Deployed to \`${DEPLOY_HOST}:${APP_DIR}/current\`
+          EOF
+
+      # ------------------------------------------------------------------ #
+      # 7. Deploy -- ArgoCD
+      # ------------------------------------------------------------------ #
+      - name: Deploy via ArgoCD
+        if: inputs.deploy_method == 'argocd'
+        id: deploy_argocd
         run: |
-          echo "::warning::Deployment failed! Rolling back ArgoCD app..."
-          ARGO_APP="${{ inputs.argocd_app_name || inputs.app_name }}-${{ inputs.environment }}"
+          if [ -z "${{ secrets.ARGOCD_SERVER }}" ]; then
+            echo "::notice::ArgoCD not configured -- skipping."
+            cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          > **ArgoCD Deploy**: Skipped -- `ARGOCD_SERVER` not set.
+          EOF
+            exit 0
+          fi
 
-          argocd app rollback "${ARGO_APP}" \
-            --server "${ARGOCD_SERVER}" \
-            --auth-token "${ARGOCD_AUTH_TOKEN}" \
+          export ARGOCD_SERVER="${{ secrets.ARGOCD_SERVER }}"
+          export ARGOCD_AUTH_TOKEN="${{ secrets.ARGOCD_AUTH_TOKEN }}"
+
+          ARGO_APP="${{ inputs.app_name }}-${{ inputs.environment }}"
+
+          argocd app set "$ARGO_APP" \
+            --parameter image.tag="${{ inputs.version }}" \
             --grpc-web
 
-      # ── Post-Deploy ──
-      - name: Transition Jira Issues - Done
-        if: success()
-        env:
-          JIRA_URL: ${{ secrets.JIRA_URL }}
-          JIRA_TOKEN: ${{ secrets.JIRA_TOKEN }}
-        run: |
-          COMMIT_RANGE="${{ github.event.before || 'HEAD~1' }}..${{ github.sha }}"
-          python3 scripts/jira-integration.py transition \
-            --url "${JIRA_URL}" \
-            --token "${JIRA_TOKEN}" \
-            --commit-range "${COMMIT_RANGE}" \
-            --status "Deployed to ${{ inputs.environment }}" \
-            --comment "Successfully deployed to ${{ inputs.environment }}. Version: ${{ inputs.version }}"
+          argocd app sync "$ARGO_APP" --grpc-web
+          argocd app wait "$ARGO_APP" --timeout 300 --grpc-web
 
-      - name: Update Cherwell CR
-        if: always() && (inputs.environment == 'stage' || inputs.environment == 'prod') && steps.cherwell.outputs.cr_id != ''
-        env:
-          CHERWELL_URL: ${{ secrets.CHERWELL_URL }}
-          CHERWELL_CLIENT_ID: ${{ secrets.CHERWELL_CLIENT_ID }}
-          CHERWELL_CLIENT_SECRET: ${{ secrets.CHERWELL_CLIENT_SECRET }}
-        run: |
-          STATUS=${{ job.status == 'success' && '"Implemented"' || '"Failed"' }}
-          python3 scripts/cherwell-integration.py update-cr \
-            --url "${CHERWELL_URL}" \
-            --client-id "${CHERWELL_CLIENT_ID}" \
-            --client-secret "${CHERWELL_CLIENT_SECRET}" \
-            --cr-id "${{ steps.cherwell.outputs.cr_id }}" \
-            --status "${STATUS}"
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          > **ArgoCD Deploy**: Synced \`${ARGO_APP}\` to version \`${{ inputs.version }}\`
+          EOF
 
-      - name: Log Deploy End to Splunk
-        if: always()
-        env:
-          SPLUNK_HEC_URL: ${{ secrets.SPLUNK_HEC_URL }}
-          SPLUNK_HEC_TOKEN: ${{ secrets.SPLUNK_HEC_TOKEN }}
-          SPLUNK_INDEX: ${{ secrets.SPLUNK_INDEX }}
+      # ------------------------------------------------------------------ #
+      # 8. Deploy -- UiPath Orchestrator
+      # ------------------------------------------------------------------ #
+      - name: Deploy via UiPath Orchestrator
+        if: inputs.deploy_method == 'uipath-orchestrator'
+        id: deploy_uipath
         run: |
-          bash scripts/splunk-log.sh "deploy_end" \
-            "{\"app\":\"${{ inputs.app_name }}\",\"version\":\"${{ inputs.version }}\",\"environment\":\"${{ inputs.environment }}\",\"status\":\"${{ job.status }}\",\"run_id\":\"${{ github.run_id }}\"}"
+          if [ -z "${{ secrets.UIPATH_ORCH_URL }}" ]; then
+            echo "::notice::UiPath Orchestrator not configured -- skipping."
+            cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          > **UiPath Deploy**: Skipped -- `UIPATH_ORCH_URL` not set.
+          EOF
+            exit 0
+          fi
 
-      - name: Slack Notification
-        if: always()
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          PACKAGE_FILE=$(find ./artifacts -name "*.nupkg" | head -1)
+          if [ -z "$PACKAGE_FILE" ]; then
+            echo "::error::No .nupkg package found in artifacts"
+            exit 1
+          fi
+
+          uipcli package deploy \
+            "${{ secrets.UIPATH_ORCH_URL }}" \
+            "${{ secrets.UIPATH_TENANT }}" \
+            --clientId "${{ secrets.UIPATH_CLIENT_ID }}" \
+            --clientSecret "${{ secrets.UIPATH_CLIENT_SECRET }}" \
+            --organizationUnit "${{ secrets.UIPATH_FOLDER }}" \
+            --packages "$PACKAGE_FILE" \
+            --environments "${{ inputs.environment }}"
+
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          > **UiPath Deploy**: Published \`$(basename "$PACKAGE_FILE")\` to \`${{ inputs.environment }}\`
+          EOF
+
+      # ------------------------------------------------------------------ #
+      # 9. Health check
+      # ------------------------------------------------------------------ #
+      - name: Health check
+        if: inputs.health_url != ''
+        id: healthcheck
         run: |
-          if [ -z "${SLACK_WEBHOOK_URL}" ]; then
-            echo "Slack webhook not configured, skipping notification"
+          URL="${{ inputs.health_url }}"
+          MAX_ATTEMPTS=10
+          if [ "${{ inputs.environment }}" = "prod" ]; then
+            MAX_ATTEMPTS=15
+          fi
+
+          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          ### Health Check Results
+          | Attempt | Status | Response Code | Timestamp |
+          |---------|--------|---------------|-----------|
+          EOF
+
+          CONSECUTIVE_FAILURES=0
+          HEALTHY=false
+
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$URL" 2>/dev/null || echo "000")
+            TIMESTAMP=$(date -u +"%H:%M:%S")
+
+            if [ "$HTTP_CODE" -ge 200 ] 2>/dev/null && [ "$HTTP_CODE" -lt 400 ] 2>/dev/null; then
+              STATUS="Healthy"
+              CONSECUTIVE_FAILURES=0
+              HEALTHY=true
+              echo "| $i | :white_check_mark: $STATUS | $HTTP_CODE | $TIMESTAMP |" >> "$GITHUB_STEP_SUMMARY"
+              echo "Health check passed on attempt $i"
+              break
+            else
+              STATUS="Unhealthy"
+              CONSECUTIVE_FAILURES=$((CONSECUTIVE_FAILURES + 1))
+              echo "| $i | :x: $STATUS | $HTTP_CODE | $TIMESTAMP |" >> "$GITHUB_STEP_SUMMARY"
+              echo "::warning::Health check attempt $i failed (HTTP $HTTP_CODE)"
+
+              if [ "$CONSECUTIVE_FAILURES" -ge 3 ]; then
+                echo "::error::3 consecutive health check failures -- triggering rollback."
+                echo "rollback=true" >> "$GITHUB_OUTPUT"
+                exit 1
+              fi
+            fi
+
+            if [ "$i" -lt "$MAX_ATTEMPTS" ]; then
+              sleep 15
+            fi
+          done
+
+          if [ "$HEALTHY" != "true" ]; then
+            echo "::error::Health check did not pass within $MAX_ATTEMPTS attempts."
+            echo "rollback=true" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+      # ------------------------------------------------------------------ #
+      # 10. Rollback on failure
+      # ------------------------------------------------------------------ #
+      - name: Rollback on failure
+        if: failure() && inputs.rollback_on_failure
+        run: |
+          echo "::warning::Deployment failed -- initiating rollback."
+          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          ### :rotating_light: Rollback Initiated
+          EOF
+
+          if [ "${{ inputs.deploy_method }}" = "ssh" ]; then
+            DEPLOY_HOST="${{ inputs.deploy_host }}"
+            if [ -z "$DEPLOY_HOST" ]; then
+              case "${{ inputs.environment }}" in
+                dev)   DEPLOY_HOST="${{ secrets.DEV_DEPLOY_HOST }}" ;;
+                int)   DEPLOY_HOST="${{ secrets.INT_DEPLOY_HOST }}" ;;
+                qa)    DEPLOY_HOST="${{ secrets.QA_DEPLOY_HOST }}" ;;
+                stage) DEPLOY_HOST="${{ secrets.STAGE_DEPLOY_HOST }}" ;;
+                prod)  DEPLOY_HOST="${{ secrets.PROD_DEPLOY_HOST }}" ;;
+              esac
+            fi
+
+            SSH_KEY="${{ secrets.DEPLOY_SSH_KEY }}"
+            SSH_USER="${{ secrets.DEPLOY_SSH_USER }}"
+
+            if [ -n "$SSH_KEY" ] && [ -n "$DEPLOY_HOST" ]; then
+              mkdir -p ~/.ssh
+              echo "$SSH_KEY" > ~/.ssh/deploy_key
+              chmod 600 ~/.ssh/deploy_key
+              SSH_OPTS="-o StrictHostKeyChecking=no -i ~/.ssh/deploy_key"
+              REMOTE="${SSH_USER}@${DEPLOY_HOST}"
+              APP_DIR="${{ inputs.deploy_path }}/${{ inputs.app_name }}"
+
+              ssh $SSH_OPTS "$REMOTE" \
+                "if [ -d ${APP_DIR}/previous ]; then rm -rf ${APP_DIR}/current && mv ${APP_DIR}/previous ${APP_DIR}/current; fi"
+              ssh $SSH_OPTS "$REMOTE" \
+                "if [ -x ${APP_DIR}/current/restart.sh ]; then ${APP_DIR}/current/restart.sh; elif systemctl is-active --quiet ${{ inputs.app_name }}; then sudo systemctl restart ${{ inputs.app_name }}; fi"
+
+              cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          > **Rollback**: Restored previous SSH release.
+          EOF
+            fi
+
+          elif [ "${{ inputs.deploy_method }}" = "argocd" ]; then
+            if [ -n "${{ secrets.ARGOCD_SERVER }}" ]; then
+              export ARGOCD_SERVER="${{ secrets.ARGOCD_SERVER }}"
+              export ARGOCD_AUTH_TOKEN="${{ secrets.ARGOCD_AUTH_TOKEN }}"
+              ARGO_APP="${{ inputs.app_name }}-${{ inputs.environment }}"
+
+              argocd app rollback "$ARGO_APP" --grpc-web
+
+              cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          > **Rollback**: ArgoCD rollback completed.
+          EOF
+            fi
+          fi
+
+          if [ -x scripts/forgeops-log.sh ]; then
+            bash scripts/forgeops-log.sh \
+              --event "deploy-rollback" \
+              --app "${{ inputs.app_name }}" \
+              --version "${{ inputs.version }}" \
+              --env "${{ inputs.environment }}" \
+              --actor "${{ github.actor }}"
+          fi
+
+      # ------------------------------------------------------------------ #
+      # 11. Jira fix version (prod success only)
+      # ------------------------------------------------------------------ #
+      - name: Jira fix version
+        if: success() && inputs.environment == 'prod'
+        run: |
+          if [ -z "${{ secrets.JIRA_URL }}" ] || [ -z "${{ secrets.JIRA_TOKEN }}" ]; then
+            echo "::notice::Jira not configured -- skipping fix version."
+            exit 0
+          fi
+
+          python3 scripts/jira-integration.py fix-version \
+            --url "${{ secrets.JIRA_URL }}" \
+            --token "${{ secrets.JIRA_TOKEN }}" \
+            --app "${{ inputs.app_name }}" \
+            --version "${{ inputs.version }}"
+
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          > **Jira**: Fix version \`${{ inputs.version }}\` applied.
+          EOF
+
+      # ------------------------------------------------------------------ #
+      # 12. Update ITSM CR (stage / prod)
+      # ------------------------------------------------------------------ #
+      - name: Update ITSM Change Request
+        if: always() && (inputs.environment == 'stage' || inputs.environment == 'prod')
+        run: |
+          CR_ID="${{ steps.itsm.outputs.cr_id }}"
+          if [ -z "$CR_ID" ]; then
+            echo "::notice::No CR ID found -- skipping ITSM update."
             exit 0
           fi
 
           if [ "${{ job.status }}" = "success" ]; then
-            COLOR="#36a64f"
-            EMOJI=":white_check_mark:"
-            TEXT="Deployment succeeded"
+            CR_STATUS="Implemented"
           else
-            COLOR="#ff0000"
-            EMOJI=":x:"
-            TEXT="Deployment failed"
+            CR_STATUS="Failed"
           fi
 
-          curl -s -X POST "${SLACK_WEBHOOK_URL}" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"attachments\": [{
-                \"color\": \"${COLOR}\",
-                \"blocks\": [{
-                  \"type\": \"section\",
-                  \"text\": {
-                    \"type\": \"mrkdwn\",
-                    \"text\": \"${EMOJI} *${TEXT}*\n*App:* ${{ inputs.app_name }}\n*Version:* ${{ inputs.version }}\n*Environment:* ${{ inputs.environment }}\n*Method:* ${{ inputs.deploy_method }}\n*Run:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View>\"
+          if [ -n "${{ secrets.CHERWELL_URL }}" ]; then
+            python3 scripts/cherwell-integration.py update-cr \
+              --url "${{ secrets.CHERWELL_URL }}" \
+              --client-id "${{ secrets.CHERWELL_CLIENT_ID }}" \
+              --client-secret "${{ secrets.CHERWELL_CLIENT_SECRET }}" \
+              --cr-id "$CR_ID" \
+              --status "$CR_STATUS"
+          fi
+
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          > **ITSM CR** \`${CR_ID}\`: updated to **${CR_STATUS}**
+          EOF
+
+      # ------------------------------------------------------------------ #
+      # 13. Deploy summary
+      # ------------------------------------------------------------------ #
+      - name: Deploy summary
+        if: always()
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ---
+          ### Deployment Summary
+          | Field | Value |
+          |-------|-------|
+          | **Application** | \`${{ inputs.app_name }}\` |
+          | **Version** | \`${{ inputs.version }}\` |
+          | **Environment** | \`${{ inputs.environment }}\` |
+          | **Method** | \`${{ inputs.deploy_method }}\` |
+          | **Status** | \`${{ job.status }}\` |
+          | **Actor** | \`${{ github.actor }}\` |
+          | **Run** | [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
+          | **Completed** | \`$(date -u +"%Y-%m-%dT%H:%M:%SZ")\` |
+          EOF
+
+      # ------------------------------------------------------------------ #
+      # 14. Slack notification
+      # ------------------------------------------------------------------ #
+      - name: Slack notification
+        if: always()
+        run: |
+          if [ -z "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            echo "::notice::Slack webhook not configured -- skipping notification."
+            exit 0
+          fi
+
+          if [ "${{ job.status }}" = "success" ]; then
+            COLOR="good"
+            EMOJI=":white_check_mark:"
+            STATUS_TEXT="succeeded"
+          elif [ "${{ job.status }}" = "cancelled" ]; then
+            COLOR="warning"
+            EMOJI=":warning:"
+            STATUS_TEXT="cancelled"
+          else
+            COLOR="danger"
+            EMOJI=":x:"
+            STATUS_TEXT="failed"
+          fi
+
+          PAYLOAD=$(cat <<EOJSON
+          {
+            "attachments": [
+              {
+                "color": "${COLOR}",
+                "blocks": [
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "${EMOJI} *Deployment ${STATUS_TEXT}*\n*App:* \`${{ inputs.app_name }}\`  |  *Version:* \`${{ inputs.version }}\`  |  *Env:* \`${{ inputs.environment }}\`\n*Actor:* ${{ github.actor }}  |  *Method:* ${{ inputs.deploy_method }}\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run #${{ github.run_number }}>"
+                    }
                   }
-                }]
-              }]
-            }"
+                ]
+              }
+            ]
+          }
+          EOJSON
+          )
+
+          curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            "${{ secrets.SLACK_WEBHOOK_URL }}"
+
+      # ------------------------------------------------------------------ #
+      # 15. Upload audit trail
+      # ------------------------------------------------------------------ #
+      - name: Upload audit trail
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: forgeops-audit-${{ inputs.app_name }}-${{ inputs.environment }}-${{ github.run_number }}
+          path: .forgeops/
+          if-no-files-found: ignore
+          retention-days: 90

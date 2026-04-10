@@ -1,23 +1,41 @@
 #!/usr/bin/env python3
 """
-cherwell-integration.py — Cherwell ITSM integration for ForgeOps pipelines.
+cherwell-integration.py — ITSM integration for ForgeOps pipelines.
+
+Auto-detects:
+  CHERWELL_URL → Cherwell (OAuth2 client_credentials)
+  SERVICENOW_URL → ServiceNow (Basic auth)
+  Neither → gracefully skip
 
 Subcommands:
   create-cr  Create a Change Request
   update-cr  Update a Change Request status
 
-Uses OAuth2 client_credentials flow. Uses only urllib (no pip dependencies).
+Uses only urllib (no pip dependencies).
 """
 
 import argparse
+import base64
 import json
+import os
 import sys
 import urllib.request
 import urllib.error
 import urllib.parse
 
 
-def get_oauth_token(url, client_id, client_secret):
+def detect_itsm():
+    """Detect which ITSM is configured."""
+    if os.environ.get("CHERWELL_URL"):
+        return "cherwell"
+    elif os.environ.get("SERVICENOW_URL"):
+        return "servicenow"
+    return None
+
+
+# ── Cherwell ──
+
+def cherwell_get_token(url, client_id, client_secret):
     """Obtain an OAuth2 access token using client_credentials grant."""
     token_url = f"{url.rstrip('/')}/CherwellAPI/token"
     data = urllib.parse.urlencode({
@@ -27,36 +45,27 @@ def get_oauth_token(url, client_id, client_secret):
     }).encode("utf-8")
 
     req = urllib.request.Request(
-        token_url,
-        data=data,
+        token_url, data=data,
         headers={"Content-Type": "application/x-www-form-urlencoded"},
         method="POST",
     )
-
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
-            result = json.loads(resp.read().decode("utf-8"))
-            return result["access_token"]
-    except urllib.error.HTTPError as e:
-        error_body = e.read().decode("utf-8", errors="replace")
-        print(f"Cherwell OAuth error ({e.code}): {error_body}", file=sys.stderr)
-        sys.exit(1)
-    except (KeyError, json.JSONDecodeError) as e:
-        print(f"Cherwell OAuth response error: {e}", file=sys.stderr)
-        sys.exit(1)
+            return json.loads(resp.read().decode("utf-8"))["access_token"]
+    except Exception as e:
+        print(f"Cherwell OAuth error: {e}", file=sys.stderr)
+        return None
 
 
-def cherwell_request(url, access_token, path, method="GET", data=None):
-    """Make an authenticated request to the Cherwell REST API."""
+def cherwell_request(url, token, path, method="GET", data=None):
+    """Make an authenticated Cherwell API request."""
     full_url = f"{url.rstrip('/')}/CherwellAPI/api/V1/{path.lstrip('/')}"
     headers = {
-        "Authorization": f"Bearer {access_token}",
+        "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
-        "Accept": "application/json",
     }
     body = json.dumps(data).encode("utf-8") if data else None
     req = urllib.request.Request(full_url, data=body, headers=headers, method=method)
-
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             if resp.status == 204:
@@ -65,32 +74,7 @@ def cherwell_request(url, access_token, path, method="GET", data=None):
     except urllib.error.HTTPError as e:
         error_body = e.read().decode("utf-8", errors="replace")
         print(f"Cherwell API error ({e.code}): {error_body}", file=sys.stderr)
-        sys.exit(1)
-
-
-def get_business_object_summary(url, access_token, bus_ob_name):
-    """Get the business object summary by name."""
-    result = cherwell_request(
-        url, access_token,
-        f"getbusinessobjectsummary/busobname/{bus_ob_name}",
-    )
-    if isinstance(result, list) and len(result) > 0:
-        return result[0]
-    return result
-
-
-def get_template(url, access_token, bus_ob_id):
-    """Get a business object template."""
-    data = {
-        "busObId": bus_ob_id,
-        "includeRequired": True,
-        "includeAll": True,
-    }
-    return cherwell_request(
-        url, access_token,
-        "getbusinessobjecttemplate",
-        method="POST", data=data,
-    )
+        return None
 
 
 def set_field_value(fields, field_name, value):
@@ -104,111 +88,191 @@ def set_field_value(fields, field_name, value):
     return False
 
 
+# ── ServiceNow ──
+
+def servicenow_request(url, user, password, path, method="GET", data=None):
+    """Make an authenticated ServiceNow API request."""
+    full_url = f"{url.rstrip('/')}/api/now/{path.lstrip('/')}"
+    auth = base64.b64encode(f"{user}:{password}".encode()).decode()
+    headers = {
+        "Authorization": f"Basic {auth}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    body = json.dumps(data).encode("utf-8") if data else None
+    req = urllib.request.Request(full_url, data=body, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8", errors="replace")
+        print(f"ServiceNow API error ({e.code}): {error_body}", file=sys.stderr)
+        return None
+
+
 # ── Subcommand: create-cr ──
 
 def cmd_create_cr(args):
-    """Create a Cherwell Change Request."""
-    access_token = get_oauth_token(args.url, args.client_id, args.client_secret)
+    """Create a Change Request in Cherwell or ServiceNow."""
+    itsm = detect_itsm()
 
-    # Get the ChangeRequest business object
-    summary = get_business_object_summary(args.url, access_token, "ChangeRequest")
-    bus_ob_id = summary["busObId"]
+    if not itsm and (not args.url or args.url == ""):
+        print("⏭️ ITSM not configured — skipping CR creation")
+        sys.exit(0)
 
-    # Get template
-    template = get_template(args.url, access_token, bus_ob_id)
-    fields = template.get("fields", [])
+    url = args.url or os.environ.get("CHERWELL_URL") or os.environ.get("SERVICENOW_URL", "")
 
-    # Populate fields
-    set_field_value(fields, "Summary",
-                    f"Deploy {args.app} v{args.version} to {args.environment}")
-    set_field_value(fields, "Description",
-                    f"Automated deployment of {args.app} version {args.version} "
-                    f"to {args.environment} environment via ForgeOps pipeline.")
-    set_field_value(fields, "Type", "Normal")
-    set_field_value(fields, "Priority", "3 - Moderate")
-    set_field_value(fields, "Status", "New")
-    set_field_value(fields, "Requested By", args.approver)
-    set_field_value(fields, "Category", "Software Deployment")
+    if not url:
+        print("⏭️ ITSM not configured — skipping CR creation")
+        sys.exit(0)
 
-    # Save the business object
-    save_data = {
-        "busObId": bus_ob_id,
-        "fields": fields,
-        "persist": True,
-    }
-    result = cherwell_request(
-        args.url, access_token,
-        "savebusinessobject",
-        method="POST", data=save_data,
-    )
+    # Detect based on URL or env
+    if itsm == "servicenow" or "servicenow" in url.lower() or "service-now" in url.lower():
+        # ServiceNow
+        user = args.client_id or os.environ.get("SERVICENOW_USER", "")
+        password = args.client_secret or os.environ.get("SERVICENOW_PASSWORD", "")
 
-    cr_id = result.get("busObPublicId", result.get("busObRecId", "UNKNOWN"))
-    print(cr_id)
-    return cr_id
+        cr_data = {
+            "short_description": f"Deploy {args.app} v{args.version} to {args.environment}",
+            "description": f"Automated deployment of {args.app} version {args.version} to {args.environment} via ForgeOps pipeline.",
+            "type": "Normal",
+            "priority": "3",
+            "state": "New",
+            "requested_by": args.approver,
+            "category": "Software",
+        }
+
+        result = servicenow_request(url, user, password, "table/change_request", method="POST", data=cr_data)
+        if result and "result" in result:
+            cr_id = result["result"].get("number", result["result"].get("sys_id", "UNKNOWN"))
+            print(cr_id)
+            return cr_id
+        else:
+            print("ERROR", file=sys.stderr)
+            return "ERROR"
+    else:
+        # Cherwell
+        token = cherwell_get_token(url, args.client_id, args.client_secret)
+        if not token:
+            print("ERROR")
+            return "ERROR"
+
+        summary = cherwell_request(url, token, "getbusinessobjectsummary/busobname/ChangeRequest")
+        if not summary or (isinstance(summary, list) and len(summary) == 0):
+            print("ERROR")
+            return "ERROR"
+
+        bus_ob_id = summary[0]["busObId"] if isinstance(summary, list) else summary.get("busObId", "")
+
+        template = cherwell_request(url, token, "getbusinessobjecttemplate", method="POST", data={
+            "busObId": bus_ob_id,
+            "includeRequired": True,
+            "includeAll": True,
+        })
+
+        if not template:
+            print("ERROR")
+            return "ERROR"
+
+        fields = template.get("fields", [])
+        set_field_value(fields, "Summary", f"Deploy {args.app} v{args.version} to {args.environment}")
+        set_field_value(fields, "Description",
+                        f"Automated deployment of {args.app} version {args.version} "
+                        f"to {args.environment} environment via ForgeOps pipeline.")
+        set_field_value(fields, "Type", "Normal")
+        set_field_value(fields, "Priority", "3 - Moderate")
+        set_field_value(fields, "Status", "New")
+        set_field_value(fields, "Requested By", args.approver)
+
+        result = cherwell_request(url, token, "savebusinessobject", method="POST", data={
+            "busObId": bus_ob_id,
+            "fields": fields,
+            "persist": True,
+        })
+
+        if result:
+            cr_id = result.get("busObPublicId", result.get("busObRecId", "UNKNOWN"))
+            print(cr_id)
+            return cr_id
+        else:
+            print("ERROR")
+            return "ERROR"
 
 
 # ── Subcommand: update-cr ──
 
 def cmd_update_cr(args):
-    """Update a Cherwell Change Request status."""
-    access_token = get_oauth_token(args.url, args.client_id, args.client_secret)
+    """Update a Change Request status."""
+    itsm = detect_itsm()
 
-    # Get the ChangeRequest business object
-    summary = get_business_object_summary(args.url, access_token, "ChangeRequest")
-    bus_ob_id = summary["busObId"]
+    if not itsm and (not args.url or args.url == ""):
+        print("⏭️ ITSM not configured — skipping CR update")
+        sys.exit(0)
 
-    # Get current record
-    result = cherwell_request(
-        args.url, access_token,
-        f"getbusinessobject/busobid/{bus_ob_id}/publicid/{args.cr_id}",
-    )
+    url = args.url or os.environ.get("CHERWELL_URL") or os.environ.get("SERVICENOW_URL", "")
 
-    fields = result.get("fields", [])
-    bus_ob_rec_id = result.get("busObRecId", "")
+    if not url:
+        print("⏭️ ITSM not configured — skipping CR update")
+        sys.exit(0)
 
-    # Update status
-    set_field_value(fields, "Status", args.status)
+    if itsm == "servicenow" or "servicenow" in url.lower():
+        user = args.client_id or os.environ.get("SERVICENOW_USER", "")
+        password = args.client_secret or os.environ.get("SERVICENOW_PASSWORD", "")
 
-    # Save
-    save_data = {
-        "busObId": bus_ob_id,
-        "busObRecId": bus_ob_rec_id,
-        "busObPublicId": args.cr_id,
-        "fields": fields,
-        "persist": True,
-    }
-    cherwell_request(
-        args.url, access_token,
-        "savebusinessobject",
-        method="POST", data=save_data,
-    )
+        # Map status
+        state_map = {"Implemented": "3", "Failed": "4"}
+        state = state_map.get(args.status, "3")
 
-    print(f"Change Request {args.cr_id} updated to status: {args.status}")
+        servicenow_request(url, user, password,
+                           f"table/change_request?sysparm_query=number={args.cr_id}",
+                           method="PATCH", data={"state": state})
+        print(f"Change Request {args.cr_id} updated to status: {args.status}")
+    else:
+        token = cherwell_get_token(url, args.client_id, args.client_secret)
+        if not token:
+            return
+
+        summary = cherwell_request(url, token, "getbusinessobjectsummary/busobname/ChangeRequest")
+        bus_ob_id = summary[0]["busObId"] if isinstance(summary, list) else summary.get("busObId", "")
+
+        result = cherwell_request(url, token, f"getbusinessobject/busobid/{bus_ob_id}/publicid/{args.cr_id}")
+        if not result:
+            return
+
+        fields = result.get("fields", [])
+        set_field_value(fields, "Status", args.status)
+
+        cherwell_request(url, token, "savebusinessobject", method="POST", data={
+            "busObId": bus_ob_id,
+            "busObRecId": result.get("busObRecId", ""),
+            "busObPublicId": args.cr_id,
+            "fields": fields,
+            "persist": True,
+        })
+        print(f"Change Request {args.cr_id} updated to status: {args.status}")
 
 
 # ── CLI ──
 
 def main():
-    parser = argparse.ArgumentParser(description="ForgeOps Cherwell Integration")
+    parser = argparse.ArgumentParser(description="ForgeOps ITSM Integration (Cherwell / ServiceNow)")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # create-cr
     cc = subparsers.add_parser("create-cr", help="Create a Change Request")
-    cc.add_argument("--url", required=True, help="Cherwell base URL")
-    cc.add_argument("--client-id", required=True, help="OAuth2 client ID")
-    cc.add_argument("--client-secret", required=True, help="OAuth2 client secret")
+    cc.add_argument("--url", default="", help="ITSM base URL")
+    cc.add_argument("--client-id", default="", help="OAuth2 client ID or ServiceNow user")
+    cc.add_argument("--client-secret", default="", help="OAuth2 client secret or ServiceNow password")
     cc.add_argument("--app", required=True, help="Application name")
     cc.add_argument("--version", required=True, help="Application version")
     cc.add_argument("--environment", required=True, help="Target environment")
     cc.add_argument("--approver", required=True, help="Approver name")
 
-    # update-cr
     uc = subparsers.add_parser("update-cr", help="Update a Change Request")
-    uc.add_argument("--url", required=True, help="Cherwell base URL")
-    uc.add_argument("--client-id", required=True, help="OAuth2 client ID")
-    uc.add_argument("--client-secret", required=True, help="OAuth2 client secret")
-    uc.add_argument("--cr-id", required=True, help="Change Request public ID")
-    uc.add_argument("--status", required=True, help="New status")
+    uc.add_argument("--url", default="", help="ITSM base URL")
+    uc.add_argument("--client-id", default="", help="OAuth2 client ID or ServiceNow user")
+    uc.add_argument("--client-secret", default="", help="OAuth2 client secret or ServiceNow password")
+    uc.add_argument("--cr-id", required=True, help="Change Request ID")
+    uc.add_argument("--status", required=True, help="New status (Implemented/Failed)")
 
     args = parser.parse_args()
 

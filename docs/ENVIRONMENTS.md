@@ -9,9 +9,9 @@ ForgeOps uses 5 environments in a progressive promotion pipeline. Each environme
 | Environment | Branch Trigger | Auto-Deploy | Approval Required | Jira Status |
 |-------------|---------------|-------------|-------------------|-------------|
 | **DEV** | `develop` | Yes | No | `In Development` |
-| **INT** | `develop` | Yes (after DEV) | No | `Integration Testing` |
-| **QA** | `develop` | Yes (after INT) | No | `QA Testing` |
-| **STAGE** | `release/*` | Yes | No | `Staging` |
+| **INT** | `develop` | Yes (after DEV) | No | `In Integration` |
+| **QA** | `develop` | Yes (after INT) | No | `In QA` |
+| **STAGE** | `release/*` | Yes | No | `In Staging` |
 | **PROD** | `release/*`, `hotfix/*` | No | **Yes** | `Done` |
 
 ## Environment Details
@@ -19,10 +19,11 @@ ForgeOps uses 5 environments in a progressive promotion pipeline. Each environme
 ### DEV (Development)
 - **Purpose**: First deployment target for feature integration
 - **Branch**: `develop`
-- **Trigger**: Automatic on push to `develop`
+- **Trigger**: Automatic on push to `develop` (after security scan)
 - **Protection**: None
 - **URL Pattern**: `https://<app>.dev.internal`
-- **Jira Transition**: → `In Development`
+- **Jira Transition**: In Development
+- **ITSM**: No Change Request
 
 ### INT (Integration)
 - **Purpose**: Integration testing between services
@@ -30,7 +31,8 @@ ForgeOps uses 5 environments in a progressive promotion pipeline. Each environme
 - **Trigger**: Automatic after successful DEV deployment
 - **Protection**: None
 - **URL Pattern**: `https://<app>.int.internal`
-- **Jira Transition**: → `Integration Testing`
+- **Jira Transition**: In Integration
+- **ITSM**: No Change Request
 
 ### QA (Quality Assurance)
 - **Purpose**: Manual and automated QA testing
@@ -38,67 +40,70 @@ ForgeOps uses 5 environments in a progressive promotion pipeline. Each environme
 - **Trigger**: Automatic after successful INT deployment
 - **Protection**: None (QA team notified via Slack)
 - **URL Pattern**: `https://<app>.qa.internal`
-- **Jira Transition**: → `QA Testing`
+- **Jira Transition**: In QA
+- **ITSM**: No Change Request
 
 ### STAGE (Staging)
 - **Purpose**: Pre-production validation, DAST scanning, UAT
 - **Branch**: `release/*`
 - **Trigger**: Automatic on push to `release/*`
-- **Protection**: Cherwell Change Request created automatically
+- **Protection**: Cherwell/ServiceNow Change Request created automatically
 - **URL Pattern**: `https://<app>.stage.internal`
-- **Jira Transition**: → `Staging`
+- **Jira Transition**: In Staging
+- **ITSM**: Change Request created (auto)
 - **Notes**: OWASP ZAP DAST scan runs against this environment
 
 ### PROD (Production)
 - **Purpose**: Live production environment
 - **Branch**: `release/*`, `hotfix/*`
-- **Trigger**: Manual approval required
+- **Trigger**: Manual approval via GitHub Environment Protection Rules
 - **Protection**:
   - GitHub Environment protection rules (required reviewers)
-  - Cherwell Change Request (auto-created, must be approved)
+  - Cherwell/ServiceNow Change Request
   - All security scans must pass
   - DAST scan on staging must pass
 - **URL Pattern**: `https://<app>.internal`
-- **Jira Transition**: → `Done`
+- **Jira Transition**: Done
+- **ITSM**: Change Request updated (Implemented/Failed)
 - **Notes**: Git tag created on successful deployment
 
-## Branch → Environment Mapping
+## Branch to Environment Flow
 
 ```
 feature/* ──► develop ──► DEV ──► INT ──► QA
-                              │
-release/* ──────────────────► STAGE ──► PROD
-                              │
-hotfix/*  ──────────────────────────────► PROD
+                   │
+release/* ──────► STAGE ──► DAST ──► PROD (approval) ──► Git Tag
+                   │
+hotfix/*  ──────────────────────────► PROD (approval) ──► Git Tag
 ```
 
 ## GitHub Environment Setup
 
-Each environment must be created in GitHub repository settings:
+Create these in **Settings > Environments**:
 
-### Required GitHub Environments
-1. `dev` — No protection rules
-2. `int` — No protection rules
-3. `qa` — No protection rules
-4. `stage` — Optional: required reviewers for release approval
-5. `prod` — **Required**: At least 1 required reviewer
-
-### Environment Protection Rules (prod)
-- **Required reviewers**: Add team leads or release managers
-- **Wait timer**: Optional (e.g., 15 minutes for change window)
-- **Deployment branches**: Restrict to `release/*` and `hotfix/*`
+| Environment | Required Reviewers | Wait Timer | Branch Restrictions |
+|-------------|-------------------|------------|---------------------|
+| `dev` | None | None | `develop` |
+| `int` | None | None | `develop` |
+| `qa` | None | None | `develop` |
+| `stage` | Optional | None | `release/*` |
+| `prod` | **Yes** (team leads) | Optional (15 min) | `release/*`, `hotfix/*` |
 
 ## Jira Status Flow
 
 ```
-Open → In Development → Integration Testing → QA Testing → Staging → Done
+Open → In Development → In Integration → In QA → In Staging → Done
 ```
 
-Each pipeline stage automatically transitions linked Jira issues (extracted from commit messages using the pattern `[A-Z]+-\d+`).
+Each pipeline stage automatically transitions linked Jira issues. Issue keys are extracted from commit messages using the regex `[A-Z]+-\d+`.
 
-## Cherwell Change Requests
+## ITSM Change Requests
 
-Change Requests are automatically created for **stage** and **prod** deployments:
-- **Stage**: CR created with status "New"
-- **Prod Success**: CR updated to "Implemented"
-- **Prod Failure**: CR updated to "Failed"
+| Environment | Cherwell/ServiceNow |
+|-------------|-------------------|
+| dev, int, qa | No CR |
+| stage | CR created (status: New) |
+| prod (success) | CR updated (status: Implemented) |
+| prod (failure) | CR updated (status: Failed) |
+
+If neither Cherwell nor ServiceNow is configured, CR creation is skipped gracefully.

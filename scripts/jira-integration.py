@@ -3,11 +3,12 @@
 jira-integration.py — Jira integration for ForgeOps pipelines.
 
 Subcommands:
-  create-ticket  Create a Jira issue
-  transition     Transition issues found in git commit messages
-  set-fix-version  Set fix version on issues found in git commits
+  create-ticket   Create a Jira issue
+  transition      Transition issues found in git commit messages
+  set-fix-version Set fix version on issues found in git commits
 
 Uses only urllib (no pip dependencies).
+Gracefully skips if Jira is not configured (--url empty or missing).
 """
 
 import argparse
@@ -37,7 +38,10 @@ def jira_request(url, token, path, method="GET", data=None):
     except urllib.error.HTTPError as e:
         error_body = e.read().decode("utf-8", errors="replace")
         print(f"Jira API error ({e.code}): {error_body}", file=sys.stderr)
-        sys.exit(1)
+        return None
+    except Exception as e:
+        print(f"Jira connection error: {e}", file=sys.stderr)
+        return None
 
 
 def extract_jira_keys(commit_range):
@@ -48,15 +52,16 @@ def extract_jira_keys(commit_range):
             capture_output=True, text=True, check=True,
         )
     except subprocess.CalledProcessError:
-        # Fallback: try last commit only
-        result = subprocess.run(
-            ["git", "log", "-1", "--pretty=format:%s %b"],
-            capture_output=True, text=True, check=True,
-        )
+        try:
+            result = subprocess.run(
+                ["git", "log", "-1", "--pretty=format:%s %b"],
+                capture_output=True, text=True, check=True,
+            )
+        except subprocess.CalledProcessError:
+            return []
 
     messages = result.stdout
     keys = re.findall(r"[A-Z]+-\d+", messages)
-    # Deduplicate while preserving order
     seen = set()
     unique = []
     for k in keys:
@@ -70,6 +75,10 @@ def extract_jira_keys(commit_range):
 
 def cmd_create_ticket(args):
     """Create a new Jira issue."""
+    if not args.url or not args.token:
+        print("⏭️ Jira not configured — skipping ticket creation")
+        return
+
     fields = {
         "project": {"key": args.project},
         "issuetype": {"name": args.type},
@@ -81,17 +90,23 @@ def cmd_create_ticket(args):
     if args.labels:
         fields["labels"] = [l.strip() for l in args.labels.split(",")]
 
-    data = {"fields": fields}
-    result = jira_request(args.url, args.token, "issue", method="POST", data=data)
-    issue_key = result.get("key", "UNKNOWN")
-    print(f"Created Jira ticket: {issue_key}")
-    return issue_key
+    result = jira_request(args.url, args.token, "issue", method="POST", data={"fields": fields})
+    if result:
+        issue_key = result.get("key", "UNKNOWN")
+        print(f"Created Jira ticket: {issue_key}")
+        return issue_key
+    else:
+        print("Failed to create Jira ticket", file=sys.stderr)
 
 
 # ── Subcommand: transition ──
 
 def cmd_transition(args):
     """Transition Jira issues found in git commit messages."""
+    if not args.url or not args.token:
+        print("⏭️ Jira not configured — skipping transitions")
+        return
+
     keys = extract_jira_keys(args.commit_range)
 
     if not keys:
@@ -101,11 +116,13 @@ def cmd_transition(args):
     print(f"Found Jira keys: {', '.join(keys)}")
 
     for key in keys:
-        # Get available transitions
         transitions = jira_request(args.url, args.token, f"issue/{key}/transitions")
+        if not transitions:
+            print(f"  {key}: could not fetch transitions")
+            continue
+
         available = transitions.get("transitions", [])
 
-        # Find matching transition
         target = None
         for t in available:
             if t["name"].lower() == args.status.lower():
@@ -124,13 +141,11 @@ def cmd_transition(args):
             available_names = [t["name"] for t in available]
             print(f"  {key}: transition '{args.status}' not available (available: {available_names})")
 
-        # Add comment if provided
         if args.comment:
-            comment_data = {"body": args.comment}
             jira_request(
                 args.url, args.token,
                 f"issue/{key}/comment",
-                method="POST", data=comment_data,
+                method="POST", data={"body": args.comment},
             )
             print(f"  {key}: comment added")
 
@@ -139,6 +154,10 @@ def cmd_transition(args):
 
 def cmd_set_fix_version(args):
     """Set fix version on Jira issues found in git commits."""
+    if not args.url or not args.token:
+        print("⏭️ Jira not configured — skipping fix version")
+        return
+
     keys = extract_jira_keys(args.commit_range)
 
     if not keys:
@@ -147,16 +166,7 @@ def cmd_set_fix_version(args):
 
     print(f"Setting fix version '{args.version}' on: {', '.join(keys)}")
 
-    # Ensure version exists (create if not)
-    # Extract project key from first issue
     project_key = keys[0].split("-")[0]
-    try:
-        jira_request(
-            args.url, args.token,
-            f"project/{project_key}/versions",
-        )
-    except SystemExit:
-        pass
 
     # Try to create the version (ignore if exists)
     version_data = {
@@ -164,31 +174,22 @@ def cmd_set_fix_version(args):
         "project": project_key,
         "released": False,
     }
-    try:
-        jira_request(
-            args.url, args.token,
-            "version",
-            method="POST", data=version_data,
-        )
-        print(f"  Created version '{args.version}'")
-    except SystemExit:
-        print(f"  Version '{args.version}' already exists or could not be created")
+    jira_request(args.url, args.token, "version", method="POST", data=version_data)
 
-    # Update each issue
     for key in keys:
         update_data = {
             "update": {
                 "fixVersions": [{"add": {"name": args.version}}]
             }
         }
-        try:
-            jira_request(
-                args.url, args.token,
-                f"issue/{key}",
-                method="PUT", data=update_data,
-            )
+        result = jira_request(
+            args.url, args.token,
+            f"issue/{key}",
+            method="PUT", data=update_data,
+        )
+        if result is not None:
             print(f"  {key}: fix version set to '{args.version}'")
-        except SystemExit:
+        else:
             print(f"  {key}: failed to set fix version")
 
 
@@ -200,27 +201,27 @@ def main():
 
     # create-ticket
     ct = subparsers.add_parser("create-ticket", help="Create a Jira ticket")
-    ct.add_argument("--url", required=True, help="Jira base URL")
-    ct.add_argument("--token", required=True, help="Jira API token")
-    ct.add_argument("--project", required=True, help="Jira project key")
-    ct.add_argument("--type", required=True, help="Issue type (Bug, Task, Story)")
-    ct.add_argument("--summary", required=True, help="Issue summary")
-    ct.add_argument("--description", required=True, help="Issue description")
-    ct.add_argument("--priority", default="Medium", help="Priority (Critical, High, Medium, Low)")
+    ct.add_argument("--url", default="", help="Jira base URL")
+    ct.add_argument("--token", default="", help="Jira API token")
+    ct.add_argument("--project", default="", help="Jira project key")
+    ct.add_argument("--type", default="Bug", help="Issue type (Bug, Task, Story)")
+    ct.add_argument("--summary", default="", help="Issue summary")
+    ct.add_argument("--description", default="", help="Issue description")
+    ct.add_argument("--priority", default="Medium", help="Priority")
     ct.add_argument("--labels", default="", help="Comma-separated labels")
 
     # transition
     tr = subparsers.add_parser("transition", help="Transition issues from git commits")
-    tr.add_argument("--url", required=True, help="Jira base URL")
-    tr.add_argument("--token", required=True, help="Jira API token")
-    tr.add_argument("--commit-range", required=True, help="Git commit range (e.g. HEAD~5..HEAD)")
+    tr.add_argument("--url", default="", help="Jira base URL")
+    tr.add_argument("--token", default="", help="Jira API token")
+    tr.add_argument("--commit-range", required=True, help="Git commit range")
     tr.add_argument("--status", required=True, help="Target transition name")
-    tr.add_argument("--comment", default="", help="Comment to add to each issue")
+    tr.add_argument("--comment", default="", help="Comment to add")
 
     # set-fix-version
-    fv = subparsers.add_parser("set-fix-version", help="Set fix version on issues from git commits")
-    fv.add_argument("--url", required=True, help="Jira base URL")
-    fv.add_argument("--token", required=True, help="Jira API token")
+    fv = subparsers.add_parser("set-fix-version", help="Set fix version on issues")
+    fv.add_argument("--url", default="", help="Jira base URL")
+    fv.add_argument("--token", default="", help="Jira API token")
     fv.add_argument("--commit-range", required=True, help="Git commit range")
     fv.add_argument("--version", required=True, help="Fix version name")
 

@@ -1,218 +1,228 @@
-# ForgeOps
+# ForgeOps — Enterprise DevSecOps Platform
 
-**Enterprise DevSecOps Platform** — GitHub Actions reusable workflows replacing CloudBees Jenkins. No Docker anywhere. Everything runs on GitHub Actions self-hosted runners on your Linux and Windows servers.
+GitHub Actions-based CI/CD replacing CloudBees Jenkins. No Docker. Best of Harness.io + CircleCI + CloudBees, built on GitHub-native primitives.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     GitHub Actions                          │
-│                  (Workflow Engine)                           │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌───────────┐  │
-│  │  Java    │  │  JS/TS   │  │  UiPath  │  │  System   │  │
-│  │  WebApp  │  │  WebApp  │  │  RPA     │  │  Integr.  │  │
-│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └─────┬─────┘  │
-│       │              │             │              │         │
-│       └──────────────┴─────┬───────┴──────────────┘         │
-│                            │                                │
-│  ┌─────────────────────────┴─────────────────────────────┐  │
-│  │            Reusable Workflows                         │  │
-│  │  _security-scan.yml          _deploy.yml              │  │
-│  │  (SonarQube, Black Duck,     (SSH, ArgoCD, UiPath     │  │
-│  │   Gitleaks, Trivy, Syft)      Orchestrator)           │  │
-│  └───────────────────────────────────────────────────────┘  │
-│                                                             │
-├─────────────────────────────────────────────────────────────┤
-│                   Self-Hosted Runners                       │
-│                                                             │
-│  ┌──────────────────┐  ┌──────────────────┐                │
-│  │  Linux Servers   │  │  Windows Servers  │                │
-│  │  [build]         │  │  [uipath]         │                │
-│  │  [security]      │  │                   │                │
-│  │  [deploy]        │  │                   │                │
-│  └──────────────────┘  └──────────────────┘                │
-│                                                             │
-├─────────────────────────────────────────────────────────────┤
-│                     Integrations                            │
-│  Jira  ·  Cherwell ITSM  ·  Splunk  ·  Slack  ·  SonarQube│
-│  Black Duck  ·  Gitleaks  ·  Trivy  ·  Syft  ·  OWASP ZAP │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                          GitHub Repository                          │
+│                                                                     │
+│  ┌─────────────┐  ┌───────────────┐  ┌───────────┐  ┌───────────┐ │
+│  │ java-webapp  │  │ js-webapp     │  │ uipath-rpa│  │ sys-integ │ │
+│  │ .yml         │  │ .yml          │  │ .yml      │  │ .yml      │ │
+│  └──────┬───────┘  └──────┬────────┘  └─────┬─────┘  └─────┬─────┘ │
+│         │                 │                 │              │        │
+│         └────────┬────────┴─────┬───────────┴──────────────┘        │
+│                  │              │                                    │
+│    ┌─────────────▼──┐  ┌───────▼──────────┐                        │
+│    │ _security-scan  │  │ _deploy          │   Reusable Workflows   │
+│    │ .yml            │  │ .yml             │                        │
+│    │                 │  │                  │                        │
+│    │ • SonarQube     │  │ • SSH            │                        │
+│    │ • Black Duck    │  │ • ArgoCD         │                        │
+│    │ • Gitleaks      │  │ • UiPath Orch    │                        │
+│    │ • Trivy         │  │ • Health checks  │                        │
+│    │ • Syft SBOM     │  │ • Auto-rollback  │                        │
+│    └────────────────┘  └──────────────────┘                        │
+│                                                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│                     GitHub-Hosted Runners                           │
+│           (ubuntu-latest / windows-latest for now)                  │
+│        Switch to self-hosted when ready — see docs/                 │
+├─────────────────────────────────────────────────────────────────────┤
+│                        Integrations                                 │
+│                                                                     │
+│  ┌──────────┐ ┌───────────┐ ┌──────┐ ┌───────┐ ┌────────────────┐ │
+│  │ SonarQube│ │ Black Duck│ │ Jira │ │ Slack │ │Cherwell/       │ │
+│  │ (SAST)   │ │ (SCA)     │ │      │ │       │ │ServiceNow      │ │
+│  └──────────┘ └───────────┘ └──────┘ └───────┘ └────────────────┘ │
+│  ┌──────────┐ ┌───────────┐ ┌──────────────┐ ┌──────────────────┐ │
+│  │ Gitleaks │ │ Trivy     │ │ Syft (SBOM)  │ │ Splunk (opt.)   │ │
+│  │ (secrets)│ │ (container│ │              │ │                  │ │
+│  └──────────┘ └───────────┘ └──────────────┘ └──────────────────┘ │
+│                                                                     │
+│  All integrations skip gracefully if not configured ⏭️              │
+└─────────────────────────────────────────────────────────────────────┘
 ```
-
-**Key principle**: GitHub Actions is the orchestration engine. Self-hosted runners execute directly on your servers. No Docker containers, no container registries. Artifacts are deployed via SSH, ArgoCD, or UiPath Orchestrator.
 
 ## Pipeline Flow
 
 ```
-feature/* ──► develop ──► DEV ──► INT ──► QA
-                   │
-release/* ──────► STAGE ──► DAST ──► PROD ──► Git Tag
-                   │
-hotfix/*  ──────────────────────► PROD ──► Git Tag
+feature/* ──► PR ──► develop ──► DEV ──► INT ──► QA
+                          │
+     release/* ──────────► STAGE ──► DAST ──► approval ──► PROD ──► Git Tag
+                          │
+     hotfix/*  ──────────────────────────────► approval ──► PROD ──► Git Tag
 ```
 
-Each pipeline includes:
-1. **Build** — Compile, test, generate coverage reports
-2. **Security Scan** — SAST, SCA, secret scanning, SBOM generation (parallel)
-3. **Deploy** — Progressive promotion through environments
-4. **DAST** — OWASP ZAP against staging (release branches only)
-5. **Release** — Git tag on successful production deployment
+Each pipeline runs:
+1. **Build** — compile, test, coverage, upload artifact
+2. **Security** — 5 parallel scans (SAST, SCA, secrets, container, SBOM) + security gate
+3. **Deploy** — progressive promotion through environments
+4. **DAST** — OWASP ZAP against staging (release branches)
+5. **Release** — git tag on successful production deployment
+6. **Summary** — full pipeline audit trail with rich job summaries
 
-## Branching Strategy (GitFlow)
+## Dual Logging
 
-| Branch | Purpose | Deploys To |
-|--------|---------|------------|
-| `feature/*` | New features | PR → develop |
-| `develop` | Integration branch | DEV → INT → QA |
-| `release/*` | Release candidates | STAGE → PROD |
-| `hotfix/*` | Production fixes | PROD (fast-track) |
-| `main` | Production state | Tagged releases |
+Every pipeline event is logged to **two places**:
+
+| Destination | Always Works | Purpose |
+|-------------|-------------|---------|
+| **GitHub Actions Job Summary** | Yes | Rich markdown tables and emoji in every workflow run. Primary audit trail. Free, no setup. |
+| **Splunk HEC** | Optional | Centralized cross-repo visibility. Skips silently if `SPLUNK_HEC_URL` not set. |
+
+Plus a JSON lines audit trail (`.forgeops/events.json`) uploaded as an artifact with 365-day retention.
+
+## Graceful Skip
+
+**All integrations skip gracefully when not configured.** Pipelines never fail because a tool isn't set up.
+
+| Integration | Required Secrets | If Not Configured |
+|-------------|-----------------|-------------------|
+| SonarQube | `SONAR_HOST_URL`, `SONAR_TOKEN` | Logs "⏭️ SonarQube not configured — skipping SAST" |
+| Black Duck | `BLACKDUCK_URL`, `BLACKDUCK_TOKEN` | Logs skip + suggests OWASP Dependency-Check |
+| Jira | `JIRA_URL`, `JIRA_TOKEN` | Skips ticket transitions |
+| Cherwell | `CHERWELL_URL`, `CHERWELL_CLIENT_ID`, `CHERWELL_CLIENT_SECRET` | Skips CR creation |
+| ServiceNow | `SERVICENOW_URL`, `SERVICENOW_USER`, `SERVICENOW_PASSWORD` | Skips CR creation |
+| Splunk | `SPLUNK_HEC_URL`, `SPLUNK_HEC_TOKEN` | Skips HEC send (summary still written) |
+| Slack | `SLACK_WEBHOOK_URL` | Skips notification |
+| SSH Deploy | `DEPLOY_SSH_KEY`, `*_DEPLOY_HOST` | Logs dry run with artifact listing |
+
+## Environments
+
+| Environment | Branch | Auto-Deploy | Approval | Jira Status |
+|-------------|--------|-------------|----------|-------------|
+| **DEV** | `develop` | Yes | No | In Development |
+| **INT** | `develop` | After DEV | No | In Integration |
+| **QA** | `develop` | After INT | No | In QA |
+| **STAGE** | `release/*` | Yes | No | In Staging |
+| **PROD** | `release/*`, `hotfix/*` | No | **Yes** | Done |
 
 ## Setup
 
 ### 1. Create GitHub Environments
 
-In your repository **Settings → Environments**, create:
+In **Settings > Environments**, create: `dev`, `int`, `qa`, `stage`, `prod`.
 
-| Environment | Protection Rules |
-|-------------|-----------------|
-| `dev` | None |
-| `int` | None |
-| `qa` | None |
-| `stage` | Optional reviewers |
-| `prod` | **Required reviewers** (team leads) |
+Set **required reviewers** on `prod` (and optionally `stage`).
 
-### 2. Add Organization Secrets
+### 2. Add Secrets (as needed)
 
-In **Settings → Secrets and variables → Actions**, add:
+Add any of these to enable the corresponding integration. All are optional — pipelines work without any:
 
-| Secret | Description |
-|--------|-------------|
-| `SONAR_HOST_URL` | SonarQube server URL |
-| `SONAR_TOKEN` | SonarQube authentication token |
-| `BLACKDUCK_URL` | Black Duck server URL |
-| `BLACKDUCK_API_TOKEN` | Black Duck API token |
-| `SPLUNK_HEC_URL` | Splunk HTTP Event Collector URL |
-| `SPLUNK_HEC_TOKEN` | Splunk HEC token |
-| `SPLUNK_INDEX` | Splunk index name |
-| `JIRA_URL` | Jira server URL |
-| `JIRA_TOKEN` | Jira API token |
-| `JIRA_PROJECT` | Default Jira project key |
-| `SSH_PRIVATE_KEY` | SSH key for deployment |
-| `SSH_USER` | SSH username |
-| `CHERWELL_URL` | Cherwell ITSM URL |
-| `CHERWELL_CLIENT_ID` | Cherwell OAuth2 client ID |
-| `CHERWELL_CLIENT_SECRET` | Cherwell OAuth2 client secret |
-| `SLACK_WEBHOOK_URL` | Slack incoming webhook URL |
-| `UIPATH_ORCHESTRATOR_URL` | UiPath Orchestrator URL |
-| `UIPATH_CLIENT_ID` | UiPath external app client ID |
-| `UIPATH_CLIENT_SECRET` | UiPath external app client secret |
+| Secret | Integration |
+|--------|------------|
+| `SONAR_HOST_URL` + `SONAR_TOKEN` | SonarQube SAST |
+| `BLACKDUCK_URL` + `BLACKDUCK_TOKEN` | Black Duck SCA |
+| `JIRA_URL` + `JIRA_TOKEN` + `JIRA_PROJECT` | Jira automation |
+| `CHERWELL_URL` + `CHERWELL_CLIENT_ID` + `CHERWELL_CLIENT_SECRET` | Cherwell ITSM |
+| `SERVICENOW_URL` + `SERVICENOW_USER` + `SERVICENOW_PASSWORD` | ServiceNow ITSM |
+| `SPLUNK_HEC_URL` + `SPLUNK_HEC_TOKEN` | Splunk logging |
+| `SLACK_WEBHOOK_URL` | Slack notifications |
+| `DEPLOY_SSH_KEY` + `DEPLOY_SSH_USER` | SSH deployment |
+| `DEV_DEPLOY_HOST` / `INT_DEPLOY_HOST` / etc. | Per-env SSH hosts |
 
-### 3. Install Self-Hosted Runners
+### 3. Copy Workflows to App Repos
 
-**Linux runners** (build, security, deploy):
+Copy `.github/workflows/` and `scripts/` to each application repository. Choose the pipeline:
+
+| App Type | Workflow |
+|----------|---------|
+| Java web apps (WAR/JAR) | `java-webapp.yml` |
+| JavaScript/React/Angular | `javascript-webapp.yml` |
+| UiPath RPA processes | `uipath-rpa.yml` |
+| Backend services (Java) | `system-integration.yml` |
+
+### 4. Update APP_NAME
+
+Edit the `env.APP_NAME` in the chosen workflow file.
+
+### 5. Push to develop
+
 ```bash
-sudo ./scripts/setup-runner.sh \
-  --url https://github.com/YOUR_ORG \
-  --token RUNNER_REG_TOKEN \
-  --labels "linux,build,security,deploy" \
-  --name runner-linux-01
+git checkout -b develop
+git push origin develop
 ```
 
-**Windows runners** (UiPath):
-```powershell
-.\scripts\setup-runner-windows.ps1 `
-  -Url https://github.com/YOUR_ORG `
-  -Token RUNNER_REG_TOKEN `
-  -Labels "windows,uipath" `
-  -Name runner-win-01
-```
+The pipeline runs automatically.
 
-### 4. Copy Workflows to App Repositories
+## Branching Strategy (GitFlow)
 
-Copy the `.github/workflows/` directory and `scripts/` directory into each application repository. Choose the appropriate pipeline:
-
-- **Java web apps**: Use `java-webapp.yml`
-- **JavaScript/React/Angular apps**: Use `javascript-webapp.yml`
-- **UiPath RPA processes**: Use `uipath-rpa.yml`
-- **Backend services (Java)**: Use `system-integration.yml`
+| Branch | Purpose | Deploys To |
+|--------|---------|------------|
+| `feature/*` | New features | PR to develop |
+| `develop` | Integration | DEV → INT → QA |
+| `release/*` | Release candidates | STAGE → PROD |
+| `hotfix/*` | Production fixes | PROD (fast-track) |
+| `main` | Production state | Tagged releases |
 
 ## Approval Process
 
 Production deployments use **GitHub Environment Protection Rules**:
 
-1. Pipeline reaches the `prod` deployment job
-2. GitHub pauses the workflow and notifies required reviewers
-3. Reviewers approve or reject in the GitHub Actions UI
-4. On approval, deployment proceeds automatically
-5. Cherwell Change Request is created/updated automatically
+1. Pipeline reaches the `prod` job
+2. GitHub pauses and notifies required reviewers
+3. Reviewers approve/reject in the Actions UI
+4. On approval, deploy proceeds
+5. Cherwell/ServiceNow CR auto-updated
 
-No manual Jenkins approvals. No separate approval systems. Everything lives in GitHub.
+No Jenkins manual approvals. No separate systems. Everything in GitHub.
 
 ## Security Pipeline
 
-All pipelines run 5 parallel security scans:
+5 parallel scans + gate:
 
-| Tool | Scan Type | What It Does |
-|------|-----------|-------------|
+| Tool | Type | What It Does |
+|------|------|-------------|
 | **SonarQube** | SAST | Static code analysis, quality gates |
-| **Black Duck** | SCA | Open-source vulnerability & license compliance |
-| **Gitleaks** | Secrets | Detects exposed secrets in git history |
-| **Trivy** | Container | Container image vulnerability scan (optional) |
-| **Syft** | SBOM | Software bill of materials generation |
+| **Black Duck** | SCA | Open-source vulnerability & license |
+| **Gitleaks** | Secrets | Exposed secrets in git history |
+| **Trivy** | Container | Image vulnerability scan (optional) |
+| **Syft** | SBOM | Software bill of materials (CycloneDX) |
 
-A **Security Gate** job aggregates all results. If any CRITICAL or HIGH findings are detected, the pipeline fails and blocks deployment.
-
-SCA failures automatically create Jira tickets for tracking.
-
-## Observability
-
-All pipeline events are logged to **Splunk** via the `scripts/splunk-log.sh` helper:
-- Build start/end
-- Security scan results
-- Deployment start/end/rollback
-- DAST scan results
-
-Events use sourcetype `forgeops:pipeline` and include full GitHub context (repo, run ID, SHA, actor).
+**Security Gate** aggregates all results. CRITICAL/HIGH findings block deployment.
 
 ## Feature Origin Map
 
-| ForgeOps Feature | Previous Tool |
-|-----------------|---------------|
-| Reusable workflows | CloudBees Jenkins shared libraries |
-| Self-hosted runners | Jenkins agents on VMs |
-| Environment protection rules | Jenkins input step approvals |
-| GitHub Secrets | Jenkins credentials store |
-| Splunk logging | Jenkins → Splunk plugin |
-| Jira integration | Jenkins Jira plugin |
-| Cherwell CR automation | Jenkins Cherwell plugin |
-| SonarQube SAST | Jenkins SonarQube plugin |
-| Black Duck SCA | Jenkins Synopsys plugin |
-| OWASP ZAP DAST | Jenkins ZAP plugin |
-| Artifact upload/download | Jenkins stash/unstash |
-| Branch-based deployment | Jenkins multibranch pipeline |
+| ForgeOps Feature | CloudBees Jenkins | Harness.io | CircleCI |
+|-----------------|-------------------|------------|----------|
+| Reusable workflows | Shared libraries | Templates | Orbs |
+| Environment protection | Input step | Approval stages | Manual approval |
+| GitHub Secrets | Credentials store | Secrets manager | Contexts |
+| Job summaries | Build description | Dashboard | Insights |
+| Self-hosted runners | Jenkins agents | Delegates | Self-hosted runner |
+| Artifact upload | Stash/unstash | Artifact server | Workspaces |
+| Branch-based deploy | Multibranch | Triggers | Branch filters |
+| Security gate | Quality gate plugin | OPA policies | Security orb |
+| Dual logging | Splunk plugin | Log service | — |
+| ITSM integration | Cherwell plugin | ServiceNow step | — |
 
 ## Repository Structure
 
 ```
 ForgeOps/
 ├── .github/workflows/
-│   ├── _security-scan.yml      # Reusable: 5 parallel security scans
-│   ├── _deploy.yml             # Reusable: multi-method deployment
-│   ├── java-webapp.yml         # Full pipeline for Java web apps
-│   ├── javascript-webapp.yml   # Full pipeline for JS web apps
-│   ├── uipath-rpa.yml          # Full pipeline for UiPath RPA
-│   └── system-integration.yml  # Full pipeline for backend services
+│   ├── _security-scan.yml        # Reusable: 5 parallel security scans + gate
+│   ├── _deploy.yml               # Reusable: multi-method deploy + ITSM + health
+│   ├── java-webapp.yml           # Full pipeline for Java web apps
+│   ├── javascript-webapp.yml     # Full pipeline for JS web apps
+│   ├── uipath-rpa.yml            # Full pipeline for UiPath RPA
+│   └── system-integration.yml    # Full pipeline for backend services
 ├── scripts/
-│   ├── splunk-log.sh           # Splunk HEC event logging
-│   ├── jira-integration.py     # Jira ticket/transition automation
-│   ├── cherwell-integration.py # Cherwell CR automation
-│   ├── setup-runner.sh         # Linux runner setup
-│   └── setup-runner-windows.ps1# Windows runner setup
+│   ├── forgeops-log.sh           # Dual logging engine (Summary + Splunk)
+│   ├── forgeops-summary.sh       # Final pipeline summary generator
+│   ├── jira-integration.py       # Jira ticket/transition automation
+│   ├── cherwell-integration.py   # Cherwell/ServiceNow CR automation
+│   ├── cherwell-health-check.sh  # ITSM connectivity test
+│   ├── setup-runner.sh           # Linux self-hosted runner setup
+│   └── setup-runner-windows.ps1  # Windows self-hosted runner setup
 ├── docs/
-│   └── ENVIRONMENTS.md         # Environment documentation
+│   ├── ENVIRONMENTS.md           # Environment matrix & branch mapping
+│   ├── MIGRATION-TO-SELF-HOSTED.md  # How to switch from hosted to self-hosted
+│   ├── BACKLOG.md                # Future work items
+│   └── CHERWELL-SETUP.md        # ITSM setup guide
 ├── .gitignore
 └── README.md
 ```

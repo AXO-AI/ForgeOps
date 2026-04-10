@@ -3,13 +3,11 @@
 # Also installs: Trivy, Gitleaks, Syft
 #
 # Usage:
-#   ./setup-runner.sh --url https://github.com/ORG --token RUNNER_TOKEN --labels linux,build --name runner-01
+#   sudo ./setup-runner.sh --url https://github.com/ORG --token RUNNER_TOKEN --labels linux,build --name runner-01
 #
 # Must be run as root.
 
 set -euo pipefail
-
-# ── Parse Arguments ──
 
 RUNNER_URL=""
 RUNNER_TOKEN=""
@@ -46,13 +44,11 @@ echo "  Labels: ${RUNNER_LABELS}"
 echo "========================================="
 
 # ── Prerequisites ──
-
 echo "[1/7] Installing system prerequisites..."
 apt-get update -qq
 apt-get install -y -qq curl jq git unzip apt-transport-https ca-certificates gnupg lsb-release
 
 # ── Create Runner User ──
-
 echo "[2/7] Creating runner user..."
 if ! id "${RUNNER_USER}" &>/dev/null; then
   useradd -m -s /bin/bash "${RUNNER_USER}"
@@ -62,7 +58,6 @@ else
 fi
 
 # ── Install GitHub Actions Runner ──
-
 echo "[3/7] Installing GitHub Actions runner v${RUNNER_VERSION}..."
 mkdir -p "${RUNNER_DIR}"
 cd "${RUNNER_DIR}"
@@ -82,7 +77,6 @@ tar xzf "${RUNNER_TAR}"
 chown -R "${RUNNER_USER}:${RUNNER_USER}" "${RUNNER_DIR}"
 
 # ── Configure Runner ──
-
 echo "[4/7] Configuring runner..."
 su - "${RUNNER_USER}" -c "
   cd ${RUNNER_DIR} && \
@@ -97,15 +91,12 @@ su - "${RUNNER_USER}" -c "
 "
 
 # ── Install as systemd Service ──
-
 echo "[5/7] Installing as systemd service..."
 cd "${RUNNER_DIR}"
 ./svc.sh install "${RUNNER_USER}"
 ./svc.sh start
-echo "Runner service started"
 
-# ── Install Trivy ──
-
+# ── Install Security Tools ──
 echo "[6/7] Installing security tools..."
 
 echo "  Installing Trivy..."
@@ -125,7 +116,6 @@ curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -
 syft version
 
 # ── Summary ──
-
 echo ""
 echo "[7/7] Setup complete!"
 echo "========================================="
@@ -133,7 +123,6 @@ echo "  Runner: ${RUNNER_NAME}"
 echo "  Labels: ${RUNNER_LABELS}"
 echo "  Dir:    ${RUNNER_DIR}"
 echo "  User:   ${RUNNER_USER}"
-echo "  Status: $(./svc.sh status 2>/dev/null || echo 'running')"
 echo "========================================="
 echo ""
 echo "Tools installed:"
