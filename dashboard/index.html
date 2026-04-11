@@ -6,7 +6,7 @@
 <title>ForgeOps - DevSecOps Command Center</title>
 <meta name="referrer" content="no-referrer">
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://esm.sh 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://api.github.com https://raw.githubusercontent.com https://esm.sh https://*.atlassian.net; img-src 'self' data: https://avatars.githubusercontent.com">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://esm.sh 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://api.github.com https://raw.githubusercontent.com https://esm.sh https://*.atlassian.net https://*.workers.dev; img-src 'self' data: https://avatars.githubusercontent.com">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='40' y2='40' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%234f46e5'/%3E%3Cstop offset='1' stop-color='%237c3aed'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='40' height='40' rx='10' fill='url(%23g)'/%3E%3Cpath d='M20 8L11 22h6.5l-2 10L27 18h-6.5l2-10z' fill='white'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -115,24 +115,27 @@ function apiPut(path,body){
 }
 
 // ── Jira Helper Functions ──
-function getJiraConfig(){return{url:localStorage.getItem('fg_jira_url')||'',email:localStorage.getItem('fg_jira_email')||'',token:localStorage.getItem('fg_jira_token')||'',project:localStorage.getItem('fg_jira_project')||''}}
-function saveJiraConfig(cfg){if(cfg.url)localStorage.setItem('fg_jira_url',cfg.url);if(cfg.email)localStorage.setItem('fg_jira_email',cfg.email);if(cfg.token)localStorage.setItem('fg_jira_token',cfg.token);if(cfg.project)localStorage.setItem('fg_jira_project',cfg.project)}
+var JIRA_PROXY_DEFAULT='https://jira-proxy.crimson-bird-4c46.workers.dev';
+function getJiraConfig(){return{url:(localStorage.getItem('fg_jira_url')||'').replace(/\/jira\/?$/,'').replace(/\/+$/,''),email:localStorage.getItem('fg_jira_email')||'',token:localStorage.getItem('fg_jira_token')||'',project:localStorage.getItem('fg_jira_project')||'',proxy:localStorage.getItem('fg_jira_proxy')||JIRA_PROXY_DEFAULT}}
+function saveJiraConfig(cfg){if(cfg.url)localStorage.setItem('fg_jira_url',cfg.url.replace(/\/jira\/?$/,'').replace(/\/+$/,''));if(cfg.email)localStorage.setItem('fg_jira_email',cfg.email);if(cfg.token)localStorage.setItem('fg_jira_token',cfg.token);if(cfg.project)localStorage.setItem('fg_jira_project',cfg.project);if(cfg.proxy)localStorage.setItem('fg_jira_proxy',cfg.proxy)}
 var jiraCache={};
-function jiraApi(path){
+function jiraFetch(path,opts){
   var cfg=getJiraConfig();if(!cfg.url||!cfg.email||!cfg.token)return Promise.resolve(null);
-  var k='jira:'+path;if(jiraCache[k]&&Date.now()-jiraCache[k].t<300000)return Promise.resolve(jiraCache[k].d);
+  var method=(opts&&opts.method)||'GET';
+  var k='jira:'+method+':'+path;
+  if(method==='GET'&&jiraCache[k]&&Date.now()-jiraCache[k].t<300000)return Promise.resolve(jiraCache[k].d);
   var auth=btoa(cfg.email+':'+cfg.token);
-  return fetch(cfg.url+path,{headers:{'Authorization':'Basic '+auth,'Content-Type':'application/json'}}).then(function(r){
-    if(!r.ok){console.warn('Jira '+r.status+': '+path);return null}return r.json()
-  }).then(function(d){if(d)jiraCache[k]={d:d,t:Date.now()};return d}).catch(function(e){console.warn('Jira request failed: '+path+' (CORS? Install a browser CORS extension or use workflow proxy)');return null})
+  var targetUrl=cfg.url+path;
+  var fetchUrl=cfg.proxy?cfg.proxy+'?url='+encodeURIComponent(targetUrl):targetUrl;
+  var fetchOpts={method:method,headers:{'Authorization':'Basic '+auth,'Content-Type':'application/json'}};
+  if(opts&&opts.body)fetchOpts.body=JSON.stringify(opts.body);
+  return fetch(fetchUrl,fetchOpts).then(function(r){
+    if(!r.ok){console.warn('Jira '+r.status+': '+path);return null}
+    if(r.status===204)return{ok:true};return r.json()
+  }).then(function(d){if(d&&method==='GET')jiraCache[k]={d:d,t:Date.now()};return d}).catch(function(e){console.warn('Jira request failed: '+path);return null})
 }
-function jiraPost(path,body){
-  var cfg=getJiraConfig();if(!cfg.url||!cfg.email||!cfg.token)return Promise.resolve(null);
-  var auth=btoa(cfg.email+':'+cfg.token);
-  return fetch(cfg.url+path,{method:'POST',headers:{'Authorization':'Basic '+auth,'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){
-    if(!r.ok){console.warn('Jira POST '+r.status);return null}if(r.status===204)return{ok:true};return r.json()
-  }).catch(function(){return null})
-}
+function jiraApi(path){return jiraFetch(path)}
+function jiraPost(path,body){return jiraFetch(path,{method:'POST',body:body})}
 function jiraTransition(ticket,statusName){
   return jiraApi('/rest/api/3/issue/'+ticket+'/transitions').then(function(d){
     if(!d||!d.transitions)return null;
@@ -500,18 +503,18 @@ function renderPage(){
   if(page==='settings'){
     var jc=jiraCfg[0];var setJc=jiraCfg[1];var testing=useState(false);var testResult=useState('');
     function testJira(){testing[1](true);testResult[1]('');saveJiraConfig(jc);
-      jiraApi('/rest/api/3/myself').then(function(u){testing[1](false);if(u){jiraConnected[1](true);testResult[1]('Connected as: '+(u.displayName||u.emailAddress||'OK'))}else{testResult[1]('Connection failed. Check URL/credentials or install a CORS browser extension.')}})
+      jiraFetch('/rest/api/3/myself').then(function(u){testing[1](false);if(u){jiraConnected[1](true);testResult[1]('Connected as: '+(u.displayName||u.emailAddress||'OK'))}else{testResult[1]('Connection failed. Check URL, credentials, and proxy URL.')}})
     }
     return html`<div class="fu" data-tour="integrations">
     <div class="c" style="margin-bottom:16px"><div style="font-weight:600;margin-bottom:4px">Integration Hub</div><div style="font-size:11px;color:var(--ts);margin-bottom:6px">ForgeOps v6.0 -- ${totalRepos} repos across ${projNames.length} projects</div>${user&&html`<div style="font-size:11px;margin-bottom:8px">Connected as: ${user.login}</div>`}<div style="display:flex;gap:6px"><button class="bt bd" onClick=${function(){sessionStorage.removeItem('fg_pat');setUser(null);toast('Disconnected')}} aria-label="Disconnect account">Disconnect</button><a href=${'https://github.com/'+ORG+'/ForgeOps'} target="_blank" rel="noopener noreferrer" class="bt bs" style="font-size:11px">GitHub Repo</a></div></div>
 
-    <div class="c" style="border-top:4px solid #0284c7;margin-bottom:16px" data-tour="integration-jira"><div style="font-weight:600;font-size:14px;margin-bottom:4px">Jira Configuration</div><div style="font-size:11px;color:var(--ts);margin-bottom:12px;line-height:1.5">Connect Jira to enable ticket tracking across all dashboard pages. The API token is stored in your browser only.</div>
+    <div class="c" style="border-top:4px solid #0284c7;margin-bottom:16px" data-tour="integration-jira"><div style="font-weight:600;font-size:14px;margin-bottom:4px">Jira Configuration</div><div style="font-size:11px;color:var(--ts);margin-bottom:12px;line-height:1.5">Connect Jira to enable ticket tracking across all dashboard pages. All calls route through the CORS proxy.</div>
     <div class="fl">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><div class="lb">Jira Base URL</div><input value=${jc.url} onInput=${function(e){setJc(function(p){return{url:e.target.value,email:p.email,token:p.token,project:p.project}})}} placeholder="https://yourorg.atlassian.net"/></div><div><div class="lb">Jira Email</div><input value=${jc.email} onInput=${function(e){setJc(function(p){return{url:p.url,email:e.target.value,token:p.token,project:p.project}})}} placeholder="you@company.com"/></div></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><div class="lb">API Token</div><input type="password" value=${jc.token} onInput=${function(e){setJc(function(p){return{url:p.url,email:p.email,token:e.target.value,project:p.project}})}} placeholder="Your Jira API token"/></div><div><div class="lb">Project Key</div><input value=${jc.project} onInput=${function(e){setJc(function(p){return{url:p.url,email:p.email,token:p.token,project:e.target.value}})}} placeholder="SCRUM"/></div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><div class="lb">Jira Base URL</div><input value=${jc.url} onInput=${function(e){setJc(function(p){return{url:e.target.value,email:p.email,token:p.token,project:p.project,proxy:p.proxy}})}} placeholder="https://yourorg.atlassian.net"/></div><div><div class="lb">Jira Email</div><input value=${jc.email} onInput=${function(e){setJc(function(p){return{url:p.url,email:e.target.value,token:p.token,project:p.project,proxy:p.proxy}})}} placeholder="you@company.com"/></div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><div class="lb">API Token</div><input type="password" value=${jc.token} onInput=${function(e){setJc(function(p){return{url:p.url,email:p.email,token:e.target.value,project:p.project,proxy:p.proxy}})}} placeholder="Your Jira API token"/></div><div><div class="lb">Project Key</div><input value=${jc.project} onInput=${function(e){setJc(function(p){return{url:p.url,email:p.email,token:p.token,project:e.target.value,proxy:p.proxy}})}} placeholder="SCRUM"/></div></div>
+      <div><div class="lb">Proxy URL</div><input value=${jc.proxy} onInput=${function(e){setJc(function(p){return{url:p.url,email:p.email,token:p.token,project:p.project,proxy:e.target.value}})}} placeholder=${JIRA_PROXY_DEFAULT}/></div>
       <div style="display:flex;gap:6px;align-items:center"><button class="bt bp" onClick=${function(){saveJiraConfig(jc);toast('Jira settings saved');jiraCfg[1](Object.assign({},jc))}}>Save</button><button class="bt bs" onClick=${testJira}>${testing[0]?'Testing...':'Test Connection'}</button><div style="display:flex;align-items:center;gap:4px"><span style=${'display:inline-block;width:8px;height:8px;border-radius:50%;background:'+(jiraConnected[0]?'var(--ok)':'var(--td)')}></span><span style="font-size:10px;color:var(--ts)">${jiraConnected[0]?'Connected':'Not connected'}</span></div></div>
       ${testResult[0]&&html`<div style=${'font-size:11px;padding:8px;border-radius:6px;background:'+(testResult[0].indexOf('Connected')===0?'rgba(5,150,105,.06)':'rgba(220,38,38,.06)')+';color:'+(testResult[0].indexOf('Connected')===0?'var(--ok)':'var(--er)')}>${testResult[0]}</div>`}
-      <div style="font-size:10px;color:var(--td);line-height:1.5">Note: Browser CORS may block direct Jira API calls. If Test Connection fails, install a CORS extension or rely on the generate-dashboard-data workflow which fetches Jira data server-side and stores it in dashboard-data.json.</div>
     </div></div>
 
     <div class="g2" data-tour="integration-teams">
