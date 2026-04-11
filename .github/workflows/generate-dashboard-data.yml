@@ -17,12 +17,16 @@ jobs:
       - name: Build dashboard data
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_PROJECT_KEY: ${{ vars.JIRA_PROJECT_KEY || 'SCRUM' }}
         run: |
           ORG="${GITHUB_REPOSITORY_OWNER}"
           SELF="${GITHUB_REPOSITORY#*/}"
 
           python3 << 'PYSCRIPT'
-          import json, urllib.request, os, time
+          import json, urllib.request, urllib.parse, os, time
 
           org = os.environ.get("ORG", "")
           self_repo = os.environ.get("SELF", "")
@@ -58,10 +62,66 @@ jobs:
               page += 1
               time.sleep(0.5)
 
+          # Fetch Jira data if secrets are configured
+          jira_url = os.environ.get("JIRA_BASE_URL", "")
+          jira_email = os.environ.get("JIRA_USER_EMAIL", "")
+          jira_token = os.environ.get("JIRA_API_TOKEN", "")
+          jira_project = os.environ.get("JIRA_PROJECT_KEY", "SCRUM")
+
+          jira_data = {"open_count": 0, "by_status": {}, "recent": [], "all_tickets": [], "tickets_by_status": {}}
+
+          if jira_url and jira_email and jira_token:
+              import base64
+              jira_auth = base64.b64encode(f"{jira_email}:{jira_token}".encode()).decode()
+              jira_headers = {"Authorization": f"Basic {jira_auth}", "Content-Type": "application/json"}
+
+              # Fetch all non-Done tickets
+              try:
+                  jql = f"project={jira_project} AND status!=Done ORDER BY updated DESC"
+                  jurl = f"{jira_url}/rest/api/3/search?jql={urllib.parse.quote(jql)}&maxResults=100&fields=summary,status,assignee,priority,updated,labels"
+                  req = urllib.request.Request(jurl, headers=jira_headers)
+                  resp = urllib.request.urlopen(req)
+                  jira_resp = json.loads(resp.read().decode())
+                  issues = jira_resp.get("issues", [])
+                  jira_data["open_count"] = jira_resp.get("total", len(issues))
+
+                  status_counts = {}
+                  tickets_by_status = {}
+                  all_tickets = []
+                  for iss in issues:
+                      fields = iss.get("fields", {})
+                      status_name = fields.get("status", {}).get("name", "Unknown")
+                      assignee = fields.get("assignee")
+                      assignee_name = assignee.get("displayName", "") if assignee else ""
+                      ticket = {
+                          "key": iss["key"],
+                          "summary": fields.get("summary", ""),
+                          "status": status_name,
+                          "assignee": assignee_name,
+                          "priority": fields.get("priority", {}).get("name", ""),
+                          "updated": fields.get("updated", "")
+                      }
+                      all_tickets.append(ticket)
+                      status_counts[status_name] = status_counts.get(status_name, 0) + 1
+                      if status_name not in tickets_by_status:
+                          tickets_by_status[status_name] = []
+                      tickets_by_status[status_name].append(ticket)
+
+                  jira_data["by_status"] = status_counts
+                  jira_data["tickets_by_status"] = tickets_by_status
+                  jira_data["all_tickets"] = all_tickets
+                  jira_data["recent"] = all_tickets[:10]
+                  print(f"Fetched {len(issues)} Jira tickets ({jira_data['open_count']} open)")
+              except Exception as e:
+                  print(f"Jira fetch error: {e}")
+          else:
+              print("Jira secrets not configured -- skipping Jira data")
+
           data = {
               "generated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
               "total": len(all_repos),
-              "repos": all_repos
+              "repos": all_repos,
+              "jira": jira_data
           }
 
           with open("dashboard-data.json", "w") as f:

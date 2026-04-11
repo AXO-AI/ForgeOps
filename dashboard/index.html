@@ -6,7 +6,7 @@
 <title>ForgeOps - DevSecOps Command Center</title>
 <meta name="referrer" content="no-referrer">
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://esm.sh 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://api.github.com https://raw.githubusercontent.com https://esm.sh; img-src 'self' data: https://avatars.githubusercontent.com">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://esm.sh 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://api.github.com https://raw.githubusercontent.com https://esm.sh https://*.atlassian.net; img-src 'self' data: https://avatars.githubusercontent.com">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='40' y2='40' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%234f46e5'/%3E%3Cstop offset='1' stop-color='%237c3aed'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='40' height='40' rx='10' fill='url(%23g)'/%3E%3Cpath d='M20 8L11 22h6.5l-2 10L27 18h-6.5l2-10z' fill='white'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -55,8 +55,6 @@ textarea{resize:vertical;min-height:60px}
 .log-panel.open{transform:translateX(0)}
 .log-tabs{display:flex;gap:0;border-bottom:1px solid var(--bd);overflow-x:auto;flex-shrink:0}
 .log-tab{padding:8px 14px;font-size:11px;font-weight:500;color:var(--ts);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}.log-tab.ac{color:var(--pr);border-color:var(--pr)}
-.log-code{background:#1e1e2e;color:#cdd6f4;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.6;padding:12px;overflow-x:auto;max-height:400px;overflow-y:auto;white-space:pre;margin:0;border-radius:0 0 8px 8px}
-.log-line-err{background:rgba(220,38,38,.15)}.log-line-warn{background:rgba(217,119,6,.12)}.log-line-ok{color:#a6e3a1}
 .spark-btn{position:absolute;bottom:20px;right:20px;width:48px;height:48px;border-radius:50%;background:var(--pn);border:1.5px solid var(--in);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.1);transition:transform .15s;z-index:50}.spark-btn:hover{transform:scale(1.08)}
 .spark-panel{position:absolute;bottom:76px;right:20px;width:320px;background:var(--pn);border:1px solid var(--bd);border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:50;max-height:480px;overflow-y:auto;padding:16px}
 .hb{display:none}
@@ -67,8 +65,11 @@ textarea{resize:vertical;min-height:60px}
 .int-expand{padding:12px 16px;border-top:1px solid var(--bd);font-size:11px;color:var(--ts);cursor:pointer}
 .int-expand:hover{background:var(--sf)}
 .jira-flow{display:flex;align-items:center;gap:0;overflow-x:auto;padding:8px 0}
-.jira-node{padding:6px 10px;border-radius:6px;font-size:10px;font-weight:600;border:1px solid var(--bd);background:var(--sf);white-space:nowrap;flex-shrink:0}
+.jira-node{padding:6px 10px;border-radius:6px;font-size:10px;font-weight:600;border:1px solid var(--bd);background:var(--sf);white-space:nowrap;flex-shrink:0;text-align:center;min-width:60px}
 .jira-arrow{width:20px;display:flex;align-items:center;justify-content:center;color:var(--td);flex-shrink:0}
+.jira-card{background:var(--pn);border:1px solid var(--bd);border-radius:8px;padding:10px;margin-bottom:6px;font-size:11px;cursor:pointer;transition:border-color .15s}
+.jira-card:hover{border-color:var(--pr)}
+.jira-col{min-width:180px;max-width:220px;flex-shrink:0;background:var(--sf);border-radius:10px;padding:8px}
 .tour-overlay{position:fixed;inset:0;z-index:200;pointer-events:none}
 .tour-spot{position:fixed;z-index:201;box-shadow:0 0 0 3px var(--pr),0 0 0 9999px rgba(0,0,0,.45);border-radius:8px;pointer-events:none;animation:spotPulse 2s infinite}
 @keyframes spotPulse{0%,100%{box-shadow:0 0 0 3px var(--pr),0 0 0 9999px rgba(0,0,0,.45)}50%{box-shadow:0 0 0 5px var(--pr),0 0 0 9999px rgba(0,0,0,.45)}}
@@ -112,15 +113,54 @@ function apiPut(path,body){
   var hdrs={Accept:'application/vnd.github.v3+json','Content-Type':'application/json'};var tk=getToken();if(tk)hdrs.Authorization='token '+tk;
   return fetch('https://api.github.com'+path,{method:'PUT',headers:hdrs,body:JSON.stringify(body)}).then(function(r){if(!r.ok)return r.json().then(function(e){throw new Error(e.message||r.status)});if(r.status===204)return null;return r.json()})
 }
-function clearCache(){Object.keys(cache).forEach(function(k){delete cache[k]})}
+
+// ── Jira Helper Functions ──
+function getJiraConfig(){return{url:localStorage.getItem('fg_jira_url')||'',email:localStorage.getItem('fg_jira_email')||'',token:localStorage.getItem('fg_jira_token')||'',project:localStorage.getItem('fg_jira_project')||''}}
+function saveJiraConfig(cfg){if(cfg.url)localStorage.setItem('fg_jira_url',cfg.url);if(cfg.email)localStorage.setItem('fg_jira_email',cfg.email);if(cfg.token)localStorage.setItem('fg_jira_token',cfg.token);if(cfg.project)localStorage.setItem('fg_jira_project',cfg.project)}
+var jiraCache={};
+function jiraApi(path){
+  var cfg=getJiraConfig();if(!cfg.url||!cfg.email||!cfg.token)return Promise.resolve(null);
+  var k='jira:'+path;if(jiraCache[k]&&Date.now()-jiraCache[k].t<300000)return Promise.resolve(jiraCache[k].d);
+  var auth=btoa(cfg.email+':'+cfg.token);
+  return fetch(cfg.url+path,{headers:{'Authorization':'Basic '+auth,'Content-Type':'application/json'}}).then(function(r){
+    if(!r.ok){console.warn('Jira '+r.status+': '+path);return null}return r.json()
+  }).then(function(d){if(d)jiraCache[k]={d:d,t:Date.now()};return d}).catch(function(e){console.warn('Jira request failed: '+path+' (CORS? Install a browser CORS extension or use workflow proxy)');return null})
+}
+function jiraPost(path,body){
+  var cfg=getJiraConfig();if(!cfg.url||!cfg.email||!cfg.token)return Promise.resolve(null);
+  var auth=btoa(cfg.email+':'+cfg.token);
+  return fetch(cfg.url+path,{method:'POST',headers:{'Authorization':'Basic '+auth,'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){
+    if(!r.ok){console.warn('Jira POST '+r.status);return null}if(r.status===204)return{ok:true};return r.json()
+  }).catch(function(){return null})
+}
+function jiraTransition(ticket,statusName){
+  return jiraApi('/rest/api/3/issue/'+ticket+'/transitions').then(function(d){
+    if(!d||!d.transitions)return null;
+    var t=d.transitions.find(function(tr){return tr.name===statusName||tr.to.name===statusName});
+    if(!t)return null;
+    return jiraPost('/rest/api/3/issue/'+ticket+'/transitions',{transition:{id:t.id}})
+  })
+}
+function extractTicket(str){if(!str)return'';var m=str.match(/[A-Z]+-\d+/);return m?m[0]:''}
+function jiraStatusColor(status){
+  if(!status)return'var(--td)';var s=status.toLowerCase();
+  if(s.indexOf('done')>=0||s.indexOf('deployed')>=0)return'var(--ok)';
+  if(s.indexOf('progress')>=0)return'var(--in)';
+  if(s.indexOf('ready')>=0)return'var(--wa)';
+  if(s.indexOf('complete')>=0)return'#0d9488';
+  if(s==='to do'||s==='backlog')return'var(--td)';
+  return'var(--pr)';
+}
+
+function clearCache(){Object.keys(cache).forEach(function(k){delete cache[k]});Object.keys(jiraCache).forEach(function(k){delete jiraCache[k]})}
 function loadData(){
   return fetch('https://raw.githubusercontent.com/'+ORG+'/ForgeOps/main/dashboard-data.json').then(function(r){return r.ok?r.json():null}).catch(function(){return null}).then(function(cmdData){
-    if(cmdData&&cmdData.repos&&cmdData.repos.length>0)return{repos:cmdData.repos,source:'json',config:null};
+    if(cmdData&&cmdData.repos&&cmdData.repos.length>0)return{repos:cmdData.repos,source:'json',config:null,jira:cmdData.jira||null};
     return fetch('https://raw.githubusercontent.com/'+ORG+'/ForgeOps/main/forgeops-config.json').then(function(r){return r.ok?r.json():null}).catch(function(){return null}).then(function(cfg){
-      if(cfg&&cfg.projects){var repos=[];var projects=cfg.projects||{};for(var key in projects){var proj=projects[key];var pRepos=proj.repos||proj.sample_repos||[];for(var i=0;i<pRepos.length;i++){repos.push({name:typeof pRepos[i]==='string'?pRepos[i]:pRepos[i].name||'',project:key,language:proj.template||''})}}if(repos.length>0)return{repos:repos,source:'config',config:cfg}}
+      if(cfg&&cfg.projects){var repos=[];var projects=cfg.projects||{};for(var key in projects){var proj=projects[key];var pRepos=proj.repos||proj.sample_repos||[];for(var i=0;i<pRepos.length;i++){repos.push({name:typeof pRepos[i]==='string'?pRepos[i]:pRepos[i].name||'',project:key,language:proj.template||''})}}if(repos.length>0)return{repos:repos,source:'config',config:cfg,jira:null}}
       return api('/users/'+ORG+'/repos?per_page=100&sort=updated').then(function(apiRepos){
-        if(apiRepos&&apiRepos.length)return{repos:apiRepos.map(function(r){return{name:r.name,language:r.language||''}}),source:'api',config:null};
-        return{repos:[],source:'none',config:null}
+        if(apiRepos&&apiRepos.length)return{repos:apiRepos.map(function(r){return{name:r.name,language:r.language||''}}),source:'api',config:null,jira:null};
+        return{repos:[],source:'none',config:null,jira:null}
       })
     })
   })
@@ -142,36 +182,28 @@ function Empty(p){return html`<div class="c" style="text-align:center;padding:24
 var SPARK=[
 {p:['users'],q:'How do I invite a team member?',a:'Fill the invite form at the top of the Team page. It opens 3 tabs: GitHub collaborator page, config file editor, and an onboarding issue with checklist.'},
 {p:['users'],q:'What role should I assign?',a:'Developer for coders, Tech Lead for reviewers, Release Engineer for deployments, QA for SIT testing, UAT for acceptance testing, Admin for full control.'},
-{p:['users'],q:'How do I remove a team member?',a:'Click Edit on the Team page to open forgeops-config.json. Remove their entry from the users section. Also remove them from GitHub org.'},
-{p:['overview'],q:'What do stat cards show?',a:'Total repos, passing, failing, running counts from the command center data file.'},
+{p:['overview'],q:'What do stat cards show?',a:'Total repos, passing, failing, running, and open Jira ticket counts from the command center data.'},
 {p:['pipelines'],q:'How to run a pipeline?',a:'Click Run Pipeline, select repo/workflow/branch, click Run. It dispatches a workflow.'},
-{p:['prs'],q:'How to create a PR?',a:'Select repo, pick source and target branches, add Jira ticket and title, click Create. Opens GitHub compare.'},
+{p:['prs'],q:'How to create a PR?',a:'Select repo, pick source and target branches, search Jira tickets for auto-fill, click Create. Opens GitHub compare.'},
 {p:['environments'],q:'What is Ready for SIT?',a:'Jira status meaning the build is in QA and ready for System Integration Testing.'},
 {p:['security'],q:'SAST vs SCA?',a:'SAST scans source code. SCA scans dependencies for known vulnerabilities.'},
 {p:['deploy'],q:'How does bulk deploy work?',a:'Select project and environment, click Deploy. It triggers workflows for all repos in that project.'},
 {p:['all'],q:'What is ForgeOps?',a:'Enterprise DevSecOps platform on GitHub Actions replacing Jenkins.'},
-{p:['all'],q:'How to get help?',a:'Click Create Ticket or check the Knowledge Base for guides.'},
 {p:['all'],q:'What integrations are available?',a:'Jira, SonarQube, OWASP DC, Gitleaks, Trivy, Syft, Email, Teams, Splunk, Cherwell. All optional.'},
-{p:['settings'],q:'How do I set up Microsoft Teams notifications?',a:'Add TEAMS_WEBHOOK_URL as a GitHub Actions secret. Create an Incoming Webhook connector in your Teams channel and paste the URL.'},
-{p:['settings'],q:'How do I configure Splunk log forwarding?',a:'Add SPLUNK_HEC_URL and SPLUNK_HEC_TOKEN secrets. ForgeOps sends structured JSON events to your HTTP Event Collector endpoint.'},
-{p:['settings'],q:'How do I connect Jira to ForgeOps?',a:'Add JIRA_BASE_URL, JIRA_USER_EMAIL, and JIRA_API_TOKEN secrets. ForgeOps will auto-transition tickets through your workflow statuses.'},
-{p:['settings'],q:'How do I set up email notifications?',a:'Add SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS secrets. ForgeOps sends deployment and failure alerts to configured recipients.'},
-{p:['settings'],q:'How do I integrate SonarQube?',a:'Add SONAR_HOST_URL and SONAR_TOKEN secrets. SAST analysis runs automatically on every pipeline after configuration.'},
-{p:['alm'],q:'What is the Jira status flow?',a:'Tickets move through: Ready for Unit Testing, Unit Testing Complete, Ready for SIT, SIT Complete, Ready for UAT, UAT Complete, Deployed to Production.'},
-{p:['alm'],q:'How are Jira tickets extracted?',a:'ForgeOps extracts ticket IDs matching the pattern PROJ-123 from branch names and repository names in pipeline runs.'}
+{p:['settings'],q:'How do I connect Jira to ForgeOps?',a:'Go to Settings, fill in your Jira URL, email, API token, and project key. Click Test Connection to verify.'},
+{p:['alm'],q:'What is the Jira status flow?',a:'Tickets move through: To Do, In Progress, Ready for Unit Testing, Unit Testing Complete, Ready for SIT, SIT Complete, Ready for UAT, UAT Complete, Deployed to Production, Done.'},
+{p:['alm'],q:'How are Jira tickets extracted?',a:'ForgeOps extracts ticket IDs matching the pattern PROJ-123 from branch names in pipeline runs.'}
 ];
 function SparkPanel(p){var s=useState('');var search=s[0];var setS=s[1];var c=useState('');var chat=c[0];var setChat=c[1];var r=useState('');var reply=r[0];var setReply=r[1];
 var qa=SPARK.filter(function(i){return i.p.indexOf(p.pg)>=0||i.p.indexOf('all')>=0});
 var filtered=search?qa.filter(function(i){return(i.q+' '+i.a).toLowerCase().indexOf(search.toLowerCase())>=0}).slice(0,5):qa.slice(0,4);
-function ask(){if(!chat.trim())return;var q=chat.toLowerCase();var best=null;var bs=0;SPARK.forEach(function(i){var sc=0;i.q.toLowerCase().split(' ').forEach(function(w){if(w.length>3&&q.indexOf(w)>=0)sc++});if(sc>bs){bs=sc;best=i}});setTimeout(function(){if(best&&bs>=2)setReply(best.a);else if(q.indexOf('deploy')>=0)setReply('Go to Deploy page to trigger workflows across projects.');else if(q.indexOf('fail')>=0||q.indexOf('error')>=0)setReply('Check Pipelines page, click Logs on the failing run to see details.');else if(q.indexOf('pr')>=0||q.indexOf('pull')>=0)setReply('Go to Pull Requests page, Create tab. Select repo and branches.');else if(q.indexOf('teams')>=0||q.indexOf('webhook')>=0)setReply('Go to Settings (Integration Hub) and expand the Microsoft Teams card for setup steps.');else if(q.indexOf('splunk')>=0)setReply('Go to Settings (Integration Hub) and expand the Splunk card for HEC setup instructions.');else if(q.indexOf('jira')>=0)setReply('Go to Settings (Integration Hub) and expand the Jira card, or visit the ALM/Jira page for status tracking.');else if(q.indexOf('email')>=0||q.indexOf('smtp')>=0)setReply('Go to Settings (Integration Hub) and expand the Email SMTP card for configuration steps.');else if(q.indexOf('sonar')>=0)setReply('Go to Settings (Integration Hub) and expand the SonarQube card to add your host URL and token.');else if(q.indexOf('integrat')>=0)setReply('Visit the Integration Hub (Settings page) to configure Teams, Splunk, Jira, Email, ServiceNow, SonarQube, and GitHub Copilot.');else setReply('Try the Knowledge Base for detailed guides.')},300)}
-return html`<div class="spark-panel"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><div style="width:26px;height:26px;border-radius:50%;background:rgba(2,132,199,.1);display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 40 40"><path d="M20 8L11 22h6.5l-2 10L27 18h-6.5l2-10z" fill="var(--in)" style="animation:sparkGlow 3s infinite"/></svg></div><div style="flex:1"><div style="font-size:13px;font-weight:600">Spark AI</div></div><button onClick=${p.close} aria-label="Close Spark AI" style="color:var(--td)">x</button></div>
+function ask(){if(!chat.trim())return;var q=chat.toLowerCase();var best=null;var bs=0;SPARK.forEach(function(i){var sc=0;i.q.toLowerCase().split(' ').forEach(function(w){if(w.length>3&&q.indexOf(w)>=0)sc++});if(sc>bs){bs=sc;best=i}});setTimeout(function(){if(best&&bs>=2)setReply(best.a);else if(q.indexOf('deploy')>=0)setReply('Go to Deploy page to trigger workflows across projects.');else if(q.indexOf('fail')>=0||q.indexOf('error')>=0)setReply('Check Pipelines page, click Logs on the failing run to see details.');else if(q.indexOf('jira')>=0)setReply('Go to Settings to configure Jira, or visit ALM/Jira for the Kanban board.');else if(q.indexOf('pr')>=0||q.indexOf('pull')>=0)setReply('Go to Pull Requests page to create PRs with Jira ticket linking.');else setReply('Try the Knowledge Base or Settings page for guides.')},300)}
+return html`<div class="spark-panel"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><div style="width:26px;height:26px;border-radius:50%;background:rgba(2,132,199,.1);display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 40 40"><path d="M20 8L11 22h6.5l-2 10L27 18h-6.5l2-10z" fill="var(--in)" style="animation:sparkGlow 3s infinite"/></svg></div><div style="flex:1"><div style="font-size:13px;font-weight:600">Spark</div></div><button onClick=${p.close} aria-label="Close Spark" style="color:var(--td)">x</button></div>
 <div style="display:flex;gap:4px;margin-bottom:8px"><input value=${chat} onInput=${function(e){setChat(e.target.value)}} onKeyDown=${function(e){if(e.key==='Enter')ask()}} placeholder="Ask a question..." style="flex:1;font-size:11px;padding:8px 10px"/><button class="bt bp" style="padding:5px 10px;font-size:10px" onClick=${ask}>Ask</button></div>
 ${reply&&html`<div style="background:rgba(2,132,199,.06);border:1px solid rgba(2,132,199,.15);border-radius:8px;padding:8px;margin-bottom:8px;font-size:11px;color:var(--ts);line-height:1.4">${reply}</div>`}
 <input value=${search} onInput=${function(e){setS(e.target.value)}} placeholder="Filter..." style="margin-bottom:6px;font-size:10px;padding:6px 8px"/>
-${filtered.map(function(i){return html`<div key=${i.q} style="background:var(--sf);border-radius:6px;padding:6px;margin-bottom:4px;cursor:pointer;font-size:10px" onClick=${function(){setReply(i.a)}}><div style="font-weight:600;margin-bottom:1px">${i.q}</div><div style="color:var(--ts);line-height:1.3">${i.a}</div>${i.tour&&p.startTour&&html`<button class="bt bp" style="font-size:9px;padding:3px 8px;margin-top:4px" onClick=${function(e){e.stopPropagation();p.startTour(i.tour)}}>Show me</button>`}</div>`})}
-<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--bd)"><div style="font-size:9px;font-weight:600;color:var(--td);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Guided tours</div>
-${Object.keys(TOURS).map(function(id){var t=TOURS[id];return html`<div key=${id} style="background:var(--sf);border-radius:6px;padding:8px;margin-bottom:4px;cursor:pointer;display:flex;align-items:center;gap:6px" onClick=${function(){if(p.startTour)p.startTour(id)}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--pr)" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg><div style="flex:1"><div style="font-size:10px;font-weight:600">${t.name}</div></div><span style="font-size:9px;color:var(--td)">${t.time}</span></div>`})}
-</div></div>`}
+${filtered.map(function(i){return html`<div key=${i.q} style="background:var(--sf);border-radius:6px;padding:6px;margin-bottom:4px;cursor:pointer;font-size:10px" onClick=${function(){setReply(i.a)}}><div style="font-weight:600;margin-bottom:1px">${i.q}</div><div style="color:var(--ts);line-height:1.3">${i.a}</div></div>`})}
+</div>`}
 
 function LogPanel(p){var jb=useState([]);var jobs=jb[0];var setJobs=jb[1];var at=useState(0);var ld=useState(true);
 useEffect(function(){if(!p.run)return;setJobs([]);at[1](0);ld[1](true);var repo=p.run.repository&&p.run.repository.full_name||'';api('/repos/'+repo+'/actions/runs/'+p.run.id+'/jobs').then(function(d){setJobs((d&&d.jobs)||[]);ld[1](false)}).catch(function(){ld[1](false);toast('Failed to load job details','warn')})},[p.run&&p.run.id]);
@@ -188,37 +220,27 @@ function IntegrationCard(p){var ex=useState(false);var expanded=ex[0];var setExp
 return html`<div class="int-card" style=${'border-top:4px solid '+p.color}>
 <div class="int-header">
 <div style="flex:1"><div style="font-weight:600;font-size:13px">${p.title}</div><div style="font-size:10px;color:var(--ts);margin-top:2px">${p.desc}</div></div>
-<div style="display:flex;align-items:center;gap:4px"><span style=${'display:inline-block;width:7px;height:7px;border-radius:50%;background:'+('var(--td)')}></span><span style="font-size:10px;color:var(--td)">Not configured</span></div>
+<div style="display:flex;align-items:center;gap:4px"><span style=${'display:inline-block;width:7px;height:7px;border-radius:50%;background:'+(p.connected?'var(--ok)':'var(--td)')}></span><span style="font-size:10px;color:var(--td)">${p.connected?'Connected':'Not configured'}</span></div>
 </div>
 <div class="int-expand" onClick=${function(){setExpanded(!expanded)}}>${expanded?'Hide':'Show'} Setup Instructions</div>
 ${expanded&&html`<div class="int-body">
 <div style="font-size:11px;color:var(--ts);line-height:1.6;margin-bottom:10px">${p.steps.map(function(st,i){return html`<div key=${i} style="margin-bottom:4px"><span style="font-weight:600;color:var(--tx)">${i+1}.</span> ${st}</div>`})}</div>
 ${p.secrets&&html`<div style="margin-bottom:8px"><div style="font-size:10px;font-weight:600;color:var(--ts);margin-bottom:4px">Required Secrets:</div>${p.secrets.map(function(s){return html`<code key=${s} style="display:inline-block;background:var(--sf);padding:2px 6px;border-radius:4px;font-size:10px;margin:0 4px 4px 0">${s}</code>`})}</div>`}
-<a href=${'https://github.com/'+ORG+'/ForgeOps/settings/secrets/actions'} target="_blank" rel="noopener noreferrer" class="bt bp" style="font-size:10px">Add Secret</a>
+${p.children}
+<a href=${'https://github.com/'+ORG+'/ForgeOps/settings/secrets/actions'} target="_blank" rel="noopener noreferrer" class="bt bp" style="font-size:10px;margin-top:8px">Add Secret</a>
 </div>`}
 </div>`}
 
 var TOURS={
 'quick-start':{name:'Quick start tour',time:'3 min',steps:[
-{pg:'overview',sel:'[data-tour="stat-cards"]',t:'Your command center',d:'These cards show real-time status across all repos. Active pipelines, success rate, open PRs, and pending approvals.',pos:'bottom'},
-{pg:'overview',sel:'[data-tour="project-cards"]',t:'Projects',d:'Repos are grouped by project. Each card shows pass rate. Click any to drill down.',pos:'bottom'},
-{pg:'pipelines',sel:'[data-tour="pipeline-list"]',t:'Pipeline runs',d:'Every CI/CD run appears here. Click any row to expand and see jobs, steps, and logs.',pos:'bottom'},
-{pg:'prs',sel:'[data-tour="quick-actions"]',t:'Promote code',d:'These cards let you promote code between environments. Click one to create a PR on GitHub.',pos:'bottom'},
-{pg:'environments',sel:'[data-tour="env-cards"]',t:'Environments',d:'See deployed versions. Mark testing complete. Promote to the next environment.',pos:'bottom'},
-{pg:'security',sel:'[data-tour="severity-cards"]',t:'Security',d:'Every commit is scanned. Critical and high findings must be fixed before deploying.',pos:'bottom'},
-{pg:'settings',sel:'[data-tour="integrations"]',t:'Integrations',d:'Connect Jira, Teams, Splunk, and more. Click any card for setup instructions.',pos:'top'}]},
-'create-first-pr':{name:'Create your first PR',time:'2 min',steps:[
-{pg:'prs',sel:'[data-tour="quick-actions"]',t:'Quick actions',d:'Click a card to create a PR with pre-filled branches. Feature to INT is for developers.',pos:'bottom'},
-{pg:'prs',sel:'[data-tour="repo-select"]',t:'Select repo',d:'Choose the repository. Branch dropdowns update automatically.',pos:'bottom'},
-{pg:'prs',sel:'[data-tour="create-pr-btn"]',t:'Create it',d:'Click Create on GitHub. It opens a new tab with everything pre-filled.',pos:'top'}]},
-'promote-to-production':{name:'Promote to production',time:'3 min',steps:[
-{pg:'environments',sel:'[data-tour="env-cards"]',t:'Environment flow',d:'Code moves INT > QA > STAGE > PROD. Each has testing and approval steps.',pos:'bottom'},
-{pg:'prs',sel:'[data-tour="quick-actions"]',t:'Create promotion PRs',d:'Release engineer clicks INT>QA, QA>Stage, Stage>Prod to promote.',pos:'bottom'},
-{pg:'environments',sel:'[data-tour="env-cards"]',t:'Mark complete',d:'After testing, mark the environment complete to signal readiness.',pos:'bottom'}]},
+{pg:'overview',sel:'[data-tour="stat-cards"]',t:'Your command center',d:'These cards show real-time status across all repos including open Jira tickets.',pos:'bottom'},
+{pg:'pipelines',sel:'[data-tour="pipeline-list"]',t:'Pipeline runs',d:'Every CI/CD run appears here with Jira ticket badges. Click any row to see logs.',pos:'bottom'},
+{pg:'prs',sel:'[data-tour="quick-actions"]',t:'Create PRs',d:'Search Jira tickets to auto-fill PR titles. Select repo and branches.',pos:'bottom'},
+{pg:'alm',sel:'[data-tour="kanban"]',t:'Jira Kanban',d:'Full Kanban board from Jira. See tickets flow through environments.',pos:'bottom'},
+{pg:'settings',sel:'[data-tour="integrations"]',t:'Integrations',d:'Connect Jira, Teams, Splunk, and more. Click any card for setup.',pos:'top'}]},
 'setup-integrations':{name:'Set up integrations',time:'2 min',steps:[
-{pg:'settings',sel:'[data-tour="integration-teams"]',t:'Teams notifications',d:'Get alerts in your Teams channel. Click the card for setup steps.',pos:'bottom'},
-{pg:'settings',sel:'[data-tour="integration-jira"]',t:'Jira tracking',d:'Auto-transition tickets on deploy. Free for 10 users.',pos:'bottom'},
-{pg:'settings',sel:'[data-tour="integration-splunk"]',t:'Splunk logging',d:'Centralized logging with ready-to-use dashboard queries.',pos:'bottom'}]}
+{pg:'settings',sel:'[data-tour="integration-jira"]',t:'Jira tracking',d:'Configure your Jira URL, email, and API token to enable ticket tracking across all pages.',pos:'bottom'},
+{pg:'settings',sel:'[data-tour="integration-teams"]',t:'Teams notifications',d:'Get alerts in your Teams channel. Click the card for setup steps.',pos:'bottom'}]}
 };
 
 function TourOverlay(p){
@@ -228,15 +250,12 @@ function TourOverlay(p){
   useEffect(function(){
     if(step.pg&&p.setPage)p.setPage(step.pg);
     setTimeout(function(){
-      var el=step.sel&&document.querySelector(step.sel);
-      if(!el)return;
+      var el=step.sel&&document.querySelector(step.sel);if(!el)return;
       var r=el.getBoundingClientRect();
       pos[1]({top:r.top-4,left:r.left-4,width:r.width+8,height:r.height+8});
       var tt=r.top-160;var tl=r.left;
-      if(step.pos==='bottom')tt=r.bottom+16;
-      if(tt<10)tt=r.bottom+16;
-      if(tl+280>window.innerWidth)tl=window.innerWidth-290;
-      if(tl<10)tl=10;
+      if(step.pos==='bottom')tt=r.bottom+16;if(tt<10)tt=r.bottom+16;
+      if(tl+280>window.innerWidth)tl=window.innerWidth-290;if(tl<10)tl=10;
       tipPos[1]({top:tt,left:tl});
     },400);
   },[p.step,p.tour]);
@@ -287,6 +306,14 @@ var branches=useState([]);
 var inv=useState({username:'',name:'',email:'',role:'developer'});
 var tour=useState(null);var tourStep=useState(0);
 var showWelcome=useState(!localStorage.getItem('fg_tour_completed')&&!localStorage.getItem('fg_tour_dismissed'));
+// Jira state
+var jiraCfg=useState(getJiraConfig());
+var jiraTickets=useState([]);
+var jiraConnected=useState(false);
+var jiraSearch=useState([]);
+var jiraDetail=useState(null);
+var jiraData=useState(null);
+
 function startTour(id){var t=TOURS[id];if(t){tour[1](t);tourStep[1](0);showWelcome[1](false);setSpark(false)}};
 function endTour(){tour[1](null);tourStep[1](0);localStorage.setItem('fg_tour_completed','1')}
 
@@ -296,14 +323,19 @@ useEffect(function(){
   loadData().then(function(res){
     if(res.config)setConfig(res.config);
     if(res.repos&&res.repos.length>0){setCmdData({repos:res.repos,source:res.source})}
+    if(res.jira)jiraData[1](res.jira);
     setLoading(false);lastRef[1](new Date());
     if(res.source==='none')console.warn('No data source available');
-  }).catch(function(){setLoading(false)})
+  }).catch(function(){setLoading(false)});
+  // Test Jira connection
+  var jc=getJiraConfig();
+  if(jc.url&&jc.token){jiraApi('/rest/api/3/myself').then(function(u){if(u)jiraConnected[1](true)})}
 },[]);
 
 function refresh(){clearCache();setLoading(true);loadData().then(function(res){
   if(res.config)setConfig(res.config);
   if(res.repos)setCmdData({repos:res.repos,source:res.source});
+  if(res.jira)jiraData[1](res.jira);
   setLoading(false);lastRef[1](new Date());toast('Refreshed');
 }).catch(function(){setLoading(false)})}
 function onSearch(e){var v=e.target.value;setSearch(v);clearTimeout(debounceRef.current);debounceRef.current=setTimeout(function(){setPageNums({})},300)}
@@ -311,6 +343,14 @@ function getPage(key){return pageNums[key]||1}
 function nextPage(key){setPageNums(function(p){var n={};Object.keys(p).forEach(function(k){n[k]=p[k]});n[key]=(p[key]||1)+1;return n})}
 function paginate(arr,key){var pg=getPage(key);return arr.slice(0,pg*pageSize)}
 function nav(p){setPage(p);setSideOpen(false);setPageNums({})}
+function loadJiraTickets(jql){
+  var cfg=getJiraConfig();if(!cfg.project)return Promise.resolve([]);
+  return jiraApi('/rest/api/3/search?jql='+encodeURIComponent(jql)+'&maxResults=50&fields=summary,status,assignee,priority,updated,labels').then(function(d){return d&&d.issues?d.issues:[]}).catch(function(){return[]})
+}
+function searchJira(text){
+  var cfg=getJiraConfig();if(!cfg.project||!text)return;
+  loadJiraTickets('project='+cfg.project+' AND summary~"'+text+'" AND status!=Done ORDER BY updated DESC').then(function(issues){jiraSearch[1](issues)})
+}
 
 var projects=(config&&config.projects)||{};
 var projNames=Object.keys(projects);
@@ -320,13 +360,9 @@ repoSource.forEach(function(r){var name=typeof r==='string'?r:r.name||'';if(!nam
 if(allRepos.length===0){projNames.forEach(function(pn){var proj=projects[pn];(proj.repos||proj.sample_repos||[]).forEach(function(r){var name=typeof r==='string'?r:r.name||'';if(name){totalRepos++;allRepos.push({name:name,project:pn,runs:[],language:proj.template||''})}})})}
 var repoNames=allRepos.map(function(r){return r.name});
 allRuns.sort(function(a,b){return new Date(b.created_at||0)-new Date(a.created_at||0)});
-
 var filteredRepos=searchTxt?allRepos.filter(function(r){return r.name.toLowerCase().indexOf(searchTxt.toLowerCase())>=0}):allRepos;
 
-// Extract Jira tickets from allRuns
 function extractTickets(){var tickets=[];var seen={};allRuns.forEach(function(r){var src=(r.branch||r.head_branch||'')+' '+(r.repo||'');var match=src.match(/[A-Z]+-\d+/);if(match){var tk=match[0];var key=tk+'-'+r.repo+'-'+(r.branch||r.head_branch||'');if(!seen[key]){seen[key]=true;var env='INT';var br=(r.branch||r.head_branch||'').toLowerCase();if(br.indexOf('prod')>=0||br==='main')env='PROD';else if(br.indexOf('stage')>=0)env='STAGE';else if(br.indexOf('qa')>=0)env='QA';tickets.push({ticket:tk,repo:r.repo||'',env:env,time:r.created||r.created_at||''})}}});return tickets}
-
-// Build notifications from allRuns
 function buildNotifications(){var notifs=[];allRuns.forEach(function(r){if(r.conclusion==='success'||r.conclusion==='failure'){var env='INT';var br=(r.branch||r.head_branch||'').toLowerCase();if(br.indexOf('prod')>=0||br==='main')env='PROD';else if(br.indexOf('stage')>=0)env='STAGE';else if(br.indexOf('qa')>=0)env='QA';notifs.push({type:'Teams',msg:(r.repo||'')+' deployed to '+env,time:r.created||r.created_at||''});notifs.push({type:'Email',msg:env+' team notified of '+(r.conclusion==='success'?'successful':'failed')+' deploy',time:r.created||r.created_at||''})}});return notifs.slice(0,10)}
 
 if(!user&&!getToken()&&!loading)return html`<div style="display:flex;align-items:center;justify-content:center;height:100vh;padding:20px"><div style="text-align:center;max-width:360px"><${Logo} s=${40}/><h1 style="font-size:20px;margin:12px 0 4px">ForgeOps</h1><p style="color:var(--ts);font-size:12px;margin-bottom:16px">Enter your GitHub token once. Saved for this session only.</p><form onSubmit=${function(e){e.preventDefault();var v=e.target.elements.tok.value.trim();if(!v)return;sessionStorage.setItem('fg_pat',v);api('/user').then(function(u){setUser(u);toast('Connected as '+u.login)}).catch(function(err){sessionStorage.removeItem('fg_pat');toast('Invalid token','err')})}} style="display:flex;gap:6px"><input name="tok" type="password" placeholder="ghp_..." style="flex:1;font-family:'JetBrains Mono',monospace"/><button type="submit" class="bt bp">Go</button></form></div></div>`;
@@ -334,6 +370,7 @@ if(!user&&!getToken()&&!loading)return html`<div style="display:flex;align-items
 var sections={DELIVERY:['overview','pipelines','prs','deploy','environments'],QUALITY:['security','alm'],OPERATIONS:['users','settings']};
 var labels={overview:'Overview',pipelines:'Pipelines',prs:'Pull Requests',deploy:'Deploy',environments:'Environments',security:'Security',alm:'ALM / Jira',users:'Team',settings:'Settings'};
 var ROLE_DESC={developer:'Can commit code, create PRs to INT, view own pipelines',tech_lead:'Can review PRs, approve merges, view security, monitor analytics',release_engineer:'Can promote code between environments, deploy, rollback',qa_team:'Can view QA environment, mark SIT testing complete',uat_team:'Can view Stage environment, mark UAT testing complete',admin:'Full control over all features and settings'};
+var openTicketCount=jiraData[0]&&jiraData[0].open_count||0;
 
 function renderPage(){
   if(loading)return html`<${Skels}/>`;
@@ -341,115 +378,151 @@ function renderPage(){
   var dataWarning=!cmdData&&config?html`<div style="background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.2);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--wa)">Dashboard data not generated yet. Go to Actions > generate-dashboard-data > Run workflow.</div>`:null;
   if(noData)return html`<${Empty} msg="Command center data not generated yet. Go to GitHub Actions > generate-dashboard-data > Run workflow."/>`;
 
-  if(page==='overview'){var notifs=buildNotifications();return html`<div class="fu">${dataWarning}
-    <div class="g4">
+  // ── OVERVIEW ──
+  if(page==='overview'){var notifs=buildNotifications();var jd=jiraData[0];var recentJira=jd&&jd.recent||[];return html`<div class="fu">${dataWarning}
+    <div class="g4" data-tour="stat-cards">
       <div class="c" style="border-left:4px solid var(--pr);text-align:center"><div style="font-size:9px;color:var(--ts);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">Repos</div><div style="font-size:24px;font-weight:700">${totalRepos}</div></div>
       <div class="c" style="border-left:4px solid var(--ok);text-align:center"><div style="font-size:9px;color:var(--ts);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">Passing</div><div style="font-size:24px;font-weight:700;color:var(--ok)">${passing}</div></div>
       <div class="c" style="border-left:4px solid var(--er);text-align:center"><div style="font-size:9px;color:var(--ts);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">Failing</div><div style="font-size:24px;font-weight:700;color:var(--er)">${failing}</div></div>
       <div class="c" style="border-left:4px solid var(--in);text-align:center"><div style="font-size:9px;color:var(--ts);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">Running</div><div style="font-size:24px;font-weight:700;color:var(--in)">${running}</div></div>
+      <div class="c" style="border-left:4px solid #7c3aed;text-align:center;cursor:pointer" onClick=${function(){nav('alm')}}><div style="font-size:9px;color:var(--ts);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">Open Tickets</div><div style="font-size:24px;font-weight:700;color:#7c3aed">${openTicketCount}</div></div>
     </div>
     <div class="g2" data-tour="project-cards">${projNames.map(function(pn){var proj=projects[pn];var repos=proj.repos||[];var ok=repos.filter(function(r){var l=r&&r.runs&&r.runs[0];return l&&l.conclusion==='success'}).length;return html`<div key=${pn} class="c"><div style="font-weight:600;font-size:13px;margin-bottom:2px">${pn}</div><div style="font-size:10px;color:var(--ts);margin-bottom:6px">${proj.team||proj.description||''} -- ${repos.length} repos</div><div style="height:5px;background:var(--sf);border-radius:3px;overflow:hidden"><div style=${'height:100%;width:'+(repos.length?Math.round(ok/repos.length*100):0)+'%;background:var(--ok);border-radius:3px'}></div></div></div>`})}</div>
-    <div class="c"><div style="font-size:11px;font-weight:600;color:var(--ts);margin-bottom:6px">Recent Activity</div>${allRuns.slice(0,15).map(function(r){return html`<div class="lr" key=${r.id||r.repo} style="cursor:pointer" onClick=${function(){setLogRun(r)}}><span class="badge" style=${'background:'+sCol(r.conclusion||r.status).replace('var(','rgba(').replace(/\)/,',.1)')+';color:'+sCol(r.conclusion||r.status)}>${r.conclusion||r.status||'?'}</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.repo||''}</div><div class="mono" style="font-size:9px;color:var(--td)">${r.branch||r.head_branch||''}</div></div><span style="font-size:9px;color:var(--td)">${ago(r.created||r.created_at)}</span></div>`})}${allRuns.length===0&&html`<div style="color:var(--td);font-size:11px;text-align:center;padding:12px">No pipeline data yet. Push code to a registered repo.</div>`}</div>
+    <div class="c"><div style="font-size:11px;font-weight:600;color:var(--ts);margin-bottom:6px">Recent Activity</div>${allRuns.slice(0,10).map(function(r){var tk=extractTicket(r.branch||r.head_branch||'');return html`<div class="lr" key=${r.id||r.repo} style="cursor:pointer" onClick=${function(){setLogRun(r)}}><span class="badge" style=${'background:'+sCol(r.conclusion||r.status).replace('var(','rgba(').replace(/\)/,',.1)')+';color:'+sCol(r.conclusion||r.status)}>${r.conclusion||r.status||'?'}</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.repo||''} ${tk?html`<span class="badge" style="background:rgba(124,58,237,.1);color:#7c3aed;margin-left:4px;cursor:pointer" onClick=${function(e){e.stopPropagation();var cfg=getJiraConfig();if(cfg.url)window.open(cfg.url+'/browse/'+tk,'_blank')}}>${tk}</span>`:''}</div><div class="mono" style="font-size:9px;color:var(--td)">${r.branch||r.head_branch||''}</div></div><span style="font-size:9px;color:var(--td)">${ago(r.created||r.created_at)}</span></div>`})}${allRuns.length===0&&html`<div style="color:var(--td);font-size:11px;text-align:center;padding:12px">No pipeline data yet.</div>`}</div>
+    ${recentJira.length>0&&html`<div class="c"><div style="font-size:11px;font-weight:600;color:var(--ts);margin-bottom:6px">Jira Activity</div>${recentJira.slice(0,10).map(function(t,i){return html`<div key=${i} class="lr"><span class="badge" style=${'background:'+jiraStatusColor(t.status).replace('var(','rgba(').replace(/\)/,',.1)')+';color:'+jiraStatusColor(t.status)}>${t.status||'?'}</span><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">${t.key} -- ${t.summary||''}</div></div><span style="font-size:9px;color:var(--td)">${ago(t.updated)}</span></div>`})}</div>`}
     <div class="c"><div style="font-size:11px;font-weight:600;color:var(--ts);margin-bottom:6px">Recent Notifications</div>${notifs.length>0?notifs.map(function(n,i){return html`<div key=${i} class="lr" style="font-size:11px"><span class="badge" style="background:var(--pl);color:var(--pr)">${n.type}</span><div style="flex:1;min-width:0"><div style="font-size:11px;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.msg}</div></div><span style="font-size:9px;color:var(--td)">${ago(n.time)}</span></div>`}):html`<div style="color:var(--td);font-size:11px;text-align:center;padding:12px">Configure integrations in Settings to see notifications here</div>`}</div>
   </div>`}
 
+  // ── PIPELINES ──
   if(page==='pipelines'){var paged=paginate(filteredRepos,'pipes');return html`<div class="fu" data-tour="pipeline-page">
     <input value=${searchTxt} onInput=${onSearch} placeholder="Search repos..." style="margin-bottom:12px;font-size:12px;padding:8px 12px"/>
-    <div class="c">${paged.map(function(r){var latest=r.runs&&r.runs[0];return html`<div key=${r.name} class="lr" style=${'border-left:3px solid '+sCol(latest&&(latest.conclusion||latest.status))+';padding-left:8px;cursor:pointer'} onClick=${function(){if(latest)setLogRun({id:latest.id,repository:{full_name:ORG+'/'+r.name,name:r.name},html_url:'https://github.com/'+ORG+'/'+r.name+'/actions',run_number:latest.id,head_branch:latest.branch,conclusion:latest.conclusion,status:latest.status,created_at:latest.created})}}>
+    <div class="c" data-tour="pipeline-list">${paged.map(function(r){var latest=r.runs&&r.runs[0];var tk=extractTicket(latest&&(latest.branch||'')||'');var cfg=getJiraConfig();return html`<div key=${r.name} class="lr" style=${'border-left:3px solid '+sCol(latest&&(latest.conclusion||latest.status))+';padding-left:8px;cursor:pointer'} onClick=${function(){if(latest)setLogRun({id:latest.id,repository:{full_name:ORG+'/'+r.name,name:r.name},html_url:'https://github.com/'+ORG+'/'+r.name+'/actions',run_number:latest.id,head_branch:latest.branch,conclusion:latest.conclusion,status:latest.status,created_at:latest.created})}}>
       <span class="badge" style=${'background:'+sCol(latest&&(latest.conclusion||latest.status)).replace('var(','rgba(').replace(/\)/,',.1)')+';color:'+sCol(latest&&(latest.conclusion||latest.status))}>${latest&&(latest.conclusion||latest.status)||'none'}</span>
-      <div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">${r.name}</div><div style="font-size:9px;color:var(--td)">${r.project} ${latest&&latest.branch?'-- '+latest.branch:''}</div></div>
+      <div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:500">${r.name} ${tk?html`<a href=${cfg.url?cfg.url+'/browse/'+tk:'#'} target="_blank" rel="noopener noreferrer" class="badge" style="background:rgba(124,58,237,.1);color:#7c3aed;margin-left:4px;text-decoration:none" onClick=${function(e){e.stopPropagation()}}>${tk}</a>`:''}</div><div style="font-size:9px;color:var(--td)">${r.project} ${latest&&latest.branch?'-- '+latest.branch:''}</div></div>
       <span style="font-size:9px;color:var(--td)">${latest&&ago(latest.created)||''}</span>
       <a href=${'https://github.com/'+ORG+'/'+r.name+'/actions'} target="_blank" rel="noopener noreferrer" class="bt bs" style="font-size:9px;padding:3px 6px" onClick=${function(e){e.stopPropagation()}}>GitHub</a>
     </div>`})}${paged.length===0&&html`<div style="text-align:center;padding:16px;color:var(--td);font-size:11px">No repos found.</div>`}</div>
     ${paged.length<filteredRepos.length&&html`<button class="bt bs" style="width:100%" onClick=${function(){nextPage('pipes')}}>Show more (${filteredRepos.length-paged.length} remaining)</button>`}
   </div>`}
 
-  if(page==='prs')return html`<div class="fu" data-tour="prs-page">
-    <div class="tabs"><div class=${'tab'+(prTab[0]==='create'?' ac':'')} onClick=${function(){prTab[1]('create')}}>Create PR</div></div>
+  // ── PULL REQUESTS ──
+  if(page==='prs'){var jiraQ=useState('');var jiraResults=useState([]);var jiraLoading=useState(false);var jiraDebounce=useRef(null);
+  function onJiraSearch(e){var v=e.target.value;jiraQ[1](v);prForm[1](function(p){return{repo:p.repo,src:p.src,tgt:p.tgt,title:p.title,jira:v}});clearTimeout(jiraDebounce.current);if(v.length>=2){jiraLoading[1](true);jiraDebounce.current=setTimeout(function(){var cfg=getJiraConfig();if(cfg.url&&cfg.project){loadJiraTickets('project='+cfg.project+' AND text~"'+v+'" AND status!=Done ORDER BY updated DESC').then(function(r){jiraResults[1](r);jiraLoading[1](false)})}else{jiraLoading[1](false)}},400)}else{jiraResults[1]([])}}
+  function selectJiraTicket(issue){var key=issue.key;var summary=issue.fields.summary;prForm[1](function(p){return{repo:p.repo,src:p.src,tgt:p.tgt,title:'['+key+'] '+summary,jira:key}});jiraQ[1](key);jiraResults[1]([])}
+  return html`<div class="fu" data-tour="prs-page">
+    <div class="c" data-tour="quick-actions"><div style="font-size:12px;font-weight:600;margin-bottom:8px">Quick Promote</div><div style="display:flex;gap:6px;flex-wrap:wrap">${[{l:'Feature > INT',s:'feature/',t:'int'},{l:'INT > QA',s:'int',t:'qa'},{l:'QA > Stage',s:'qa',t:'stage'},{l:'Stage > Prod',s:'stage',t:'main'}].map(function(p){return html`<button key=${p.l} class="bt bs" style="font-size:10px" onClick=${function(){prForm[1](function(f){return{repo:f.repo,src:p.s,tgt:p.t,title:f.title,jira:f.jira}})}}>${p.l}</button>`})}</div></div>
     <div class="c"><div style="font-size:12px;font-weight:600;margin-bottom:8px">Create Pull Request</div><div class="fl">
-      <div><div class="lb">Repository</div><select value=${prForm[0].repo} onChange=${function(e){var v=e.target.value;prForm[1](function(p){return{repo:v,src:'',tgt:p.tgt,title:p.title,jira:p.jira}});if(v)loadBranches(v).then(function(res){branches[1](res.branches)})}}><option value="">Select repo...</option>${repoNames.slice(0,100).map(function(name){return html`<option key=${name} value=${name}>${name}</option>`})}</select></div>
+      <div data-tour="repo-select"><div class="lb">Repository</div><select value=${prForm[0].repo} onChange=${function(e){var v=e.target.value;prForm[1](function(p){return{repo:v,src:'',tgt:p.tgt,title:p.title,jira:p.jira}});if(v)loadBranches(v).then(function(res){branches[1](res.branches)})}}><option value="">Select repo...</option>${repoNames.slice(0,100).map(function(name){return html`<option key=${name} value=${name}>${name}</option>`})}</select></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><div class="lb">Source Branch</div><select value=${prForm[0].src} onChange=${function(e){prForm[1](function(p){return{repo:p.repo,src:e.target.value,tgt:p.tgt,title:p.title,jira:p.jira}})}}><option value="">Select...</option>${branches[0].map(function(b){return html`<option key=${b} value=${b}>${b}</option>`})}</select></div><div><div class="lb">Target Branch</div><select value=${prForm[0].tgt} onChange=${function(e){prForm[1](function(p){return{repo:p.repo,src:p.src,tgt:e.target.value,title:p.title,jira:p.jira}})}}>${['int','qa','stage','main'].map(function(b){return html`<option key=${b} value=${b}>${b}</option>`})}</select></div></div>
-      <div><div class="lb">Jira Ticket</div><input value=${prForm[0].jira} onInput=${function(e){prForm[1](function(p){return{repo:p.repo,src:p.src,tgt:p.tgt,title:p.title,jira:e.target.value}})}} placeholder="PROJ-123"/></div>
+      <div style="position:relative"><div class="lb">Jira Ticket (search or type ID)</div><input value=${jiraQ[0]||prForm[0].jira} onInput=${onJiraSearch} placeholder="Search tickets or type SCRUM-123..."/>
+      ${jiraResults[0].length>0&&html`<div style="position:absolute;top:100%;left:0;right:0;background:var(--pn);border:1px solid var(--bd);border-radius:8px;max-height:200px;overflow-y:auto;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.1)">${jiraResults[0].map(function(iss){return html`<div key=${iss.key} style="padding:8px 12px;cursor:pointer;font-size:11px;border-bottom:1px solid var(--bd)" onClick=${function(){selectJiraTicket(iss)}}><span style="font-weight:600;color:var(--pr)">${iss.key}</span> <span style="color:var(--ts)">-- ${iss.fields.summary}</span></div>`})}</div>`}
+      ${jiraLoading[0]&&html`<div style="font-size:10px;color:var(--td);margin-top:4px">Searching Jira...</div>`}</div>
       <div><div class="lb">Title</div><input value=${prForm[0].title} onInput=${function(e){prForm[1](function(p){return{repo:p.repo,src:p.src,tgt:p.tgt,title:e.target.value,jira:p.jira}})}} placeholder="Add feature X"/></div>
-      <button class="bt bp" onClick=${function(){var f=prForm[0];if(!f.repo||!f.src||!f.title){toast('Fill repo, source, title','err');return}var t=encodeURIComponent((f.jira?f.jira+' ':'')+f.title);var url='https://github.com/'+ORG+'/'+f.repo+'/compare/'+f.tgt+'...'+f.src+'?expand=1&title='+t;window.open(url,'_blank','noopener,noreferrer');toast('Opening GitHub...')}}>Create on GitHub</button>
+      <button data-tour="create-pr-btn" class="bt bp" onClick=${function(){var f=prForm[0];if(!f.repo||!f.src||!f.title){toast('Fill repo, source, title','err');return}var t=encodeURIComponent((f.jira?'['+f.jira+'] ':'')+f.title);var url='https://github.com/'+ORG+'/'+f.repo+'/compare/'+f.tgt+'...'+f.src+'?expand=1&title='+t;window.open(url,'_blank','noopener,noreferrer');toast('Opening GitHub...')}}>Create on GitHub</button>
     </div></div>
+  </div>`}
+
+  // ── DEPLOY ──
+  if(page==='deploy'){var jd=jiraData[0];var envTickets=jd&&jd.by_status||{};return html`<div class="fu">
+    <div class="c"><div style="font-weight:600;margin-bottom:6px">Bulk Operations</div><div style="font-size:11px;color:var(--ts);margin-bottom:10px;line-height:1.5">Select a project to trigger deployments. Jira tickets in the source environment will be transitioned automatically.</div>
+    ${projNames.map(function(pn){var proj=projects[pn];return html`<div key=${pn} class="c"><div style="font-weight:600;font-size:13px;margin-bottom:3px">${pn}</div><div style="font-size:10px;color:var(--ts);margin-bottom:6px">${(proj.repos||[]).length} repos -- ${proj.team||proj.description||''}</div><div style="display:flex;gap:4px;flex-wrap:wrap">${[{env:'qa',label:'Deploy QA',jira:'Ready for SIT'},{env:'stage',label:'Deploy STAGE',jira:'Ready for UAT'},{env:'prod',label:'Deploy PROD',jira:'Deployed to Production'}].map(function(d){var count=envTickets[d.jira]||0;return html`<a key=${d.env} href=${'https://github.com/'+ORG+'/ForgeOps/issues/new?title=%5BFORGEOPS%5D+deploy+'+pn+'+'+d.env+'&labels=forgeops-dispatch'} target="_blank" rel="noopener noreferrer" class="bt bs" style="font-size:10px;padding:4px 8px">${d.label} ${count?html`<span class="ni-badge" style="margin-left:2px">${count}</span>`:''}</a>`})}</div></div>`})}</div>
+  </div>`}
+
+  // ── ENVIRONMENTS ──
+  if(page==='environments'){var envs=['INT','QA','STAGE','PROD'];var cols=['var(--in)','var(--wa)','var(--wa)','var(--er)'];var jiraMap={INT:{status:'Ready for Unit Testing',next:'Unit Testing Complete'},QA:{status:'Ready for SIT',next:'SIT Complete'},STAGE:{status:'Ready for UAT',next:'UAT Complete'},PROD:{status:'Deployed to Production',next:null}};var jd=jiraData[0];var byStatus=jd&&jd.by_status||{};return html`<div class="fu" data-tour="env-cards"><div style="display:flex;gap:6px;overflow-x:auto;flex-wrap:wrap">${envs.map(function(e,i){var info=jiraMap[e];var count=byStatus[info.status]||0;var tickets=(jd&&jd.tickets_by_status&&jd.tickets_by_status[info.status])||[];var ex=useState(false);return html`<div key=${e} style="flex:1;min-width:200px"><div class="c" style=${'border-top:4px solid '+cols[i]}>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><div style="font-weight:700;font-size:13px">${e}</div>${count>0&&html`<span class="ni-badge">${count}</span>`}</div>
+    <div style="font-size:10px;color:var(--ts)">${totalRepos} repos registered</div>
+    <div style="font-size:9px;color:var(--in);margin-top:4px;font-weight:600">Jira: ${info.status}</div>
+    ${tickets.length>0&&html`<div style="margin-top:8px;border-top:1px solid var(--bd);padding-top:8px">${tickets.slice(0,ex[0]?20:3).map(function(t){return html`<div key=${t.key} style="font-size:10px;margin-bottom:4px;display:flex;gap:4px;align-items:center"><span style="font-weight:600;color:var(--pr)">${t.key}</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ts)">${t.summary||''}</span></div>`})}${tickets.length>3&&html`<button style="font-size:9px;color:var(--pr);margin-top:4px" onClick=${function(){ex[1](!ex[0])}}>${ex[0]?'Show less':'Show all '+tickets.length}</button>`}</div>`}
+    ${info.next&&count>0&&html`<button class="bt bok" style="width:100%;justify-content:center;margin-top:8px;font-size:10px" onClick=${function(){toast('Transition requires direct Jira API access. Configure in Settings.','warn')}}>Mark Testing Complete</button>`}
+  </div></div>`})}</div></div>`}
+
+  // ── SECURITY ──
+  if(page==='security')return html`<div class="fu" data-tour="security-page"><div class="g4" data-tour="severity-cards"><div class="c" style="border-left:4px solid var(--ok);text-align:center"><div style="font-size:9px;color:var(--ts);text-transform:uppercase;letter-spacing:1px">Gitleaks</div><div style="font-size:18px;font-weight:700;color:var(--ok)">Active</div></div><div class="c" style="border-left:4px solid var(--ok);text-align:center"><div style="font-size:9px;color:var(--ts);text-transform:uppercase;letter-spacing:1px">OWASP DC</div><div style="font-size:18px;font-weight:700;color:var(--ok)">Active</div></div><div class="c" style="border-left:4px solid var(--ok);text-align:center"><div style="font-size:9px;color:var(--ts);text-transform:uppercase;letter-spacing:1px">Syft SBOM</div><div style="font-size:18px;font-weight:700;color:var(--ok)">Active</div></div><div class="c" style="border-left:4px solid var(--td);text-align:center"><div style="font-size:9px;color:var(--ts);text-transform:uppercase;letter-spacing:1px">SonarQube</div><div style="font-size:18px;font-weight:700;color:var(--td)">Add secret</div></div></div>
+    <div class="c"><div style="font-size:11px;font-weight:600;color:var(--ts);margin-bottom:6px">Security Findings</div><div style="font-size:11px;color:var(--ts);line-height:1.6;margin-bottom:12px">Free tools (Gitleaks, OWASP Dependency-Check, Syft) run on every pipeline. Add SONAR_HOST_URL + SONAR_TOKEN for SAST.</div>
+    ${['Critical vulnerability in dependency X','High severity secret pattern detected','Medium priority code quality issue'].map(function(finding,i){var sev=['critical','high','medium'][i];var sevCol={critical:'var(--er)',high:'var(--wa)',medium:'var(--in)'}[sev];return html`<div key=${i} style="border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin-bottom:6px;display:flex;align-items:center;gap:8px;font-size:11px"><span class="badge" style=${'background:'+sevCol.replace('var(','rgba(').replace(/\)/,',.1)')+';color:'+sevCol}>${sev}</span><span style="flex:1">${finding}</span><button class="bt bs" style="font-size:9px;padding:3px 8px" onClick=${function(){var cfg=getJiraConfig();if(!cfg.url||!cfg.project){toast('Configure Jira in Settings first','warn');return}var priority={critical:'Highest',high:'High',medium:'Medium'}[sev];jiraPost('/rest/api/3/issue',{fields:{project:{key:cfg.project},summary:'[Security] '+finding,issuetype:{name:'Bug'},priority:{name:priority},labels:['security','forgeops-auto']}}).then(function(r){if(r&&r.key)toast('Created '+r.key);else toast('Failed -- check Jira config','err')})}}>Create Jira Bug</button></div>`})}</div>
   </div>`;
 
-  if(page==='deploy')return html`<div class="fu">
-    <div class="c"><div style="font-weight:600;margin-bottom:6px">Bulk Operations</div><div style="font-size:11px;color:var(--ts);margin-bottom:10px;line-height:1.5">Select a project to trigger deployments across all its repos via GitHub dispatch.</div>
-    ${projNames.map(function(pn){var proj=projects[pn];return html`<div key=${pn} class="c"><div style="font-weight:600;font-size:13px;margin-bottom:3px">${pn}</div><div style="font-size:10px;color:var(--ts);margin-bottom:6px">${(proj.repos||[]).length} repos -- ${proj.team||proj.description||''}</div><div style="display:flex;gap:4px;flex-wrap:wrap">${['qa','stage','prod'].map(function(env){return html`<a key=${env} href=${'https://github.com/'+ORG+'/ForgeOps/issues/new?title=%5BFORGEOPS%5D+deploy+'+pn+'+'+env+'&labels=forgeops-dispatch'} target="_blank" rel="noopener noreferrer" class="bt bs" style="font-size:10px;padding:4px 8px">Deploy ${env.toUpperCase()}</a>`})}</div></div>`})}</div>
-  </div>`;
-
-  if(page==='environments'){var envs=['INT','QA','STAGE','PROD'];var cols=['var(--in)','var(--wa)','var(--wa)','var(--er)'];var jiraMap={INT:'Jira: Ready for Unit Testing',QA:'Jira: Ready for SIT',STAGE:'Jira: Ready for UAT',PROD:'Jira: Deployed to Production'};return html`<div class="fu"><div style="display:flex;gap:6px;overflow-x:auto">${envs.map(function(e,i){return html`<div key=${e} style="flex:1;min-width:140px"><div class="c" style=${'border-top:4px solid '+cols[i]}><div style="font-weight:700;font-size:13px;margin-bottom:6px">${e}</div><div style="font-size:10px;color:var(--ts)">${totalRepos} repos registered</div><div style="font-size:9px;color:var(--td);margin-top:4px">Push to ${e.toLowerCase()} branch to deploy</div><div style="font-size:9px;color:var(--in);margin-top:6px;font-weight:600">${jiraMap[e]}</div></div></div>`})}</div></div>`}
-
-  if(page==='security')return html`<div class="fu" data-tour="security-page"><div class="g4"><div class="c" style="border-left:4px solid var(--ok);text-align:center"><div style="font-size:9px;color:var(--ts);text-transform:uppercase;letter-spacing:1px">Gitleaks</div><div style="font-size:18px;font-weight:700;color:var(--ok)">Active</div></div><div class="c" style="border-left:4px solid var(--ok);text-align:center"><div style="font-size:9px;color:var(--ts);text-transform:uppercase;letter-spacing:1px">OWASP DC</div><div style="font-size:18px;font-weight:700;color:var(--ok)">Active</div></div><div class="c" style="border-left:4px solid var(--ok);text-align:center"><div style="font-size:9px;color:var(--ts);text-transform:uppercase;letter-spacing:1px">Syft SBOM</div><div style="font-size:18px;font-weight:700;color:var(--ok)">Active</div></div><div class="c" style="border-left:4px solid var(--td);text-align:center"><div style="font-size:9px;color:var(--ts);text-transform:uppercase;letter-spacing:1px">SonarQube</div><div style="font-size:18px;font-weight:700;color:var(--td)">Add secret</div></div></div><div class="c"><div style="font-size:11px;color:var(--ts);line-height:1.6">Free tools (Gitleaks, OWASP Dependency-Check, Syft) run automatically on every pipeline. Add SONAR_HOST_URL + SONAR_TOKEN for SAST.</div></div></div>`;
-
-  if(page==='alm'){var tickets=extractTickets();var jiraStatuses=['Ready for Unit Testing','Unit Testing Complete','Ready for SIT','SIT Complete','Ready for UAT','UAT Complete','Deployed to Production'];return html`<div class="fu">
+  // ── ALM / JIRA ──
+  if(page==='alm'){var tickets=extractTickets();var jd=jiraData[0];var allJiraTickets=jd&&jd.all_tickets||[];var jiraStatuses=['To Do','In Progress','Ready for Unit Testing','Unit Testing Complete','Ready for SIT','SIT Complete','Ready for UAT','UAT Complete','Deployed to Production','Done'];var byStatus=jd&&jd.by_status||{};
+  var grouped={};jiraStatuses.forEach(function(s){grouped[s]=[]});allJiraTickets.forEach(function(t){var s=t.status||'To Do';if(grouped[s])grouped[s].push(t);else{if(!grouped['To Do'])grouped['To Do']=[];grouped['To Do'].push(t)}});
+  return html`<div class="fu" data-tour="kanban">
     <div class="c"><div style="font-size:12px;font-weight:600;margin-bottom:8px">Jira Status Flow</div>
-    <div class="jira-flow">${jiraStatuses.map(function(st,i){var items=[html`<div key=${st} class="jira-node">${st}</div>`];if(i<jiraStatuses.length-1)items.push(html`<div key=${'arrow-'+i} class="jira-arrow">></div>`);return items})}</div></div>
+    <div class="jira-flow">${jiraStatuses.map(function(st,i){var count=byStatus[st]||grouped[st].length||0;var items=[html`<div key=${st} class="jira-node" style=${'border-color:'+jiraStatusColor(st)}><div>${st}</div>${count>0&&html`<div style="font-size:14px;font-weight:700;margin-top:2px;color:${jiraStatusColor(st)}">${count}</div>`}</div>`];if(i<jiraStatuses.length-1)items.push(html`<div key=${'a'+i} class="jira-arrow">></div>`);return items})}</div></div>
+
+    ${allJiraTickets.length>0?html`<div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:12px">${jiraStatuses.filter(function(s){return grouped[s].length>0}).map(function(st){return html`<div key=${st} class="jira-col"><div style="font-size:10px;font-weight:700;color:var(--ts);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;display:flex;align-items:center;gap:4px"><span style=${'display:inline-block;width:8px;height:8px;border-radius:50%;background:'+jiraStatusColor(st)}></span>${st} <span class="ni-badge">${grouped[st].length}</span></div>${grouped[st].map(function(t){var cfg=getJiraConfig();return html`<a key=${t.key} href=${cfg.url?cfg.url+'/browse/'+t.key:'#'} target="_blank" rel="noopener noreferrer" class="jira-card" style="text-decoration:none;color:inherit"><div style="font-weight:600;color:var(--pr);margin-bottom:2px">${t.key}</div><div style="color:var(--ts);line-height:1.4">${t.summary||''}</div>${t.assignee&&html`<div style="font-size:9px;color:var(--td);margin-top:4px">${t.assignee}</div>`}</a>`})}</div>`})}</div>`:html`
     <div class="c"><div style="font-size:12px;font-weight:600;margin-bottom:8px">Ticket Tracker</div>
     ${tickets.length>0?html`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">
     <thead><tr style="border-bottom:2px solid var(--bd)"><th style="text-align:left;padding:6px 8px;color:var(--ts);font-size:10px">Ticket</th><th style="text-align:left;padding:6px 8px;color:var(--ts);font-size:10px">Repository</th><th style="text-align:left;padding:6px 8px;color:var(--ts);font-size:10px">Environment</th><th style="text-align:left;padding:6px 8px;color:var(--ts);font-size:10px">Time</th></tr></thead>
     <tbody>${tickets.slice(0,20).map(function(t,i){return html`<tr key=${i} style="border-bottom:1px solid var(--bd)"><td style="padding:6px 8px;font-weight:600;color:var(--pr)">${t.ticket}</td><td style="padding:6px 8px">${t.repo}</td><td style="padding:6px 8px"><span class="badge" style="background:var(--sf);color:var(--ts)">${t.env}</span></td><td style="padding:6px 8px;color:var(--td)">${ago(t.time)}</td></tr>`})}</tbody>
-    </table></div>`:html`<div style="color:var(--td);font-size:11px;text-align:center;padding:12px">No Jira tickets found in branch names. Use branch naming like feature/PROJ-123-description.</div>`}
-    </div>
-    <div class="c" style="border-left:4px solid var(--in)"><div style="font-size:12px;font-weight:600;margin-bottom:4px">Jira Integration Setup</div><div style="font-size:11px;color:var(--ts);line-height:1.6">To enable automatic Jira status transitions, add these GitHub Actions secrets: <code style="background:var(--sf);padding:1px 4px;border-radius:3px;font-size:10px">JIRA_BASE_URL</code>, <code style="background:var(--sf);padding:1px 4px;border-radius:3px;font-size:10px">JIRA_USER_EMAIL</code>, <code style="background:var(--sf);padding:1px 4px;border-radius:3px;font-size:10px">JIRA_API_TOKEN</code></div><div style="margin-top:8px"><a href=${'https://github.com/'+ORG+'/ForgeOps/settings/secrets/actions'} target="_blank" rel="noopener noreferrer" class="bt bp" style="font-size:10px">Configure Secrets</a></div></div>
+    </table></div>`:html`<div style="color:var(--td);font-size:11px;text-align:center;padding:12px">No Jira tickets found. Configure Jira in Settings to see the Kanban board, or use branch naming like feature/PROJ-123-description.</div>`}
+    </div>`}
+
+    <div class="c" style="border-left:4px solid var(--in)"><div style="font-size:12px;font-weight:600;margin-bottom:4px">Jira Integration</div><div style="font-size:11px;color:var(--ts);line-height:1.6">${jiraConnected[0]?'Connected to Jira. Ticket data flows from the generate-dashboard-data workflow.':'Go to Settings > Jira to configure your connection. Ticket data is fetched by the generate-dashboard-data workflow every 15 minutes.'}</div><div style="margin-top:8px"><button class="bt bp" style="font-size:10px" onClick=${function(){nav('settings')}}>Configure in Settings</button></div></div>
   </div>`}
 
+  // ── TEAM ──
   if(page==='users'){
     var invF=inv[0];var setInv=inv[1];var invMsg=useState('');
     var ROLE_COLORS={admin:'#7c3aed',release_engineer:'var(--ok)',developer:'var(--in)',tech_lead:'var(--wa)',qa_team:'var(--er)',uat_team:'var(--er)'};
     function doInvite(){
       if(!invF.username||!invF.name||!invF.email){toast('Fill all fields','err');return}
-      var onboardBody=encodeURIComponent('## Onboarding: '+invF.username+'\n\n- [ ] GitHub access granted\n- [ ] Added to forgeops-config.json as '+invF.role+'\n- [ ] VS Code extensions installed (Actions, Copilot, PR)\n- [ ] First feature branch created\n- [ ] First PR submitted and reviewed\n- [ ] Completed ForgeOps knowledge base review\n\nRole: '+invF.role+'\nEmail: '+invF.email+'\nName: '+invF.name);
+      var onboardBody=encodeURIComponent('## Onboarding: '+invF.username+'\n\n- [ ] GitHub access granted\n- [ ] Added to forgeops-config.json as '+invF.role+'\n- [ ] First feature branch created\n\nRole: '+invF.role+'\nEmail: '+invF.email);
       window.open('https://github.com/'+ORG+'/ForgeOps/settings/access','_blank');
       toast('Opening GitHub to add collaborator...');
-      setTimeout(function(){window.open('https://github.com/'+ORG+'/ForgeOps/edit/main/forgeops-config.json','_blank');toast('Add user to forgeops-config.json')},500);
-      setTimeout(function(){window.open('https://github.com/'+ORG+'/ForgeOps/issues/new?title=%5BONBOARD%5D+'+encodeURIComponent(invF.username)+'&body='+onboardBody+'&labels=onboarding','_blank');toast('Onboarding ticket created')},1000);
+      setTimeout(function(){window.open('https://github.com/'+ORG+'/ForgeOps/edit/main/forgeops-config.json','_blank')},500);
+      setTimeout(function(){window.open('https://github.com/'+ORG+'/ForgeOps/issues/new?title=%5BONBOARD%5D+'+encodeURIComponent(invF.username)+'&body='+onboardBody+'&labels=onboarding','_blank')},1000);
       invMsg[1](invF.username);
     }
     var cfgUsers=(config&&config.users)||{};var userList=Object.keys(cfgUsers);
-    var PERMS=[['View all pipelines','Y','Y','Y','Own','QA','Stage'],['Create PR to INT','Y','Y','Y','Y','',''],['Promote INT to QA','Y','Y','','','',''],['Promote QA to Stage','Y','Y','','','',''],['Promote Stage to Prod','Y','Y','','','',''],['Approve prod deploy','Y','Y','Y','','',''],['Mark SIT Complete','Y','Y','','','Y',''],['Mark UAT Complete','Y','Y','','','','Y'],['Manage users','Y','','','','',''],['Configure integrations','Y','','','','',''],['View security results','Y','Y','Y','Y','',''],['Trigger rollback','Y','Y','','','','']];
+    var PERMS=[['View all pipelines','Y','Y','Y','Own','QA','Stage'],['Create PR to INT','Y','Y','Y','Y','',''],['Promote INT to QA','Y','Y','','','',''],['Promote Stage to Prod','Y','Y','','','',''],['Approve prod deploy','Y','Y','Y','','',''],['Mark SIT Complete','Y','Y','','','Y',''],['Mark UAT Complete','Y','Y','','','','Y'],['Manage users','Y','','','','',''],['View security results','Y','Y','Y','Y','','']];
     return html`<div class="fu">
-      <div class="c" style="border-top:4px solid var(--pr)">
-        <div style="font-weight:600;font-size:14px;margin-bottom:10px">Invite Team Member</div>
-        <div class="fl">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><div class="lb">GitHub Username</div><input value=${invF.username} onInput=${function(e){setInv(function(p){return{username:e.target.value,name:p.name,email:p.email,role:p.role}});invMsg[1]('')}} placeholder="jsmith"/></div><div><div class="lb">Full Name</div><input value=${invF.name} onInput=${function(e){setInv(function(p){return{username:p.username,name:e.target.value,email:p.email,role:p.role}})}} placeholder="Jane Smith"/></div></div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><div class="lb">Email</div><input value=${invF.email} onInput=${function(e){setInv(function(p){return{username:p.username,name:p.name,email:e.target.value,role:p.role}})}} placeholder="jane@company.com"/></div><div><div class="lb">Role</div><select value=${invF.role} onChange=${function(e){setInv(function(p){return{username:p.username,name:p.name,email:p.email,role:e.target.value}})}}>${Object.keys(ROLE_DESC).map(function(r){return html`<option key=${r} value=${r}>${r.replace('_',' ')}</option>`})}</select></div></div>
-          <div style="background:var(--sf);border-radius:8px;padding:10px;font-size:11px;color:var(--ts)">${ROLE_DESC[invF.role]||''}</div>
-          <button class="bt bp" onClick=${doInvite}>Invite Member</button>
-          ${invMsg[0]&&html`<div style="background:rgba(5,150,105,.06);border:1px solid rgba(5,150,105,.2);border-radius:8px;padding:12px;font-size:11px;color:var(--ok);line-height:1.7">3 tabs opened:<br/>1. GitHub -- add ${invMsg[0]} as collaborator<br/>2. Config -- add ${invMsg[0]} to forgeops-config.json<br/>3. Issue -- onboarding checklist created for ${invMsg[0]}<br/><br/>After completing all 3 steps, ${invMsg[0]} can access ForgeOps immediately.</div>`}
-        </div>
-      </div>
-      <div class="c">
-        <div style="font-weight:600;margin-bottom:8px">Current Team (${userList.length})</div>
-        <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
-          <thead><tr style="border-bottom:2px solid var(--bd)"><th style="padding:8px;text-align:left;color:var(--ts);font-size:10px;text-transform:uppercase;letter-spacing:1px">Username</th><th style="padding:8px;text-align:left;color:var(--ts);font-size:10px;text-transform:uppercase;letter-spacing:1px">Name</th><th style="padding:8px;text-align:left;color:var(--ts);font-size:10px;text-transform:uppercase;letter-spacing:1px">Role</th><th style="padding:8px;text-align:left;color:var(--ts);font-size:10px;text-transform:uppercase;letter-spacing:1px">Email</th><th style="padding:8px;text-align:right;color:var(--ts);font-size:10px;text-transform:uppercase;letter-spacing:1px">Actions</th></tr></thead>
-          <tbody>${userList.map(function(u){var ud=cfgUsers[u];var rc=ROLE_COLORS[ud.role]||'var(--td)';return html`<tr key=${u} style="border-bottom:1px solid var(--bd)"><td style="padding:8px;font-weight:500">${u}</td><td style="padding:8px;color:var(--ts)">${ud.name||'-'}</td><td style="padding:8px"><span class="badge" style=${'background:'+rc+';color:#fff;font-size:9px'}>${(ud.role||'').replace('_',' ')}</span></td><td style="padding:8px;color:var(--ts);font-size:11px">${ud.email||'-'}</td><td style="padding:8px;text-align:right"><a href=${'https://github.com/'+ORG+'/ForgeOps/edit/main/forgeops-config.json'} target="_blank" rel="noopener noreferrer" class="bt bs" style="font-size:9px;padding:3px 8px">Edit</a></td></tr>`})}</tbody>
-        </table></div>
-        ${userList.length===0&&html`<div style="text-align:center;padding:12px;color:var(--td);font-size:11px">No users in config. Invite your first team member above.</div>`}
-      </div>
-      <div class="c">
-        <div style="font-weight:600;margin-bottom:8px">Role Permissions Matrix</div>
-        <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">
-          <thead><tr style="border-bottom:2px solid var(--bd)"><th style="padding:6px;text-align:left;color:var(--ts);font-size:9px">Permission</th><th style="padding:6px;text-align:center;font-size:9px;color:#7c3aed">Admin</th><th style="padding:6px;text-align:center;font-size:9px;color:var(--ok)">Release</th><th style="padding:6px;text-align:center;font-size:9px;color:var(--wa)">Lead</th><th style="padding:6px;text-align:center;font-size:9px;color:var(--in)">Dev</th><th style="padding:6px;text-align:center;font-size:9px;color:var(--er)">QA</th><th style="padding:6px;text-align:center;font-size:9px;color:var(--er)">UAT</th></tr></thead>
-          <tbody>${PERMS.map(function(row){return html`<tr key=${row[0]} style="border-bottom:1px solid var(--bd)"><td style="padding:6px;font-weight:500">${row[0]}</td>${row.slice(1).map(function(cell,ci){var bg=cell==='Y'?'rgba(5,150,105,.08)':cell?'rgba(2,132,199,.06)':'transparent';var clr=cell==='Y'?'var(--ok)':cell?'var(--in)':'var(--td)';return html`<td key=${ci} style=${'padding:6px;text-align:center;background:'+bg+';color:'+clr+';font-weight:'+(cell?'600':'400')}>${cell||'-'}</td>`})}</tr>`})}</tbody>
-        </table></div>
-      </div>
+      <div class="c" style="border-top:4px solid var(--pr)"><div style="font-weight:600;font-size:14px;margin-bottom:10px">Invite Team Member</div><div class="fl">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><div class="lb">GitHub Username</div><input value=${invF.username} onInput=${function(e){setInv(function(p){return{username:e.target.value,name:p.name,email:p.email,role:p.role}});invMsg[1]('')}} placeholder="jsmith"/></div><div><div class="lb">Full Name</div><input value=${invF.name} onInput=${function(e){setInv(function(p){return{username:p.username,name:e.target.value,email:p.email,role:p.role}})}} placeholder="Jane Smith"/></div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><div class="lb">Email</div><input value=${invF.email} onInput=${function(e){setInv(function(p){return{username:p.username,name:p.name,email:e.target.value,role:p.role}})}} placeholder="jane@company.com"/></div><div><div class="lb">Role</div><select value=${invF.role} onChange=${function(e){setInv(function(p){return{username:p.username,name:p.name,email:p.email,role:e.target.value}})}}>${Object.keys(ROLE_DESC).map(function(r){return html`<option key=${r} value=${r}>${r.replace('_',' ')}</option>`})}</select></div></div>
+        <div style="background:var(--sf);border-radius:8px;padding:10px;font-size:11px;color:var(--ts)">${ROLE_DESC[invF.role]||''}</div>
+        <button class="bt bp" onClick=${doInvite}>Invite Member</button>
+        ${invMsg[0]&&html`<div style="background:rgba(5,150,105,.06);border:1px solid rgba(5,150,105,.2);border-radius:8px;padding:12px;font-size:11px;color:var(--ok);line-height:1.7">3 tabs opened for ${invMsg[0]}: GitHub access, config edit, onboarding ticket.</div>`}
+      </div></div>
+      <div class="c"><div style="font-weight:600;margin-bottom:8px">Current Team (${userList.length})</div>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="border-bottom:2px solid var(--bd)"><th style="padding:8px;text-align:left;color:var(--ts);font-size:10px">Username</th><th style="padding:8px;text-align:left;color:var(--ts);font-size:10px">Name</th><th style="padding:8px;text-align:left;color:var(--ts);font-size:10px">Role</th><th style="padding:8px;text-align:left;color:var(--ts);font-size:10px">Email</th></tr></thead>
+        <tbody>${userList.map(function(u){var ud=cfgUsers[u];var rc=ROLE_COLORS[ud.role]||'var(--td)';return html`<tr key=${u} style="border-bottom:1px solid var(--bd)"><td style="padding:8px;font-weight:500">${u}</td><td style="padding:8px;color:var(--ts)">${ud.name||'-'}</td><td style="padding:8px"><span class="badge" style=${'background:'+rc+';color:#fff;font-size:9px'}>${(ud.role||'').replace('_',' ')}</span></td><td style="padding:8px;color:var(--ts);font-size:11px">${ud.email||'-'}</td></tr>`})}</tbody>
+      </table></div></div>
+      <div class="c"><div style="font-weight:600;margin-bottom:8px">Role Permissions Matrix</div>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead><tr style="border-bottom:2px solid var(--bd)"><th style="padding:6px;text-align:left;color:var(--ts);font-size:9px">Permission</th><th style="padding:6px;text-align:center;font-size:9px;color:#7c3aed">Admin</th><th style="padding:6px;text-align:center;font-size:9px;color:var(--ok)">Release</th><th style="padding:6px;text-align:center;font-size:9px;color:var(--wa)">Lead</th><th style="padding:6px;text-align:center;font-size:9px;color:var(--in)">Dev</th><th style="padding:6px;text-align:center;font-size:9px;color:var(--er)">QA</th><th style="padding:6px;text-align:center;font-size:9px;color:var(--er)">UAT</th></tr></thead>
+        <tbody>${PERMS.map(function(row){return html`<tr key=${row[0]} style="border-bottom:1px solid var(--bd)"><td style="padding:6px;font-weight:500">${row[0]}</td>${row.slice(1).map(function(cell,ci){var bg=cell==='Y'?'rgba(5,150,105,.08)':cell?'rgba(2,132,199,.06)':'transparent';var clr=cell==='Y'?'var(--ok)':cell?'var(--in)':'var(--td)';return html`<td key=${ci} style=${'padding:6px;text-align:center;background:'+bg+';color:'+clr+';font-weight:'+(cell?'600':'400')}>${cell||'-'}</td>`})}</tr>`})}</tbody>
+      </table></div></div>
     </div>`}
 
-  if(page==='settings')return html`<div class="fu">
+  // ── SETTINGS ──
+  if(page==='settings'){
+    var jc=jiraCfg[0];var setJc=jiraCfg[1];var testing=useState(false);var testResult=useState('');
+    function testJira(){testing[1](true);testResult[1]('');saveJiraConfig(jc);
+      jiraApi('/rest/api/3/myself').then(function(u){testing[1](false);if(u){jiraConnected[1](true);testResult[1]('Connected as: '+(u.displayName||u.emailAddress||'OK'))}else{testResult[1]('Connection failed. Check URL/credentials or install a CORS browser extension.')}})
+    }
+    return html`<div class="fu" data-tour="integrations">
     <div class="c" style="margin-bottom:16px"><div style="font-weight:600;margin-bottom:4px">Integration Hub</div><div style="font-size:11px;color:var(--ts);margin-bottom:6px">ForgeOps v6.0 -- ${totalRepos} repos across ${projNames.length} projects</div>${user&&html`<div style="font-size:11px;margin-bottom:8px">Connected as: ${user.login}</div>`}<div style="display:flex;gap:6px"><button class="bt bd" onClick=${function(){sessionStorage.removeItem('fg_pat');setUser(null);toast('Disconnected')}} aria-label="Disconnect account">Disconnect</button><a href=${'https://github.com/'+ORG+'/ForgeOps'} target="_blank" rel="noopener noreferrer" class="bt bs" style="font-size:11px">GitHub Repo</a></div></div>
-    <div class="g2">
+
+    <div class="c" style="border-top:4px solid #0284c7;margin-bottom:16px" data-tour="integration-jira"><div style="font-weight:600;font-size:14px;margin-bottom:4px">Jira Configuration</div><div style="font-size:11px;color:var(--ts);margin-bottom:12px;line-height:1.5">Connect Jira to enable ticket tracking across all dashboard pages. The API token is stored in your browser only.</div>
+    <div class="fl">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><div class="lb">Jira Base URL</div><input value=${jc.url} onInput=${function(e){setJc(function(p){return{url:e.target.value,email:p.email,token:p.token,project:p.project}})}} placeholder="https://yourorg.atlassian.net"/></div><div><div class="lb">Jira Email</div><input value=${jc.email} onInput=${function(e){setJc(function(p){return{url:p.url,email:e.target.value,token:p.token,project:p.project}})}} placeholder="you@company.com"/></div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><div class="lb">API Token</div><input type="password" value=${jc.token} onInput=${function(e){setJc(function(p){return{url:p.url,email:p.email,token:e.target.value,project:p.project}})}} placeholder="Your Jira API token"/></div><div><div class="lb">Project Key</div><input value=${jc.project} onInput=${function(e){setJc(function(p){return{url:p.url,email:p.email,token:p.token,project:e.target.value}})}} placeholder="SCRUM"/></div></div>
+      <div style="display:flex;gap:6px;align-items:center"><button class="bt bp" onClick=${function(){saveJiraConfig(jc);toast('Jira settings saved');jiraCfg[1](Object.assign({},jc))}}>Save</button><button class="bt bs" onClick=${testJira}>${testing[0]?'Testing...':'Test Connection'}</button><div style="display:flex;align-items:center;gap:4px"><span style=${'display:inline-block;width:8px;height:8px;border-radius:50%;background:'+(jiraConnected[0]?'var(--ok)':'var(--td)')}></span><span style="font-size:10px;color:var(--ts)">${jiraConnected[0]?'Connected':'Not connected'}</span></div></div>
+      ${testResult[0]&&html`<div style=${'font-size:11px;padding:8px;border-radius:6px;background:'+(testResult[0].indexOf('Connected')===0?'rgba(5,150,105,.06)':'rgba(220,38,38,.06)')+';color:'+(testResult[0].indexOf('Connected')===0?'var(--ok)':'var(--er)')}>${testResult[0]}</div>`}
+      <div style="font-size:10px;color:var(--td);line-height:1.5">Note: Browser CORS may block direct Jira API calls. If Test Connection fails, install a CORS extension or rely on the generate-dashboard-data workflow which fetches Jira data server-side and stores it in dashboard-data.json.</div>
+    </div></div>
+
+    <div class="g2" data-tour="integration-teams">
     <${IntegrationCard} color="#7c3aed" title="Microsoft Teams" desc="Send deployment and failure notifications to Teams channels." secrets=${['TEAMS_WEBHOOK_URL']} steps=${['Open Microsoft Teams and navigate to the target channel.','Click the channel name, then Connectors (or Workflows).','Add an Incoming Webhook connector and name it ForgeOps.','Copy the generated webhook URL.','Add it as TEAMS_WEBHOOK_URL in GitHub Actions secrets.']}/>
-    <${IntegrationCard} color="#059669" title="Splunk" desc="Forward structured pipeline logs to Splunk via HTTP Event Collector." secrets=${['SPLUNK_HEC_URL','SPLUNK_HEC_TOKEN']} steps=${['In Splunk, go to Settings > Data Inputs > HTTP Event Collector.','Create a new token with a target index for ForgeOps events.','Copy the HEC URL and token value.','Add SPLUNK_HEC_URL and SPLUNK_HEC_TOKEN as GitHub secrets.','Use SPL: index=forgeops sourcetype=_json | stats count by repo, status']}/>
-    <${IntegrationCard} color="#0284c7" title="Jira" desc="Auto-transition tickets through your workflow on deploy events." secrets=${['JIRA_BASE_URL','JIRA_USER_EMAIL','JIRA_API_TOKEN']} steps=${['Go to Atlassian account settings and create an API token.','Note your Jira base URL (e.g. https://yourorg.atlassian.net).','Add JIRA_BASE_URL, JIRA_USER_EMAIL, and JIRA_API_TOKEN as secrets.','ForgeOps maps: INT=Ready for Unit Testing, QA=Ready for SIT, STAGE=Ready for UAT, PROD=Deployed to Production.']}/>
-    <${IntegrationCard} color="#d97706" title="Email SMTP" desc="Send deployment alerts and failure notifications via email." secrets=${['SMTP_HOST','SMTP_PORT','SMTP_USER','SMTP_PASS']} steps=${['Obtain SMTP credentials from your email provider.','Common: smtp.gmail.com:587 with an app password for Gmail.','Add SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS as secrets.','ForgeOps sends HTML-formatted alerts on deploy and failure events.']}/>
-    <${IntegrationCard} color="#94a3b8" title="Cherwell / ServiceNow" desc="Create and update ITSM tickets on pipeline events." secrets=${['ITSM_BASE_URL','ITSM_API_KEY']} steps=${['Obtain API credentials from your Cherwell or ServiceNow instance.','Create a dedicated integration user with ticket create/update permissions.','Add ITSM_BASE_URL and ITSM_API_KEY as GitHub Actions secrets.','ForgeOps creates incidents on failure and resolves on successful redeploy.']}/>
-    <${IntegrationCard} color="#0d9488" title="SonarQube" desc="Run SAST analysis on every pipeline for code quality and security." secrets=${['SONAR_HOST_URL','SONAR_TOKEN']} steps=${['Log in to your SonarQube instance.','Go to My Account > Security > Generate Token.','Copy the token and your SonarQube server URL.','Add SONAR_HOST_URL and SONAR_TOKEN as GitHub Actions secrets.','Analysis runs automatically on every pipeline after configuration.']}/>
-    <${IntegrationCard} color="#8b5cf6" title="GitHub Copilot" desc="AI-powered code suggestions and PR review assistance." secrets=${['COPILOT_ENABLED']} steps=${['Ensure GitHub Copilot is enabled for your organization.','Go to Organization Settings > Copilot > Enable for all members.','Add COPILOT_ENABLED=true as a GitHub Actions secret to enable AI PR summaries.','Copilot will provide automated code review suggestions on pull requests.']}/>
+    <${IntegrationCard} color="#059669" title="Splunk" desc="Forward structured pipeline logs to Splunk via HTTP Event Collector." secrets=${['SPLUNK_HEC_URL','SPLUNK_HEC_TOKEN']} steps=${['In Splunk, go to Settings > Data Inputs > HTTP Event Collector.','Create a new token with a target index for ForgeOps events.','Copy the HEC URL and token value.','Add SPLUNK_HEC_URL and SPLUNK_HEC_TOKEN as GitHub secrets.']} data-tour="integration-splunk"/>
+    <${IntegrationCard} color="#d97706" title="Email SMTP" desc="Send deployment alerts and failure notifications via email." secrets=${['SMTP_HOST','SMTP_PORT','SMTP_USER','SMTP_PASS']} steps=${['Obtain SMTP credentials from your email provider.','Common: smtp.gmail.com:587 with an app password for Gmail.','Add SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS as secrets.']}/>
+    <${IntegrationCard} color="#94a3b8" title="Cherwell / ServiceNow" desc="Create and update ITSM tickets on pipeline events." secrets=${['ITSM_BASE_URL','ITSM_API_KEY']} steps=${['Obtain API credentials from your Cherwell or ServiceNow instance.','Create a dedicated integration user.','Add ITSM_BASE_URL and ITSM_API_KEY as GitHub Actions secrets.']}/>
+    <${IntegrationCard} color="#0d9488" title="SonarQube" desc="Run SAST analysis on every pipeline for code quality and security." secrets=${['SONAR_HOST_URL','SONAR_TOKEN']} steps=${['Log in to your SonarQube instance.','Go to My Account > Security > Generate Token.','Add SONAR_HOST_URL and SONAR_TOKEN as GitHub Actions secrets.']}/>
+    <${IntegrationCard} color="#8b5cf6" title="GitHub Copilot" desc="AI-powered code suggestions and PR review assistance." secrets=${['COPILOT_ENABLED']} steps=${['Ensure GitHub Copilot is enabled for your organization.','Add COPILOT_ENABLED=true as a GitHub Actions secret.']}/>
     </div>
-  </div>`;
+  </div>`}
 
   return html`<${Empty} msg="Coming soon"/>`;
 }
@@ -458,7 +531,7 @@ return html`<div class="app">
   ${sideOpen&&html`<div style="position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:70" onClick=${function(){setSideOpen(false)}}></div>`}
   <div class=${'sb'+(sideOpen?' open':'')}>
     <div style="padding:10px;display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--bd)"><${Logo} s=${20}/><div style="font-weight:700;font-size:12px">ForgeOps</div></div>
-    ${Object.keys(sections).map(function(sec){return html`<${Fragment} key=${sec}><div class="ns">${sec}</div>${sections[sec].map(function(k){var badge=null;if(k==='pipelines'&&running>0)badge=html`<span class="ni-badge">${running}</span>`;if(k==='deploy')badge=html`<span class="ni-badge">${projNames.length}</span>`;return html`<div key=${k} class=${'ni'+(page===k?' ac':'')} onClick=${function(){nav(k)}}><span style="flex:1">${labels[k]}</span>${badge}</div>`})}<//>`})}
+    ${Object.keys(sections).map(function(sec){return html`<${Fragment} key=${sec}><div class="ns">${sec}</div>${sections[sec].map(function(k){var badge=null;if(k==='pipelines'&&running>0)badge=html`<span class="ni-badge">${running}</span>`;if(k==='deploy')badge=html`<span class="ni-badge">${projNames.length}</span>`;if(k==='alm'&&openTicketCount>0)badge=html`<span class="ni-badge">${openTicketCount}</span>`;return html`<div key=${k} class=${'ni'+(page===k?' ac':'')} onClick=${function(){nav(k)}}><span style="flex:1">${labels[k]}</span>${badge}</div>`})}<//>`})}
     <div style="margin-top:auto;padding:8px 10px;border-top:1px solid var(--bd);font-size:9px;color:var(--td)"><span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--ok);margin-right:3px"></span>ForgeOps v6.0${lastRef[0]?' -- '+lastRef[0].toLocaleTimeString():''}</div>
   </div>
   <div class="mn">

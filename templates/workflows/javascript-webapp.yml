@@ -126,6 +126,19 @@ jobs:
           curl -s -X POST -H "Authorization: Basic $AUTH" -H "Content-Type: application/json" \
             -d "{\"transition\":{\"id\":\"$TID\"}}" \
             "${JIRA_BASE_URL}/rest/api/3/issue/${TICKET}/transitions" && echo "Done" || echo "Transition request failed"
+      - name: Add Jira Comment
+        if: always()
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          TICKET=$(echo "$BRANCH" | grep -oE '[A-Z]+-[0-9]+' | head -1)
+          if [ -z "$TICKET" ] || [ -z "$JIRA_BASE_URL" ]; then exit 0; fi
+          AUTH=$(echo -n "${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}" | base64)
+          BODY='{"body":{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"Deployed to INT by ForgeOps pipeline. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}]}]}}'
+          curl -s -X POST -H "Authorization: Basic $AUTH" -H "Content-Type: application/json" -d "$BODY" "${JIRA_BASE_URL}/rest/api/3/issue/${TICKET}/comment" && echo "Comment added to $TICKET" || echo "Comment failed"
 
   deploy-qa:
     name: Deploy to QA
@@ -172,6 +185,19 @@ jobs:
           curl -s -X POST -H "Authorization: Basic $AUTH" -H "Content-Type: application/json" \
             -d "{\"transition\":{\"id\":\"$TID\"}}" \
             "${JIRA_BASE_URL}/rest/api/3/issue/${TICKET}/transitions" && echo "Done" || echo "Transition request failed"
+      - name: Add Jira Comment
+        if: always()
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          TICKET=$(echo "$BRANCH" | grep -oE '[A-Z]+-[0-9]+' | head -1)
+          if [ -z "$TICKET" ] || [ -z "$JIRA_BASE_URL" ]; then exit 0; fi
+          AUTH=$(echo -n "${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}" | base64)
+          BODY='{"body":{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"Deployed to QA by ForgeOps pipeline. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}]}]}}'
+          curl -s -X POST -H "Authorization: Basic $AUTH" -H "Content-Type: application/json" -d "$BODY" "${JIRA_BASE_URL}/rest/api/3/issue/${TICKET}/comment" && echo "Comment added to $TICKET" || echo "Comment failed"
 
   deploy-stage:
     name: Deploy to Stage
@@ -218,6 +244,19 @@ jobs:
           curl -s -X POST -H "Authorization: Basic $AUTH" -H "Content-Type: application/json" \
             -d "{\"transition\":{\"id\":\"$TID\"}}" \
             "${JIRA_BASE_URL}/rest/api/3/issue/${TICKET}/transitions" && echo "Done" || echo "Transition request failed"
+      - name: Add Jira Comment
+        if: always()
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          TICKET=$(echo "$BRANCH" | grep -oE '[A-Z]+-[0-9]+' | head -1)
+          if [ -z "$TICKET" ] || [ -z "$JIRA_BASE_URL" ]; then exit 0; fi
+          AUTH=$(echo -n "${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}" | base64)
+          BODY='{"body":{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"Deployed to Stage by ForgeOps pipeline. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}]}]}}'
+          curl -s -X POST -H "Authorization: Basic $AUTH" -H "Content-Type: application/json" -d "$BODY" "${JIRA_BASE_URL}/rest/api/3/issue/${TICKET}/comment" && echo "Comment added to $TICKET" || echo "Comment failed"
 
   deploy-prod:
     name: Deploy to Prod
@@ -264,6 +303,19 @@ jobs:
           curl -s -X POST -H "Authorization: Basic $AUTH" -H "Content-Type: application/json" \
             -d "{\"transition\":{\"id\":\"$TID\"}}" \
             "${JIRA_BASE_URL}/rest/api/3/issue/${TICKET}/transitions" && echo "Done" || echo "Transition request failed"
+      - name: Add Jira Comment
+        if: always()
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          TICKET=$(echo "$BRANCH" | grep -oE '[A-Z]+-[0-9]+' | head -1)
+          if [ -z "$TICKET" ] || [ -z "$JIRA_BASE_URL" ]; then exit 0; fi
+          AUTH=$(echo -n "${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}" | base64)
+          BODY='{"body":{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"Deployed to Prod by ForgeOps pipeline. Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}]}]}}'
+          curl -s -X POST -H "Authorization: Basic $AUTH" -H "Content-Type: application/json" -d "$BODY" "${JIRA_BASE_URL}/rest/api/3/issue/${TICKET}/comment" && echo "Comment added to $TICKET" || echo "Comment failed"
 
   notify:
     name: Notify
