@@ -6,7 +6,7 @@
 <title>ForgeOps - DevSecOps Command Center</title>
 <meta name="referrer" content="no-referrer">
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://esm.sh 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://api.github.com https://raw.githubusercontent.com; img-src 'self' data: https://avatars.githubusercontent.com">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://esm.sh 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://api.github.com https://raw.githubusercontent.com https://esm.sh; img-src 'self' data: https://avatars.githubusercontent.com">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='40' y2='40' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%234f46e5'/%3E%3Cstop offset='1' stop-color='%237c3aed'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='40' height='40' rx='10' fill='url(%23g)'/%3E%3Cpath d='M20 8L11 22h6.5l-2 10L27 18h-6.5l2-10z' fill='white'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -292,9 +292,11 @@ var ROLE_DESC={developer:'Can commit code, create PRs to INT, view own pipelines
 
 function renderPage(){
   if(loading)return html`<${Skels}/>`;
-  if(!cmdData&&!config)return html`<${Empty} msg="Command center data not generated yet. The generate-dashboard-data workflow runs every 15 minutes."/>`;
+  var noData=!cmdData&&!config;
+  var dataWarning=!cmdData&&config?html`<div style="background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.2);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--wa)">Dashboard data not generated yet. Go to Actions > generate-dashboard-data > Run workflow.</div>`:null;
+  if(noData)return html`<${Empty} msg="Command center data not generated yet. Go to GitHub Actions > generate-dashboard-data > Run workflow."/>`;
 
-  if(page==='overview'){var notifs=buildNotifications();return html`<div class="fu">
+  if(page==='overview'){var notifs=buildNotifications();return html`<div class="fu">${dataWarning}
     <div class="g4">
       <div class="c" style="border-left:4px solid var(--pr);text-align:center"><div style="font-size:9px;color:var(--ts);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">Repos</div><div style="font-size:24px;font-weight:700">${totalRepos}</div></div>
       <div class="c" style="border-left:4px solid var(--ok);text-align:center"><div style="font-size:9px;color:var(--ts);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px">Passing</div><div style="font-size:24px;font-weight:700;color:var(--ok)">${passing}</div></div>
