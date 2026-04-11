@@ -35,7 +35,15 @@ router.get('/myself', async (req, res) => {
 // POST /api/jira/search
 router.post('/search', async (req, res) => {
   try {
-    const { jql, maxResults, startAt, fields } = req.body;
+    const { jql, maxResults, fields, nextPageToken } = req.body;
+    const fieldArray = Array.isArray(fields) ? fields : (fields || 'summary,status').split(',').map(f => f.trim());
+    const body = {
+      jql: jql || 'project=' + getProject(),
+      maxResults: parseInt(maxResults) || 100,
+      fields: fieldArray,
+    };
+    if (nextPageToken) body.nextPageToken = nextPageToken;
+    console.log('Jira search:', body.jql.substring(0, 80), 'max:', body.maxResults);
     const response = await fetch(`${getBaseUrl()}/rest/api/3/search/jql`, {
       method: 'POST',
       headers: {
@@ -43,11 +51,15 @@ router.post('/search', async (req, res) => {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ jql, maxResults, startAt, fields }),
+      body: JSON.stringify(body),
     });
     const data = await response.json();
+    if (!response.ok) {
+      console.error('Jira search error:', response.status, JSON.stringify(data).substring(0, 200));
+    }
     res.status(response.status).json(data);
   } catch (err) {
+    console.error('Search error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -57,11 +69,13 @@ router.get('/search-all', async (req, res) => {
   try {
     const { jql, fields } = req.query;
     const allIssues = [];
-    let startAt = 0;
-    const maxResults = 100;
-    let total = 0;
+    const fieldArray = fields ? fields.split(',').map(f => f.trim()) : ['summary', 'status', 'priority', 'issuetype', 'fixVersions', 'assignee'];
+    let nextPageToken = null;
 
     do {
+      const body = { jql, maxResults: 100, fields: fieldArray };
+      if (nextPageToken) body.nextPageToken = nextPageToken;
+
       const response = await fetch(`${getBaseUrl()}/rest/api/3/search/jql`, {
         method: 'POST',
         headers: {
@@ -69,12 +83,7 @@ router.get('/search-all', async (req, res) => {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          jql,
-          maxResults,
-          startAt,
-          fields: fields ? fields.split(',') : undefined,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await response.json();
 
@@ -83,9 +92,8 @@ router.get('/search-all', async (req, res) => {
       }
 
       allIssues.push(...(data.issues || []));
-      total = data.total || 0;
-      startAt += maxResults;
-    } while (startAt < total);
+      nextPageToken = data.nextPageToken || null;
+    } while (nextPageToken);
 
     res.json({ issues: allIssues, total: allIssues.length });
   } catch (err) {
