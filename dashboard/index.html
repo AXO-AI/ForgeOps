@@ -91,36 +91,46 @@ var ORG='askboppana';
 var cache={};
 function getToken(){return localStorage.getItem('fg_pat')||''}
 var rateLimit={remaining:5000,limit:5000};
-function api(path,opts){
-  var url=(path.indexOf('http')===0)?path:'https://api.github.com'+path;
-  var k=url+JSON.stringify(opts||'');var method=(opts&&opts.method)||'GET';
-  if(method==='GET'&&cache[k]&&Date.now()-cache[k].t<300000)return Promise.resolve(cache[k].d);
-  var headers={Accept:'application/vnd.github.v3+json'};var tk=getToken();
-  if(tk)headers.Authorization='token '+tk;
-  if(opts&&opts.body)headers['Content-Type']='application/json';
-  return fetch(url,{method:method,headers:headers,body:opts&&opts.body?JSON.stringify(opts.body):undefined}).then(function(r){
-    var rem=r.headers.get('x-ratelimit-remaining');var lim=r.headers.get('x-ratelimit-limit');
-    if(rem)rateLimit.remaining=parseInt(rem);if(lim)rateLimit.limit=parseInt(lim);
-    if(r.status===403||r.status===429){console.warn('API rate limited: '+path);return cache[k]?cache[k].d:null}
-    if(!r.ok){console.warn('API '+r.status+': '+path);if(method!=='GET')return r.json().then(function(e){throw new Error(e.message||r.status)}).catch(function(){throw new Error('API '+r.status)});return null}
-    if(r.status===204)return null;return r.json();
-  }).then(function(d){if(d&&method==='GET')cache[k]={d:d,t:Date.now()};return d}).catch(function(e){if(method!=='GET')throw e;console.warn('API fetch failed: '+path);return cache[k]?cache[k].d:null})
+function api(path){
+  var k=path;
+  if(cache[k]&&Date.now()-cache[k].t<300000)return Promise.resolve(cache[k].d);
+  try{
+    var hdrs={Accept:'application/vnd.github.v3+json'};var tk=getToken();if(tk)hdrs.Authorization='token '+tk;
+    return fetch('https://api.github.com'+path,{headers:hdrs}).then(function(r){
+      var rem=r.headers.get('x-ratelimit-remaining');var lim=r.headers.get('x-ratelimit-limit');
+      if(rem)rateLimit.remaining=parseInt(rem);if(lim)rateLimit.limit=parseInt(lim);
+      if(!r.ok){console.warn('API '+r.status+': '+path);return cache[k]?cache[k].d:null}
+      return r.json();
+    }).then(function(d){if(d)cache[k]={d:d,t:Date.now()};return d}).catch(function(){console.warn('API failed: '+path);return cache[k]?cache[k].d:null});
+  }catch(e){return Promise.resolve(null)}
+}
+function apiPost(path,body){
+  var hdrs={Accept:'application/vnd.github.v3+json','Content-Type':'application/json'};var tk=getToken();if(tk)hdrs.Authorization='token '+tk;
+  return fetch('https://api.github.com'+path,{method:'POST',headers:hdrs,body:JSON.stringify(body)}).then(function(r){if(!r.ok)return r.json().then(function(e){throw new Error(e.message||r.status)});if(r.status===204)return null;return r.json()})
+}
+function apiPut(path,body){
+  var hdrs={Accept:'application/vnd.github.v3+json','Content-Type':'application/json'};var tk=getToken();if(tk)hdrs.Authorization='token '+tk;
+  return fetch('https://api.github.com'+path,{method:'PUT',headers:hdrs,body:JSON.stringify(body)}).then(function(r){if(!r.ok)return r.json().then(function(e){throw new Error(e.message||r.status)});if(r.status===204)return null;return r.json()})
+}
 }
 function clearCache(){Object.keys(cache).forEach(function(k){delete cache[k]})}
-function fetchCmdData(){return fetch('https://raw.githubusercontent.com/'+ORG+'/ForgeOps/main/dashboard-data.json').then(function(r){if(!r.ok){console.warn('dashboard-data.json not found (expected on first deploy)');return null}return r.json()}).catch(function(){return null})}
-function fetchConfig(){return fetch('https://raw.githubusercontent.com/'+ORG+'/ForgeOps/main/forgeops-config.json').then(function(r){return r.ok?r.json():null}).catch(function(){return null})}
-function getRepoList(config,cmdData){
-  var repos=[];
-  if(cmdData&&cmdData.repos){cmdData.repos.forEach(function(r){repos.push(typeof r==='string'?r:r.name||'')})}
-  else if(config&&config.projects){Object.keys(config.projects).forEach(function(pn){var p=config.projects[pn];if(p.sample_repos)(p.sample_repos||[]).forEach(function(r){repos.push(r)});if(p.repos)(p.repos||[]).forEach(function(r){repos.push(typeof r==='string'?r:r.name||'')})})}
-  return repos.filter(function(r){return r&&r.length>0})
+function loadData(){
+  return fetch('https://raw.githubusercontent.com/'+ORG+'/ForgeOps/main/dashboard-data.json').then(function(r){return r.ok?r.json():null}).catch(function(){return null}).then(function(cmdData){
+    if(cmdData&&cmdData.repos&&cmdData.repos.length>0)return{repos:cmdData.repos,source:'json',config:null};
+    return fetch('https://raw.githubusercontent.com/'+ORG+'/ForgeOps/main/forgeops-config.json').then(function(r){return r.ok?r.json():null}).catch(function(){return null}).then(function(cfg){
+      if(cfg&&cfg.projects){var repos=[];var projects=cfg.projects||{};for(var key in projects){var proj=projects[key];var pRepos=proj.repos||proj.sample_repos||[];for(var i=0;i<pRepos.length;i++){repos.push({name:typeof pRepos[i]==='string'?pRepos[i]:pRepos[i].name||'',project:key,language:proj.template||''})}}if(repos.length>0)return{repos:repos,source:'config',config:cfg}}
+      return api('/users/'+ORG+'/repos?per_page=100&sort=updated').then(function(apiRepos){
+        if(apiRepos&&apiRepos.length)return{repos:apiRepos.map(function(r){return{name:r.name,language:r.language||''}}),source:'api',config:null};
+        return{repos:[],source:'none',config:null}
+      })
+    })
+  })
 }
-function fetchBranches(repo){
-  var defaults=['main','int','qa','stage'];
+function loadBranches(repo){
   return api('/repos/'+ORG+'/'+repo+'/branches?per_page=100').then(function(d){
-    if(d&&d.length>0){var names=[];for(var i=0;i<d.length;i++){names.push(d[i].name)}return{branches:names,fromApi:true}}
-    return{branches:defaults,fromApi:false}
-  }).catch(function(){return{branches:defaults,fromApi:false}})
+    if(d&&d.length>0)return{branches:d.map(function(b){return b.name}),fromApi:true};
+    return{branches:['main','int','qa','stage'],fromApi:false}
+  }).catch(function(){return{branches:['main','int','qa','stage'],fromApi:false}})
 }
 function toast(msg,type){var d=document.createElement('div');d.className='toast'+(type==='err'?' toast-err':type==='warn'?' toast-warn':'');d.textContent=msg;document.body.appendChild(d);setTimeout(function(){d.remove()},4000)}
 function ago(d){if(!d)return'';var s=Math.floor((Date.now()-new Date(d))/1000);if(s<60)return s+'s';if(s<3600)return Math.floor(s/60)+'m';if(s<86400)return Math.floor(s/3600)+'h';return Math.floor(s/86400)+'d'}
@@ -283,24 +293,33 @@ function endTour(){tour[1](null);tourStep[1](0);localStorage.setItem('fg_tour_co
 
 useEffect(function(){
   var tk=getToken();
-  if(tk){api('/user').then(function(u){setUser(u)}).catch(function(){})}
-  Promise.all([fetchCmdData(),fetchConfig()]).then(function(res){
-    setCmdData(res[0]);setConfig(res[1]);setLoading(false);lastRef[1](new Date())
+  if(tk){api('/user').then(function(u){if(u)setUser(u)})}
+  loadData().then(function(res){
+    if(res.config)setConfig(res.config);
+    if(res.repos&&res.repos.length>0){setCmdData({repos:res.repos,source:res.source})}
+    setLoading(false);lastRef[1](new Date());
+    if(res.source==='none')console.warn('No data source available');
   }).catch(function(){setLoading(false)})
 },[]);
 
-function refresh(){clearCache();setLoading(true);Promise.all([fetchCmdData(),fetchConfig()]).then(function(res){setCmdData(res[0]);setConfig(res[1]);setLoading(false);lastRef[1](new Date());toast('Refreshed')}).catch(function(){setLoading(false)})}
+function refresh(){clearCache();setLoading(true);loadData().then(function(res){
+  if(res.config)setConfig(res.config);
+  if(res.repos)setCmdData({repos:res.repos,source:res.source});
+  setLoading(false);lastRef[1](new Date());toast('Refreshed');
+}).catch(function(){setLoading(false)})}
 function onSearch(e){var v=e.target.value;setSearch(v);clearTimeout(debounceRef.current);debounceRef.current=setTimeout(function(){setPageNums({})},300)}
 function getPage(key){return pageNums[key]||1}
 function nextPage(key){setPageNums(function(p){var n={};Object.keys(p).forEach(function(k){n[k]=p[k]});n[key]=(p[key]||1)+1;return n})}
 function paginate(arr,key){var pg=getPage(key);return arr.slice(0,pg*pageSize)}
 function nav(p){setPage(p);setSideOpen(false);setPageNums({})}
 
-var projects=(cmdData&&cmdData.projects)||((config&&config.projects)||{});
-var knownRepoNames=getRepoList(config,cmdData);
+var projects=(config&&config.projects)||{};
 var projNames=Object.keys(projects);
+var repoSource=(cmdData&&cmdData.repos)||[];
 var allRepos=[];var totalRepos=0;var passing=0;var failing=0;var running=0;var allRuns=[];
-projNames.forEach(function(pn){var proj=projects[pn];(proj.repos||[]).forEach(function(r){totalRepos++;allRepos.push({name:typeof r==='string'?r:r.name,project:pn,runs:(r&&r.runs)||[]});var latest=(r&&r.runs&&r.runs[0]);if(!latest)return;if(latest.conclusion==='success')passing++;else if(latest.conclusion==='failure')failing++;else if(latest.status==='in_progress')running++;allRuns.push({id:latest.id||Math.random(),conclusion:latest.conclusion,status:latest.status,branch:latest.branch,created:latest.created,repo:typeof r==='string'?r:r.name,project:pn,html_url:'https://github.com/'+ORG+'/'+(typeof r==='string'?r:r.name)+'/actions',repository:{full_name:ORG+'/'+(typeof r==='string'?r:r.name),name:typeof r==='string'?r:r.name},head_branch:latest.branch,run_number:latest.id,created_at:latest.created})})});
+repoSource.forEach(function(r){var name=typeof r==='string'?r:r.name||'';if(!name)return;totalRepos++;allRepos.push({name:name,project:r.project||'',runs:r.runs||[],language:r.language||''});var latest=r.runs&&r.runs[0];if(!latest)return;if(latest.conclusion==='success')passing++;else if(latest.conclusion==='failure')failing++;else if(latest.status==='in_progress')running++;allRuns.push({id:latest.id||Math.random(),conclusion:latest.conclusion,status:latest.status,branch:latest.branch||latest.head_branch||'',created:latest.created||latest.created_at||'',repo:name,project:r.project||'',html_url:'https://github.com/'+ORG+'/'+name+'/actions',repository:{full_name:ORG+'/'+name,name:name},head_branch:latest.branch||latest.head_branch||'',run_number:latest.id||0,created_at:latest.created||latest.created_at||''})});
+if(allRepos.length===0){projNames.forEach(function(pn){var proj=projects[pn];(proj.repos||proj.sample_repos||[]).forEach(function(r){var name=typeof r==='string'?r:r.name||'';if(name){totalRepos++;allRepos.push({name:name,project:pn,runs:[],language:proj.template||''})}})})}
+var repoNames=allRepos.map(function(r){return r.name});
 allRuns.sort(function(a,b){return new Date(b.created_at||0)-new Date(a.created_at||0)});
 
 var filteredRepos=searchTxt?allRepos.filter(function(r){return r.name.toLowerCase().indexOf(searchTxt.toLowerCase())>=0}):allRepos;
@@ -349,7 +368,7 @@ function renderPage(){
   if(page==='prs')return html`<div class="fu" data-tour="prs-page">
     <div class="tabs"><div class=${'tab'+(prTab[0]==='create'?' ac':'')} onClick=${function(){prTab[1]('create')}}>Create PR</div></div>
     <div class="c"><div style="font-size:12px;font-weight:600;margin-bottom:8px">Create Pull Request</div><div class="fl">
-      <div><div class="lb">Repository</div><select value=${prForm[0].repo} onChange=${function(e){var v=e.target.value;prForm[1](function(p){return{repo:v,src:'',tgt:p.tgt,title:p.title,jira:p.jira}});if(v)fetchBranches(v).then(function(res){branches[1](res.branches)})}}><option value="">Select repo...</option>${(filteredRepos.length>0?filteredRepos.map(function(r){return r.name}):knownRepoNames).slice(0,100).map(function(name){return html`<option key=${name} value=${name}>${name}</option>`})}</select></div>
+      <div><div class="lb">Repository</div><select value=${prForm[0].repo} onChange=${function(e){var v=e.target.value;prForm[1](function(p){return{repo:v,src:'',tgt:p.tgt,title:p.title,jira:p.jira}});if(v)loadBranches(v).then(function(res){branches[1](res.branches)})}}><option value="">Select repo...</option>${repoNames.slice(0,100).map(function(name){return html`<option key=${name} value=${name}>${name}</option>`})}</select></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><div class="lb">Source Branch</div><select value=${prForm[0].src} onChange=${function(e){prForm[1](function(p){return{repo:p.repo,src:e.target.value,tgt:p.tgt,title:p.title,jira:p.jira}})}}><option value="">Select...</option>${branches[0].map(function(b){return html`<option key=${b} value=${b}>${b}</option>`})}</select></div><div><div class="lb">Target Branch</div><select value=${prForm[0].tgt} onChange=${function(e){prForm[1](function(p){return{repo:p.repo,src:p.src,tgt:e.target.value,title:p.title,jira:p.jira}})}}>${['int','qa','stage','main'].map(function(b){return html`<option key=${b} value=${b}>${b}</option>`})}</select></div></div>
       <div><div class="lb">Jira Ticket</div><input value=${prForm[0].jira} onInput=${function(e){prForm[1](function(p){return{repo:p.repo,src:p.src,tgt:p.tgt,title:p.title,jira:e.target.value}})}} placeholder="PROJ-123"/></div>
       <div><div class="lb">Title</div><input value=${prForm[0].title} onInput=${function(e){prForm[1](function(p){return{repo:p.repo,src:p.src,tgt:p.tgt,title:e.target.value,jira:p.jira}})}} placeholder="Add feature X"/></div>
