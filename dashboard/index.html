@@ -119,21 +119,27 @@ var JIRA_PROXY_DEFAULT='https://jira-proxy.crimson-bird-4c46.workers.dev';
 function getJiraConfig(){return{url:(localStorage.getItem('fg_jira_url')||'').replace(/\/jira\/?$/,'').replace(/\/+$/,''),email:localStorage.getItem('fg_jira_email')||'',token:localStorage.getItem('fg_jira_token')||'',project:localStorage.getItem('fg_jira_project')||'',proxy:localStorage.getItem('fg_jira_proxy')||JIRA_PROXY_DEFAULT}}
 function saveJiraConfig(cfg){if(cfg.url)localStorage.setItem('fg_jira_url',cfg.url.replace(/\/jira\/?$/,'').replace(/\/+$/,''));if(cfg.email)localStorage.setItem('fg_jira_email',cfg.email);if(cfg.token)localStorage.setItem('fg_jira_token',cfg.token);if(cfg.project)localStorage.setItem('fg_jira_project',cfg.project);if(cfg.proxy)localStorage.setItem('fg_jira_proxy',cfg.proxy)}
 var jiraCache={};
-function jiraFetch(path,method,postBody){
+function jiraGet(path){
   var cfg=getJiraConfig();if(!cfg.proxy||!cfg.url||!cfg.email||!cfg.token)return Promise.resolve(null);
-  var m=method||'GET';var k='jira:'+m+':'+path;
-  if(m==='GET'&&jiraCache[k]&&Date.now()-jiraCache[k].t<120000)return Promise.resolve(jiraCache[k].d);
-  var fullUrl=cfg.url+path;
-  var opts={method:m,headers:{'Authorization':'Basic '+btoa(cfg.email+':'+cfg.token),'Content-Type':'application/json','x-target-url':fullUrl}};
-  if(postBody)opts.body=JSON.stringify(postBody);
-  return fetch(cfg.proxy+'/',opts).then(function(r){
-    if(!r.ok){console.warn('Jira '+r.status+': '+path);return null}
-    if(r.status===204)return{ok:true};return r.json()
-  }).then(function(d){if(d&&m==='GET')jiraCache[k]={d:d,t:Date.now()};return d}).catch(function(e){console.warn('Jira error: '+e);return null})
+  var k='jira:GET:'+path;if(jiraCache[k]&&Date.now()-jiraCache[k].t<120000)return Promise.resolve(jiraCache[k].d);
+  return fetch(cfg.proxy+'/',{headers:{'Authorization':'Basic '+btoa(cfg.email+':'+cfg.token),'x-target-url':cfg.url+path}}).then(function(r){
+    if(!r.ok){console.warn('Jira GET '+r.status+': '+path);return null}return r.json()
+  }).then(function(d){if(d)jiraCache[k]={d:d,t:Date.now()};return d}).catch(function(e){console.warn('Jira GET error:',e);return null})
 }
-function jiraPost(path,body){return jiraFetch(path,'POST',body)}
+function jiraSearch(jql,fields,maxResults,startAt){
+  var cfg=getJiraConfig();if(!cfg.proxy||!cfg.url||!cfg.email||!cfg.token)return Promise.resolve(null);
+  return fetch(cfg.proxy+'/',{method:'POST',headers:{'Authorization':'Basic '+btoa(cfg.email+':'+cfg.token),'Content-Type':'application/json','x-target-url':cfg.url+'/rest/api/3/search/jql'},body:JSON.stringify({jql:jql,maxResults:maxResults||100,startAt:startAt||0,fields:(fields||'summary,status').split(',')})}).then(function(r){
+    if(!r.ok){console.warn('Jira search '+r.status+': '+jql.substring(0,80));return null}return r.json()
+  }).catch(function(e){console.warn('Jira search error:',e);return null})
+}
+function jiraPost(path,body){
+  var cfg=getJiraConfig();if(!cfg.proxy||!cfg.url||!cfg.email||!cfg.token)return Promise.resolve(null);
+  return fetch(cfg.proxy+'/',{method:'POST',headers:{'Authorization':'Basic '+btoa(cfg.email+':'+cfg.token),'Content-Type':'application/json','x-target-url':cfg.url+path},body:JSON.stringify(body)}).then(function(r){
+    if(!r.ok){console.warn('Jira POST '+r.status+': '+path);return null}if(r.status===204)return{ok:true};return r.json()
+  }).catch(function(e){console.warn('Jira POST error:',e);return null})
+}
 function jiraTransition(ticket,statusName){
-  return jiraFetch('/rest/api/2/issue/'+ticket+'/transitions').then(function(d){
+  return jiraGet('/rest/api/2/issue/'+ticket+'/transitions').then(function(d){
     if(!d||!d.transitions)return null;
     var t=d.transitions.find(function(tr){return tr.name===statusName||tr.to.name===statusName});
     if(!t)return null;
@@ -159,9 +165,9 @@ function statusBadge(st){return html`<span class="badge" style=${'background:'+s
 function relName(iss){var fv=iss&&iss.fields&&iss.fields.fixVersions;return fv&&fv.length?fv[0].name:''}
 function initials(iss){var a=iss&&iss.fields&&iss.fields.assignee;if(!a)return'';var n=a.displayName||'';var p=n.split(' ');return p.length>1?p[0][0]+p[p.length-1][0]:n.substring(0,2)}
 function groupByRelease(issues){var g={};(issues||[]).forEach(function(iss){var rv=relName(iss)||'Unassigned';if(!g[rv])g[rv]={stories:[],defects:[]};var tp=iss.fields&&iss.fields.issuetype&&iss.fields.issuetype.name||'';if(tp==='Bug')g[rv].defects.push(iss);else g[rv].stories.push(iss)});return g}
-function fetchAllJiraTickets(jql,fields){var all=[];var startAt=0;var total=999;
+function fetchAllTickets(jql,fields){var all=[];var startAt=0;var total=999;
   function next(){if(startAt>=total)return Promise.resolve({issues:all,total:total});
-    return jiraFetch('/rest/api/2/search?jql='+encodeURIComponent(jql)+'&maxResults=100&startAt='+startAt+'&fields='+(fields||'summary,status,priority,issuetype,fixVersions,assignee,updated')).then(function(d){if(!d||!d.issues)return{issues:all,total:all.length};total=d.total||0;all=all.concat(d.issues);startAt+=100;if(startAt>=total)return{issues:all,total:total};return next()})}
+    return jiraSearch(jql,fields||'summary,status,priority,issuetype,fixVersions,assignee,updated',100,startAt).then(function(d){if(!d||!d.issues)return{issues:all,total:all.length};total=d.total||0;all=all.concat(d.issues);startAt+=100;if(startAt>=total)return{issues:all,total:total};return next()})}
   return next()}
 
 // ── Teams & Notification Helpers ──
@@ -350,7 +356,7 @@ function fetchJiraLive(){
   var cfg=getJiraConfig();if(!cfg.url||!cfg.token||!cfg.project)return;
   jiraLiveLoading[1](true);
   // Fetch all non-Done tickets for kanban + counts
-  jiraFetch('/rest/api/2/search?jql='+encodeURIComponent('project='+cfg.project+' AND status!=Done ORDER BY status ASC, updated DESC')+'&maxResults=100&fields=summary,status,assignee,priority,updated').then(function(d){
+  jiraSearch('project='+cfg.project+' AND status!=Done ORDER BY status ASC, updated DESC','summary,status,assignee,priority,updated,issuetype',100,0).then(function(d){
     if(!d||!d.issues){jiraLiveLoading[1](false);return}
     var issues=d.issues;jiraOpenCount[1](d.total||issues.length);jiraLiveTickets[1](issues);
     // Build env counts and ticket lists
@@ -365,7 +371,7 @@ function fetchJiraLive(){
     jiraLiveLoading[1](false);
   }).catch(function(){jiraLiveLoading[1](false)});
   // Recent activity
-  jiraFetch('/rest/api/2/search?jql='+encodeURIComponent('project='+cfg.project+' ORDER BY updated DESC')+'&maxResults=10&fields=summary,status,updated,issuetype').then(function(d){
+  jiraSearch('project='+cfg.project+' ORDER BY updated DESC','summary,status,updated,issuetype',10,0).then(function(d){
     if(d&&d.issues){jiraRecentActivity[1](d.issues.map(function(iss){var tp=iss.fields.issuetype&&iss.fields.issuetype.name||'';return{key:iss.key,displayKey:displayKey(iss),summary:iss.fields.summary||'',status:iss.fields.status&&iss.fields.status.name||'',updated:iss.fields.updated||''}}))}
   });
 }
@@ -382,7 +388,7 @@ useEffect(function(){
   }).catch(function(){setLoading(false)});
   // Test Jira connection and fetch live data
   var jc=getJiraConfig();
-  if(jc.url&&jc.token){jiraFetch('/rest/api/2/myself').then(function(u){if(u){jiraConnected[1](true);fetchJiraLive()}})}
+  if(jc.url&&jc.token){jiraGet('/rest/api/2/myself').then(function(u){if(u){jiraConnected[1](true);fetchJiraLive()}})}
 },[]);
 
 function refresh(){clearCache();setLoading(true);loadData().then(function(res){
@@ -462,12 +468,12 @@ function renderPage(){
     if(prRelFilter[0]!=='All'&&prRelFilter[0]!=='Unassigned')jql+=' AND fixVersion="'+prRelFilter[0]+'"';
     if(prRelFilter[0]==='Unassigned')jql+=' AND fixVersion is EMPTY';
     jql+=' ORDER BY fixVersion ASC, issuetype ASC, updated DESC';
-    fetchAllJiraTickets(jql,'summary,status,priority,issuetype,fixVersions,assignee').then(function(d){
+    fetchAllTickets(jql,'summary,status,priority,issuetype,fixVersions,assignee').then(function(d){
       jiraAllOpen[1](d.issues||[]);prTotal[1](d.total||0);jiraLoading[1](false);
       if(Object.keys(prExpanded[0]).length===0){var g=groupByRelease(d.issues);var keys=Object.keys(g);if(keys.length>0){var ex={};ex[keys[0]]=true;prExpanded[1](ex)}}
     }).catch(function(){jiraLoading[1](false)})
   }
-  useEffect(function(){fetchPrTickets();var cfg=getJiraConfig();if(cfg.url&&cfg.project)jiraFetch('/rest/api/2/project/'+cfg.project+'/versions').then(function(d){if(d&&Array.isArray(d))prVersions[1](d)})},[]);
+  useEffect(function(){fetchPrTickets();var cfg=getJiraConfig();if(cfg.url&&cfg.project)jiraGet('/rest/api/2/project/'+cfg.project+'/versions').then(function(d){if(d&&Array.isArray(d))prVersions[1](d)})},[]);
   useEffect(function(){fetchPrTickets()},[prRelFilter[0],prTypeFilter[0]]);
   var jiraFiltered=jiraQ[0].length>=1?jiraAllOpen[0].filter(function(iss){var q=jiraQ[0].toLowerCase();var num=iss.key.split('-')[1]||'';return num.indexOf(q)>=0||iss.key.toLowerCase().indexOf(q)>=0||(iss.fields.summary||'').toLowerCase().indexOf(q)>=0}):jiraAllOpen[0];
   function selectJiraTicket(iss){prForm[1](function(p){return{repo:p.repo,src:p.src,tgt:p.tgt,title:'['+displayKey(iss)+'] '+iss.fields.summary,jira:iss.key}});jiraSelected[1](iss)}
@@ -526,16 +532,16 @@ function renderPage(){
   var cfg=getJiraConfig();var almTab=useState('board');var almIssues=useState([]);var almLoading=useState(false);
   var almDetail=useState(null);var almTransitions=useState([]);var almComments=useState([]);var almCommentText=useState('');var almTransitioning=useState(false);
   var BOARD_COLS=['To Do','In Progress','In Review','Ready for Unit Testing','Unit Testing Complete','Ready for SIT','SIT Complete','Ready for UAT','UAT Complete','Deployed to Production','Done'];
-  function fetchAlmData(jql){almLoading[1](true);jiraFetch('/rest/api/2/search?jql='+encodeURIComponent(jql)+'&maxResults=200&fields=summary,status,priority,issuetype,fixVersions,assignee,updated').then(function(d){if(d&&d.issues)almIssues[1](d.issues);almLoading[1](false)}).catch(function(){almLoading[1](false)})}
+  function fetchAlmData(jql){almLoading[1](true);jiraSearch(jql,'summary,status,priority,issuetype,fixVersions,assignee,updated',200,0).then(function(d){if(d&&d.issues)almIssues[1](d.issues);almLoading[1](false)}).catch(function(){almLoading[1](false)})}
   function fetchBoard(){fetchAlmData('project='+cfg.project+' ORDER BY status ASC, updated DESC')}
   function fetchStories(){fetchAlmData('project='+cfg.project+' AND issuetype=Story ORDER BY updated DESC')}
   function fetchDefects(){fetchAlmData('project='+cfg.project+' AND issuetype=Bug ORDER BY priority ASC, updated DESC')}
   useEffect(function(){if(!cfg.url||!cfg.project)return;if(almTab[0]==='board')fetchBoard();else if(almTab[0]==='stories')fetchStories();else fetchDefects()},[almTab[0]]);
   function openDetail(iss){almDetail[1](iss);almTransitions[1]([]);almComments[1]([]);almCommentText[1]('');
-    jiraFetch('/rest/api/2/issue/'+iss.key+'/transitions').then(function(d){if(d&&d.transitions)almTransitions[1](d.transitions)});
-    jiraFetch('/rest/api/2/issue/'+iss.key+'/comment').then(function(d){if(d&&d.comments)almComments[1](d.comments)})}
+    jiraGet('/rest/api/2/issue/'+iss.key+'/transitions').then(function(d){if(d&&d.transitions)almTransitions[1](d.transitions)});
+    jiraGet('/rest/api/2/issue/'+iss.key+'/comment').then(function(d){if(d&&d.comments)almComments[1](d.comments)})}
   function doTransition(tid,name){almTransitioning[1](true);jiraPost('/rest/api/2/issue/'+almDetail[0].key+'/transitions',{transition:{id:tid}}).then(function(){toast(almDetail[0].key+' moved to '+name);almTransitioning[1](false);almDetail[1](null);Object.keys(jiraCache).forEach(function(k){delete jiraCache[k]});if(almTab[0]==='board')fetchBoard();else if(almTab[0]==='stories')fetchStories();else fetchDefects();fetchJiraLive()}).catch(function(){almTransitioning[1](false);toast('Transition failed','err')})}
-  function postComment(){var txt=almCommentText[0].trim();if(!txt)return;jiraPost('/rest/api/2/issue/'+almDetail[0].key+'/comment',{body:txt}).then(function(r){if(r){toast('Comment added');almCommentText[1]('');jiraFetch('/rest/api/2/issue/'+almDetail[0].key+'/comment').then(function(d){if(d&&d.comments)almComments[1](d.comments)})}else{toast('Comment failed','err')}})}
+  function postComment(){var txt=almCommentText[0].trim();if(!txt)return;jiraPost('/rest/api/2/issue/'+almDetail[0].key+'/comment',{body:txt}).then(function(r){if(r){toast('Comment added');almCommentText[1]('');jiraGet('/rest/api/2/issue/'+almDetail[0].key+'/comment').then(function(d){if(d&&d.comments)almComments[1](d.comments)})}else{toast('Comment failed','err')}})}
   // Stats
   var storyCount=0;var defectCount=0;var inProgressCount=0;
   almIssues[0].forEach(function(iss){var f=iss.fields;var tp=f.issuetype&&f.issuetype.name||'';var st=f.status&&f.status.name||'';if(tp==='Story')storyCount++;if(tp==='Bug'||tp==='Task'&&(iss.fields.labels||[]).indexOf('defect')>=0)defectCount++;if(st==='In Progress')inProgressCount++});
@@ -601,7 +607,7 @@ function renderPage(){
   if(page==='settings'){
     var jc=jiraCfg[0];var setJc=jiraCfg[1];var testing=useState(false);var testResult=useState('');
     function testJira(){testing[1](true);testResult[1]('');saveJiraConfig(jc);
-      jiraFetch('/rest/api/2/myself').then(function(u){testing[1](false);if(u){jiraConnected[1](true);testResult[1]('Connected as: '+(u.displayName||u.emailAddress||'OK'))}else{testResult[1]('Connection failed. Check URL, credentials, and proxy URL.')}})
+      jiraGet('/rest/api/2/myself').then(function(u){testing[1](false);if(u){jiraConnected[1](true);testResult[1]('Connected as: '+(u.displayName||u.emailAddress||'OK'))}else{testResult[1]('Connection failed. Check URL, credentials, and proxy URL.')}})
     }
     return html`<div class="fu" data-tour="integrations">
     <div class="c" style="margin-bottom:16px"><div style="font-weight:600;margin-bottom:4px">Integration Hub</div><div style="font-size:11px;color:var(--ts);margin-bottom:6px">ForgeOps v6.0 -- ${totalRepos} repos across ${projNames.length} projects</div>${user&&html`<div style="font-size:11px;margin-bottom:8px">Connected as: ${user.login}</div>`}<div style="display:flex;gap:6px"><button class="bt bd" onClick=${function(){sessionStorage.removeItem('fg_pat');setUser(null);toast('Disconnected')}} aria-label="Disconnect account">Disconnect</button><a href=${'https://github.com/'+ORG+'/ForgeOps'} target="_blank" rel="noopener noreferrer" class="bt bs" style="font-size:11px">GitHub Repo</a></div></div>
