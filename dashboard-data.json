@@ -1,5 +1,12 @@
 {
-  "generated": "2026-04-11T14:07:21Z",
+  "generated": "2026-04-11T14:30:42Z",
   "total": 0,
-  "repos": []
+  "repos": [],
+  "jira": {
+    "open_count": 0,
+    "by_status": {},
+    "recent": [],
+    "all_tickets": [],
+    "tickets_by_status": {}
+  }
 }
