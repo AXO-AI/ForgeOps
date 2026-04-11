@@ -3,46 +3,62 @@
   "org": "askboppana",
   "projects": {
     "uipath-rpa": {
-      "repos": ["uipath-claims-bot", "uipath-invoice-bot", "uipath-onboarding-bot"],
+      "description": "UiPath RPA Bots",
       "template": "uipath-rpa",
       "team": "RPA Team",
-      "environments": ["qa", "stage", "prod"]
+      "pattern": "uipath-*",
+      "sample_repos": ["uipath-bot-001","uipath-bot-002","uipath-bot-003"],
+      "total": 300
     },
     "java-backend": {
-      "repos": ["api-gateway", "user-service", "payment-service"],
+      "description": "Java Microservices",
       "template": "java-webapp",
       "team": "Backend Team",
-      "environments": ["int", "qa", "stage", "prod"]
+      "pattern": "java-*",
+      "sample_repos": ["java-svc-001","java-svc-002","java-svc-003"],
+      "total": 100
     },
     "react-frontend": {
-      "repos": ["customer-portal", "admin-dashboard"],
+      "description": "React Web Applications",
       "template": "javascript-webapp",
       "team": "Frontend Team",
-      "environments": ["int", "qa", "stage", "prod"]
+      "pattern": "react-*",
+      "sample_repos": ["react-app-001","react-app-002","react-app-003"],
+      "total": 50
     },
-    "system-integration": {
-      "repos": ["data-sync-service", "event-processor"],
-      "template": "system-integration",
-      "team": "Integration Team",
-      "environments": ["int", "qa", "stage", "prod"]
+    "nodejs-api": {
+      "description": "Node.js API Services",
+      "template": "javascript-webapp",
+      "team": "API Team",
+      "pattern": "node-*",
+      "sample_repos": ["node-api-001","node-api-002","node-api-003"],
+      "total": 50
+    },
+    "salesforce": {
+      "description": "Salesforce Apex and Metadata",
+      "template": "salesforce",
+      "team": "Salesforce Team",
+      "pattern": "sfdc-*",
+      "sample_repos": ["sfdc-app-001","sfdc-app-002","sfdc-app-003"],
+      "total": 50
+    },
+    "informatica": {
+      "description": "Informatica ETL Pipelines",
+      "template": "informatica",
+      "team": "Data Team",
+      "pattern": "infa-*",
+      "sample_repos": ["infa-etl-001","infa-etl-002","infa-etl-003"],
+      "total": 50
     }
   },
   "roles": {
     "admin": {"description": "Full control", "permissions": ["all"]},
-    "release_engineer": {"description": "Deploy and promote between environments", "permissions": ["view_all", "create_pr", "merge_pr", "deploy", "promote", "rollback"]},
-    "developer": {"description": "Commit code, create PRs to INT", "permissions": ["view_own", "create_pr_to_int", "run_pipeline", "view_logs"]},
-    "tech_lead": {"description": "Review and approve PRs", "permissions": ["view_all", "approve_pr", "merge_pr", "approve_int"]},
-    "qa_team": {"description": "View QA environment, update SIT status", "permissions": ["view_qa", "update_jira_sit"]},
-    "uat_team": {"description": "View Stage environment, update UAT status", "permissions": ["view_stage", "update_jira_uat"]}
+    "release_engineer": {"description": "Promote and deploy", "permissions": ["view_all","create_pr","merge_pr","deploy","promote","rollback"]},
+    "developer": {"description": "Write code, create PRs", "permissions": ["view_own","create_pr_to_int","run_pipeline","view_logs"]},
+    "tech_lead": {"description": "Review and approve", "permissions": ["view_all","approve_pr","merge_pr"]},
+    "qa_team": {"description": "SIT testing", "permissions": ["view_qa","update_jira_sit"]},
+    "uat_team": {"description": "UAT testing", "permissions": ["view_stage","update_jira_uat"]}
   },
-  "users": {
-    "askboppana": {"role": "admin", "name": "Ashwin Boppana", "email": ""}
-  },
-  "email_groups": {
-    "developers": [],
-    "qa_team": [],
-    "uat_team": [],
-    "release_engineers": [],
-    "all_stakeholders": []
-  }
+  "users": {"askboppana": {"role": "admin", "name": "Ashwin Boppana", "email": ""}},
+  "email_groups": {"developers":[],"qa_team":[],"uat_team":[],"release_engineers":[],"all_stakeholders":[]}
 }
