@@ -3,50 +3,54 @@ on:
   schedule:
     - cron: '*/15 * * * *'
   workflow_dispatch:
-permissions:
-  contents: write
 jobs:
   generate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - name: Generate data
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Generating dashboard data..."
-          CONFIG=$(cat forgeops-config.json 2>/dev/null || echo '{}')
-          ORG=$(echo "$CONFIG" | python3 -c "import json,sys;print(json.load(sys.stdin).get('org','askboppana'))" 2>/dev/null || echo "askboppana")
-
-          python3 -c "
-          import json, subprocess, sys
-          from datetime import datetime
-
-          config = json.load(open('forgeops-config.json')) if __import__('os').path.exists('forgeops-config.json') else {}
-          org = config.get('org', 'askboppana')
-          projects = config.get('projects', {})
-          data = {'generated': datetime.utcnow().isoformat() + 'Z', 'org': org, 'projects': {}}
-
-          for pname, pconf in projects.items():
-              pdata = {'repos': [], 'team': pconf.get('team', ''), 'template': pconf.get('template', '')}
-              for repo in pconf.get('repos', []):
-                  try:
-                      result = subprocess.run(['gh', 'api', '/repos/' + org + '/' + repo + '/actions/runs?per_page=5'], capture_output=True, text=True, timeout=10)
-                      runs = json.loads(result.stdout).get('workflow_runs', []) if result.returncode == 0 else []
-                  except Exception:
-                      runs = []
-                  pdata['repos'].append({'name': repo, 'runs': [{'id': r.get('id'), 'status': r.get('status'), 'conclusion': r.get('conclusion'), 'branch': r.get('head_branch'), 'created': r.get('created_at')} for r in runs[:5]]})
-              data['projects'][pname] = pdata
-
-          with open('dashboard-data.json', 'w') as f:
-              json.dump(data, f, indent=2)
-          print('Generated dashboard-data.json with ' + str(len(projects)) + ' projects')
-          "
-
-      - name: Commit data
+          ORG="${GITHUB_REPOSITORY_OWNER}"
+          echo '{"generated":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repos":[' > data.tmp
+          FIRST=true
+          PAGE=1
+          while [ $PAGE -le 10 ]; do
+            RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/users/$ORG/repos?per_page=100&page=$PAGE&sort=updated")
+            COUNT=$(echo "$RESPONSE" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
+            if [ "$COUNT" = "0" ]; then break; fi
+            echo "$RESPONSE" | python3 -c "
+import sys, json
+repos = json.load(sys.stdin)
+for r in repos:
+    if r['name'] == '${GITHUB_REPOSITORY#*/}':
+        continue
+    print(json.dumps({'name':r['name'],'updated':r['updated_at'],'language':r.get('language',''),'default_branch':r.get('default_branch','main')}))
+" | while read -r line; do
+              if [ "$FIRST" = "true" ]; then
+                FIRST=false
+              else
+                printf ',' >> data.tmp
+              fi
+              echo "$line" >> data.tmp
+            done
+            FIRST=false
+            if [ "$COUNT" -lt 100 ]; then break; fi
+            PAGE=$((PAGE+1))
+            sleep 1
+          done
+          echo ']}' >> data.tmp
+          python3 -c "import json; d=json.load(open('data.tmp')); print(f'Generated data for {len(d[\"repos\"])} repos'); json.dump(d,open('dashboard-data.json','w'),indent=2)"
+      - name: Commit
         run: |
-          git config user.name "ForgeOps Bot"
-          git config user.email "forgeops@github.actions"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -f dashboard-data.json
-          git diff --cached --quiet || git commit -m "chore: update dashboard data [skip ci]"
-          git push || echo "Push failed - may need permissions"
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: update dashboard data [skip ci]"
+            git push
+          fi
