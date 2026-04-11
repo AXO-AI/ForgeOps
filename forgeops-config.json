@@ -59,6 +59,6 @@
     "qa_team": {"description": "SIT testing", "permissions": ["view_qa","update_jira_sit"]},
     "uat_team": {"description": "UAT testing", "permissions": ["view_stage","update_jira_uat"]}
   },
-  "users": {"askboppana": {"role": "admin", "name": "Ashwin Boppana", "email": ""}},
-  "email_groups": {"developers":[],"qa_team":[],"uat_team":[],"release_engineers":[],"all_stakeholders":[]}
+  "users": {"askboppana": {"role": "admin", "name": "Ashwin Boppana", "email": "askboppana@users.noreply.github.com"}},
+  "email_groups": {"developers":["askboppana"],"qa_team":[],"uat_team":[],"release_engineers":[],"all_stakeholders":["askboppana"]}
 }

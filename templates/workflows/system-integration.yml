@@ -83,7 +83,7 @@ jobs:
         run: |
           curl -sSfL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64 -o gitleaks
           chmod +x gitleaks
-          ./gitleaks detect --source . --no-git --verbose || true
+          ./gitleaks detect --source . --no-git --verbose
 
       - name: Dependency Check
         run: |
@@ -97,78 +97,46 @@ jobs:
   deploy-int:
     name: Deploy to INT
     needs: [security]
-    runs-on: ubuntu-latest
     if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'int') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'int')
-    environment: int
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Deploy
-        run: echo "Deploying ${{ env.APP_NAME }} to INT environment"
-
-      - name: Jira Transition
-        run: echo "Transitioning Jira ticket to INT deployed"
-
-      - name: Health Check
-        run: echo "Running health check for ${{ env.APP_NAME }} in INT"
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      app_name: "system-integration-svc"
+      version: ${{ github.sha }}
+      environment: int
+    secrets: inherit
 
   deploy-qa:
     name: Deploy to QA
     needs: [security]
-    runs-on: ubuntu-latest
     if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'qa') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'qa')
-    environment: qa
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Deploy
-        run: echo "Deploying ${{ env.APP_NAME }} to QA environment"
-
-      - name: Jira Transition
-        run: echo "Transitioning Jira ticket to QA deployed"
-
-      - name: Health Check
-        run: echo "Running health check for ${{ env.APP_NAME }} in QA"
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      app_name: "system-integration-svc"
+      version: ${{ github.sha }}
+      environment: qa
+    secrets: inherit
 
   deploy-stage:
     name: Deploy to Stage
     needs: [security]
-    runs-on: ubuntu-latest
     if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'stage') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'stage')
-    environment: stage
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Deploy
-        run: echo "Deploying ${{ env.APP_NAME }} to Stage environment"
-
-      - name: Jira Transition
-        run: echo "Transitioning Jira ticket to Stage deployed"
-
-      - name: Health Check
-        run: echo "Running health check for ${{ env.APP_NAME }} in Stage"
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      app_name: "system-integration-svc"
+      version: ${{ github.sha }}
+      environment: stage
+    secrets: inherit
 
   deploy-prod:
     name: Deploy to Prod
     needs: [security]
-    runs-on: ubuntu-latest
     if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
-    environment: prod
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Deploy
-        run: echo "Deploying ${{ env.APP_NAME }} to Prod environment"
-
-      - name: Jira Transition
-        run: echo "Transitioning Jira ticket to Prod deployed"
-
-      - name: Health Check
-        run: echo "Running health check for ${{ env.APP_NAME }} in Prod"
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      app_name: "system-integration-svc"
+      version: ${{ github.sha }}
+      environment: prod
+    secrets: inherit
 
   notify:
     name: Notify

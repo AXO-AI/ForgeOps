@@ -73,7 +73,7 @@ jobs:
         run: |
           curl -sSfL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64 -o gitleaks
           chmod +x gitleaks
-          ./gitleaks detect --source . --no-git --verbose || true
+          ./gitleaks detect --source . --no-git --verbose
 
       - name: Scan XAML for Hardcoded Credentials
         run: |
@@ -83,59 +83,38 @@ jobs:
   deploy-qa:
     name: Deploy to QA
     needs: [security]
-    runs-on: ubuntu-latest
     if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'qa') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'qa')
-    environment: qa
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Deploy
-        run: echo "Deploying ${{ env.APP_NAME }} to QA via UiPath Orchestrator"
-
-      - name: Jira Transition
-        run: echo "Transitioning Jira ticket to QA deployed"
-
-      - name: Health Check
-        run: echo "Running health check for ${{ env.APP_NAME }} in QA"
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      app_name: "uipath-rpa-bot"
+      version: ${{ github.sha }}
+      environment: qa
+      deploy_method: uipath
+    secrets: inherit
 
   deploy-stage:
     name: Deploy to Stage
     needs: [security]
-    runs-on: ubuntu-latest
     if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'stage') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'stage')
-    environment: stage
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Deploy
-        run: echo "Deploying ${{ env.APP_NAME }} to Stage via UiPath Orchestrator"
-
-      - name: Jira Transition
-        run: echo "Transitioning Jira ticket to Stage deployed"
-
-      - name: Health Check
-        run: echo "Running health check for ${{ env.APP_NAME }} in Stage"
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      app_name: "uipath-rpa-bot"
+      version: ${{ github.sha }}
+      environment: stage
+      deploy_method: uipath
+    secrets: inherit
 
   deploy-prod:
     name: Deploy to Prod
     needs: [security]
-    runs-on: ubuntu-latest
     if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
-    environment: prod
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Deploy
-        run: echo "Deploying ${{ env.APP_NAME }} to Prod via UiPath Orchestrator"
-
-      - name: Jira Transition
-        run: echo "Transitioning Jira ticket to Prod deployed"
-
-      - name: Health Check
-        run: echo "Running health check for ${{ env.APP_NAME }} in Prod"
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      app_name: "uipath-rpa-bot"
+      version: ${{ github.sha }}
+      environment: prod
+      deploy_method: uipath
+    secrets: inherit
 
   notify:
     name: Notify

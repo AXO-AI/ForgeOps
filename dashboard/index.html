@@ -89,7 +89,7 @@ import htm from'https://esm.sh/htm@3.1.1';
 var html=htm.bind(h);
 var ORG='askboppana';
 var cache={};
-function getToken(){return localStorage.getItem('fg_pat')||''}
+function getToken(){return sessionStorage.getItem('fg_pat')||''}
 var rateLimit={remaining:5000,limit:5000};
 function api(path){
   var k=path;
@@ -99,9 +99,9 @@ function api(path){
     return fetch('https://api.github.com'+path,{headers:hdrs}).then(function(r){
       var rem=r.headers.get('x-ratelimit-remaining');var lim=r.headers.get('x-ratelimit-limit');
       if(rem)rateLimit.remaining=parseInt(rem);if(lim)rateLimit.limit=parseInt(lim);
-      if(!r.ok){console.warn('API '+r.status+': '+path);return cache[k]?cache[k].d:null}
+      if(!r.ok){console.warn('API '+r.status+': '+path);if(!cache[k])toast('API error '+r.status,'warn');return cache[k]?cache[k].d:null}
       return r.json();
-    }).then(function(d){if(d)cache[k]={d:d,t:Date.now()};return d}).catch(function(){console.warn('API failed: '+path);return cache[k]?cache[k].d:null});
+    }).then(function(d){if(d)cache[k]={d:d,t:Date.now()};return d}).catch(function(){console.warn('API failed: '+path);if(!cache[k])toast('API request failed','warn');return cache[k]?cache[k].d:null});
   }catch(e){return Promise.resolve(null)}
 }
 function apiPost(path,body){
@@ -111,7 +111,6 @@ function apiPost(path,body){
 function apiPut(path,body){
   var hdrs={Accept:'application/vnd.github.v3+json','Content-Type':'application/json'};var tk=getToken();if(tk)hdrs.Authorization='token '+tk;
   return fetch('https://api.github.com'+path,{method:'PUT',headers:hdrs,body:JSON.stringify(body)}).then(function(r){if(!r.ok)return r.json().then(function(e){throw new Error(e.message||r.status)});if(r.status===204)return null;return r.json()})
-}
 }
 function clearCache(){Object.keys(cache).forEach(function(k){delete cache[k]})}
 function loadData(){
@@ -175,7 +174,7 @@ ${Object.keys(TOURS).map(function(id){var t=TOURS[id];return html`<div key=${id}
 </div></div>`}
 
 function LogPanel(p){var jb=useState([]);var jobs=jb[0];var setJobs=jb[1];var at=useState(0);var ld=useState(true);
-useEffect(function(){if(!p.run)return;setJobs([]);at[1](0);ld[1](true);var repo=p.run.repository&&p.run.repository.full_name||'';apiGet('https://api.github.com/repos/'+repo+'/actions/runs/'+p.run.id+'/jobs').then(function(d){setJobs((d&&d.jobs)||[]);ld[1](false)}).catch(function(){ld[1](false)})},[p.run&&p.run.id]);
+useEffect(function(){if(!p.run)return;setJobs([]);at[1](0);ld[1](true);var repo=p.run.repository&&p.run.repository.full_name||'';api('/repos/'+repo+'/actions/runs/'+p.run.id+'/jobs').then(function(d){setJobs((d&&d.jobs)||[]);ld[1](false)}).catch(function(){ld[1](false);toast('Failed to load job details','warn')})},[p.run&&p.run.id]);
 var job=jobs[at[0]];var steps=(job&&job.steps)||[];
 return html`<${Fragment}>${p.run&&html`<div class="log-backdrop" onClick=${p.onClose}></div>`}<div class=${'log-panel'+(p.run?' open':'')}>
 <div style="padding:14px 20px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:8px;flex-shrink:0"><div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.run&&p.run.repository&&p.run.repository.full_name||''}</div><div style="font-size:10px;color:var(--td)">Run #${p.run&&p.run.run_number||''} -- ${p.run&&(p.run.head_branch||'')}</div></div><button onClick=${p.onClose} aria-label="Close log panel" style="font-size:18px;color:var(--td)">x</button></div>
@@ -330,7 +329,7 @@ function extractTickets(){var tickets=[];var seen={};allRuns.forEach(function(r)
 // Build notifications from allRuns
 function buildNotifications(){var notifs=[];allRuns.forEach(function(r){if(r.conclusion==='success'||r.conclusion==='failure'){var env='INT';var br=(r.branch||r.head_branch||'').toLowerCase();if(br.indexOf('prod')>=0||br==='main')env='PROD';else if(br.indexOf('stage')>=0)env='STAGE';else if(br.indexOf('qa')>=0)env='QA';notifs.push({type:'Teams',msg:(r.repo||'')+' deployed to '+env,time:r.created||r.created_at||''});notifs.push({type:'Email',msg:env+' team notified of '+(r.conclusion==='success'?'successful':'failed')+' deploy',time:r.created||r.created_at||''})}});return notifs.slice(0,10)}
 
-if(!user&&!getToken()&&!loading)return html`<div style="display:flex;align-items:center;justify-content:center;height:100vh;padding:20px"><div style="text-align:center;max-width:360px"><${Logo} s=${40}/><h1 style="font-size:20px;margin:12px 0 4px">ForgeOps</h1><p style="color:var(--ts);font-size:12px;margin-bottom:16px">Enter your GitHub token once. Saved in this browser forever.</p><form onSubmit=${function(e){e.preventDefault();var v=e.target.elements.tok.value.trim();if(!v)return;localStorage.setItem('fg_pat',v);api('/user').then(function(u){setUser(u);toast('Connected as '+u.login)}).catch(function(err){localStorage.removeItem('fg_pat');toast('Invalid token','err')})}} style="display:flex;gap:6px"><input name="tok" type="password" placeholder="ghp_..." style="flex:1;font-family:'JetBrains Mono',monospace"/><button type="submit" class="bt bp">Go</button></form></div></div>`;
+if(!user&&!getToken()&&!loading)return html`<div style="display:flex;align-items:center;justify-content:center;height:100vh;padding:20px"><div style="text-align:center;max-width:360px"><${Logo} s=${40}/><h1 style="font-size:20px;margin:12px 0 4px">ForgeOps</h1><p style="color:var(--ts);font-size:12px;margin-bottom:16px">Enter your GitHub token once. Saved for this session only.</p><form onSubmit=${function(e){e.preventDefault();var v=e.target.elements.tok.value.trim();if(!v)return;sessionStorage.setItem('fg_pat',v);api('/user').then(function(u){setUser(u);toast('Connected as '+u.login)}).catch(function(err){sessionStorage.removeItem('fg_pat');toast('Invalid token','err')})}} style="display:flex;gap:6px"><input name="tok" type="password" placeholder="ghp_..." style="flex:1;font-family:'JetBrains Mono',monospace"/><button type="submit" class="bt bp">Go</button></form></div></div>`;
 
 var sections={DELIVERY:['overview','pipelines','prs','deploy','environments'],QUALITY:['security','alm'],OPERATIONS:['users','settings']};
 var labels={overview:'Overview',pipelines:'Pipelines',prs:'Pull Requests',deploy:'Deploy',environments:'Environments',security:'Security',alm:'ALM / Jira',users:'Team',settings:'Settings'};
@@ -440,7 +439,7 @@ function renderPage(){
     </div>`}
 
   if(page==='settings')return html`<div class="fu">
-    <div class="c" style="margin-bottom:16px"><div style="font-weight:600;margin-bottom:4px">Integration Hub</div><div style="font-size:11px;color:var(--ts);margin-bottom:6px">ForgeOps v6.0 -- ${totalRepos} repos across ${projNames.length} projects</div>${user&&html`<div style="font-size:11px;margin-bottom:8px">Connected as: ${user.login}</div>`}<div style="display:flex;gap:6px"><button class="bt bd" onClick=${function(){localStorage.removeItem('fg_pat');setUser(null);toast('Disconnected')}} aria-label="Disconnect account">Disconnect</button><a href=${'https://github.com/'+ORG+'/ForgeOps'} target="_blank" rel="noopener noreferrer" class="bt bs" style="font-size:11px">GitHub Repo</a></div></div>
+    <div class="c" style="margin-bottom:16px"><div style="font-weight:600;margin-bottom:4px">Integration Hub</div><div style="font-size:11px;color:var(--ts);margin-bottom:6px">ForgeOps v6.0 -- ${totalRepos} repos across ${projNames.length} projects</div>${user&&html`<div style="font-size:11px;margin-bottom:8px">Connected as: ${user.login}</div>`}<div style="display:flex;gap:6px"><button class="bt bd" onClick=${function(){sessionStorage.removeItem('fg_pat');setUser(null);toast('Disconnected')}} aria-label="Disconnect account">Disconnect</button><a href=${'https://github.com/'+ORG+'/ForgeOps'} target="_blank" rel="noopener noreferrer" class="bt bs" style="font-size:11px">GitHub Repo</a></div></div>
     <div class="g2">
     <${IntegrationCard} color="#7c3aed" title="Microsoft Teams" desc="Send deployment and failure notifications to Teams channels." secrets=${['TEAMS_WEBHOOK_URL']} steps=${['Open Microsoft Teams and navigate to the target channel.','Click the channel name, then Connectors (or Workflows).','Add an Incoming Webhook connector and name it ForgeOps.','Copy the generated webhook URL.','Add it as TEAMS_WEBHOOK_URL in GitHub Actions secrets.']}/>
     <${IntegrationCard} color="#059669" title="Splunk" desc="Forward structured pipeline logs to Splunk via HTTP Event Collector." secrets=${['SPLUNK_HEC_URL','SPLUNK_HEC_TOKEN']} steps=${['In Splunk, go to Settings > Data Inputs > HTTP Event Collector.','Create a new token with a target index for ForgeOps events.','Copy the HEC URL and token value.','Add SPLUNK_HEC_URL and SPLUNK_HEC_TOKEN as GitHub secrets.','Use SPL: index=forgeops sourcetype=_json | stats count by repo, status']}/>
@@ -465,7 +464,7 @@ return html`<div class="app">
   <div class="mn">
     <div class="hd"><button class="hb" onClick=${function(){setSideOpen(!sideOpen)}} aria-label="Toggle menu">Menu</button><span style="font-size:15px;font-weight:700;flex:1">${labels[page]||''}</span><span style=${'font-size:10px;font-weight:500;color:'+(rateLimit.remaining>20?'var(--ok)':rateLimit.remaining>5?'var(--wa)':'var(--er)')}>API: ${rateLimit.remaining}/${rateLimit.limit}</span><button class="bt bs" style="font-size:10px" onClick=${refresh} aria-label="Refresh data">${loading?'...':'Refresh'}</button></div>
     <div class="ct">${renderPage()}</div>
-    <div class="spark-btn" onClick=${function(){setSpark(!sparkOpen)}} aria-label="Open Spark AI assistant"><svg width="20" height="20" viewBox="0 0 40 40"><path d="M20 8L11 22h6.5l-2 10L27 18h-6.5l2-10z" fill="var(--in)" style="animation:sparkGlow 3s infinite"/></svg></div>
+    <div class="spark-btn" onClick=${function(){setSpark(!sparkOpen)}} aria-label="Open Spark assistant"><svg width="20" height="20" viewBox="0 0 40 40"><path d="M20 8L11 22h6.5l-2 10L27 18h-6.5l2-10z" fill="var(--in)" style="animation:sparkGlow 3s infinite"/></svg></div>
     ${sparkOpen&&html`<${SparkPanel} pg=${page} close=${function(){setSpark(false)}} startTour=${startTour}/>`}
     <${LogPanel} run=${logRun} onClose=${function(){setLogRun(null)}}/>
     <${TourOverlay} tour=${tour[0]} step=${tourStep[0]} setStep=${tourStep[1]} setPage=${setPage} onClose=${endTour}/>
