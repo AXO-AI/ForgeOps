@@ -351,6 +351,19 @@ jobs:
           echo "Branch: ${{ github.ref_name }}"
           echo "Event: ${{ github.event_name }}"
           echo "Status: completed"
+      - name: Send Teams Notification
+        if: always() && env.TEAMS_WEBHOOK_URL != ''
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+        run: |
+          STATUS="${{ job.status }}"
+          REPO="${{ github.repository }}"
+          BRANCH="${{ github.ref_name }}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          if [ "$STATUS" = "success" ]; then COLOR="059669"; TITLE="Build Passed"; else COLOR="dc2626"; TITLE="Build Failed"; fi
+          CARD="{\"@type\":\"MessageCard\",\"themeColor\":\"$COLOR\",\"title\":\"$TITLE: $(basename $REPO)\",\"sections\":[{\"facts\":[{\"name\":\"Repository\",\"value\":\"$REPO\"},{\"name\":\"Branch\",\"value\":\"$BRANCH\"},{\"name\":\"Status\",\"value\":\"$STATUS\"},{\"name\":\"Pipeline\",\"value\":\"[View run]($RUN_URL)\"}]}]}"
+          curl -s -H "Content-Type: application/json" -d "$CARD" "$TEAMS_WEBHOOK_URL" || echo "Teams notification failed"
+
 
       - name: ForgeOps Log
         run: |
