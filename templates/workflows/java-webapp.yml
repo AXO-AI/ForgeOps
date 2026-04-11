@@ -97,46 +97,186 @@ jobs:
   deploy-int:
     name: Deploy to INT
     needs: [security]
+    runs-on: ubuntu-latest
     if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'int') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'int')
-    uses: ./.github/workflows/_deploy.yml
-    with:
-      app_name: "java-webapp-api"
-      version: ${{ github.sha }}
-      environment: int
-    secrets: inherit
+    environment: int
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy
+        run: echo "Deploying ${{ env.APP_NAME }} to INT environment"
+
+      - name: Transition Jira Ticket
+        if: always()
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_TRANSITION_NAME: "Ready for Unit Testing"
+        run: |
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          TICKET=$(echo "$BRANCH" | grep -oE '[A-Z]+-[0-9]+' | head -1)
+          if [ -z "$TICKET" ]; then
+            echo "No Jira ticket found in branch name: $BRANCH"
+            exit 0
+          fi
+          if [ -z "$JIRA_BASE_URL" ] || [ -z "$JIRA_USER_EMAIL" ] || [ -z "$JIRA_API_TOKEN" ]; then
+            echo "Jira secrets not configured -- skipping transition for $TICKET"
+            exit 0
+          fi
+          AUTH=$(echo -n "${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}" | base64)
+          echo "Fetching transitions for $TICKET..."
+          TRANSITIONS=$(curl -s -H "Authorization: Basic $AUTH" -H "Content-Type: application/json" \
+            "${JIRA_BASE_URL}/rest/api/3/issue/${TICKET}/transitions" 2>/dev/null) || { echo "Failed to reach Jira API"; exit 0; }
+          TID=$(echo "$TRANSITIONS" | jq -r --arg name "$JIRA_TRANSITION_NAME" '.transitions[]? | select(.name == $name) | .id' 2>/dev/null | head -1)
+          if [ -z "$TID" ] || [ "$TID" = "null" ]; then
+            echo "Transition '$JIRA_TRANSITION_NAME' not available for $TICKET"
+            echo "Available transitions: $(echo "$TRANSITIONS" | jq -r '.transitions[]?.name' 2>/dev/null | tr '\n' ', ')"
+            exit 0
+          fi
+          echo "Transitioning $TICKET to '$JIRA_TRANSITION_NAME' (id: $TID)..."
+          curl -s -X POST -H "Authorization: Basic $AUTH" -H "Content-Type: application/json" \
+            -d "{\"transition\":{\"id\":\"$TID\"}}" \
+            "${JIRA_BASE_URL}/rest/api/3/issue/${TICKET}/transitions" && echo "Done" || echo "Transition request failed"
 
   deploy-qa:
     name: Deploy to QA
     needs: [security]
+    runs-on: ubuntu-latest
     if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'qa') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'qa')
-    uses: ./.github/workflows/_deploy.yml
-    with:
-      app_name: "java-webapp-api"
-      version: ${{ github.sha }}
-      environment: qa
-    secrets: inherit
+    environment: qa
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy
+        run: echo "Deploying ${{ env.APP_NAME }} to QA environment"
+
+      - name: Transition Jira Ticket
+        if: always()
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_TRANSITION_NAME: "Ready for SIT"
+        run: |
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          TICKET=$(echo "$BRANCH" | grep -oE '[A-Z]+-[0-9]+' | head -1)
+          if [ -z "$TICKET" ]; then
+            echo "No Jira ticket found in branch name: $BRANCH"
+            exit 0
+          fi
+          if [ -z "$JIRA_BASE_URL" ] || [ -z "$JIRA_USER_EMAIL" ] || [ -z "$JIRA_API_TOKEN" ]; then
+            echo "Jira secrets not configured -- skipping transition for $TICKET"
+            exit 0
+          fi
+          AUTH=$(echo -n "${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}" | base64)
+          echo "Fetching transitions for $TICKET..."
+          TRANSITIONS=$(curl -s -H "Authorization: Basic $AUTH" -H "Content-Type: application/json" \
+            "${JIRA_BASE_URL}/rest/api/3/issue/${TICKET}/transitions" 2>/dev/null) || { echo "Failed to reach Jira API"; exit 0; }
+          TID=$(echo "$TRANSITIONS" | jq -r --arg name "$JIRA_TRANSITION_NAME" '.transitions[]? | select(.name == $name) | .id' 2>/dev/null | head -1)
+          if [ -z "$TID" ] || [ "$TID" = "null" ]; then
+            echo "Transition '$JIRA_TRANSITION_NAME' not available for $TICKET"
+            echo "Available transitions: $(echo "$TRANSITIONS" | jq -r '.transitions[]?.name' 2>/dev/null | tr '\n' ', ')"
+            exit 0
+          fi
+          echo "Transitioning $TICKET to '$JIRA_TRANSITION_NAME' (id: $TID)..."
+          curl -s -X POST -H "Authorization: Basic $AUTH" -H "Content-Type: application/json" \
+            -d "{\"transition\":{\"id\":\"$TID\"}}" \
+            "${JIRA_BASE_URL}/rest/api/3/issue/${TICKET}/transitions" && echo "Done" || echo "Transition request failed"
 
   deploy-stage:
     name: Deploy to Stage
     needs: [security]
+    runs-on: ubuntu-latest
     if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'stage') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'stage')
-    uses: ./.github/workflows/_deploy.yml
-    with:
-      app_name: "java-webapp-api"
-      version: ${{ github.sha }}
-      environment: stage
-    secrets: inherit
+    environment: stage
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy
+        run: echo "Deploying ${{ env.APP_NAME }} to Stage environment"
+
+      - name: Transition Jira Ticket
+        if: always()
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_TRANSITION_NAME: "Ready for UAT"
+        run: |
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          TICKET=$(echo "$BRANCH" | grep -oE '[A-Z]+-[0-9]+' | head -1)
+          if [ -z "$TICKET" ]; then
+            echo "No Jira ticket found in branch name: $BRANCH"
+            exit 0
+          fi
+          if [ -z "$JIRA_BASE_URL" ] || [ -z "$JIRA_USER_EMAIL" ] || [ -z "$JIRA_API_TOKEN" ]; then
+            echo "Jira secrets not configured -- skipping transition for $TICKET"
+            exit 0
+          fi
+          AUTH=$(echo -n "${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}" | base64)
+          echo "Fetching transitions for $TICKET..."
+          TRANSITIONS=$(curl -s -H "Authorization: Basic $AUTH" -H "Content-Type: application/json" \
+            "${JIRA_BASE_URL}/rest/api/3/issue/${TICKET}/transitions" 2>/dev/null) || { echo "Failed to reach Jira API"; exit 0; }
+          TID=$(echo "$TRANSITIONS" | jq -r --arg name "$JIRA_TRANSITION_NAME" '.transitions[]? | select(.name == $name) | .id' 2>/dev/null | head -1)
+          if [ -z "$TID" ] || [ "$TID" = "null" ]; then
+            echo "Transition '$JIRA_TRANSITION_NAME' not available for $TICKET"
+            echo "Available transitions: $(echo "$TRANSITIONS" | jq -r '.transitions[]?.name' 2>/dev/null | tr '\n' ', ')"
+            exit 0
+          fi
+          echo "Transitioning $TICKET to '$JIRA_TRANSITION_NAME' (id: $TID)..."
+          curl -s -X POST -H "Authorization: Basic $AUTH" -H "Content-Type: application/json" \
+            -d "{\"transition\":{\"id\":\"$TID\"}}" \
+            "${JIRA_BASE_URL}/rest/api/3/issue/${TICKET}/transitions" && echo "Done" || echo "Transition request failed"
 
   deploy-prod:
     name: Deploy to Prod
     needs: [security]
+    runs-on: ubuntu-latest
     if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
-    uses: ./.github/workflows/_deploy.yml
-    with:
-      app_name: "java-webapp-api"
-      version: ${{ github.sha }}
-      environment: prod
-    secrets: inherit
+    environment: prod
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy
+        run: echo "Deploying ${{ env.APP_NAME }} to Prod environment"
+
+      - name: Transition Jira Ticket
+        if: always()
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_TRANSITION_NAME: "Deployed to Production"
+        run: |
+          BRANCH="${{ github.head_ref || github.ref_name }}"
+          TICKET=$(echo "$BRANCH" | grep -oE '[A-Z]+-[0-9]+' | head -1)
+          if [ -z "$TICKET" ]; then
+            echo "No Jira ticket found in branch name: $BRANCH"
+            exit 0
+          fi
+          if [ -z "$JIRA_BASE_URL" ] || [ -z "$JIRA_USER_EMAIL" ] || [ -z "$JIRA_API_TOKEN" ]; then
+            echo "Jira secrets not configured -- skipping transition for $TICKET"
+            exit 0
+          fi
+          AUTH=$(echo -n "${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}" | base64)
+          echo "Fetching transitions for $TICKET..."
+          TRANSITIONS=$(curl -s -H "Authorization: Basic $AUTH" -H "Content-Type: application/json" \
+            "${JIRA_BASE_URL}/rest/api/3/issue/${TICKET}/transitions" 2>/dev/null) || { echo "Failed to reach Jira API"; exit 0; }
+          TID=$(echo "$TRANSITIONS" | jq -r --arg name "$JIRA_TRANSITION_NAME" '.transitions[]? | select(.name == $name) | .id' 2>/dev/null | head -1)
+          if [ -z "$TID" ] || [ "$TID" = "null" ]; then
+            echo "Transition '$JIRA_TRANSITION_NAME' not available for $TICKET"
+            echo "Available transitions: $(echo "$TRANSITIONS" | jq -r '.transitions[]?.name' 2>/dev/null | tr '\n' ', ')"
+            exit 0
+          fi
+          echo "Transitioning $TICKET to '$JIRA_TRANSITION_NAME' (id: $TID)..."
+          curl -s -X POST -H "Authorization: Basic $AUTH" -H "Content-Type: application/json" \
+            -d "{\"transition\":{\"id\":\"$TID\"}}" \
+            "${JIRA_BASE_URL}/rest/api/3/issue/${TICKET}/transitions" && echo "Done" || echo "Transition request failed"
 
   notify:
     name: Notify
