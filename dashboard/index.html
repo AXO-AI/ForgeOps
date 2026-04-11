@@ -137,11 +137,11 @@ function jiraFetch(path,opts){
 function jiraApi(path){return jiraFetch(path)}
 function jiraPost(path,body){return jiraFetch(path,{method:'POST',body:body})}
 function jiraTransition(ticket,statusName){
-  return jiraApi('/rest/api/3/issue/'+ticket+'/transitions').then(function(d){
+  return jiraApi('/rest/api/2/issue/'+ticket+'/transitions').then(function(d){
     if(!d||!d.transitions)return null;
     var t=d.transitions.find(function(tr){return tr.name===statusName||tr.to.name===statusName});
     if(!t)return null;
-    return jiraPost('/rest/api/3/issue/'+ticket+'/transitions',{transition:{id:t.id}})
+    return jiraPost('/rest/api/2/issue/'+ticket+'/transitions',{transition:{id:t.id}})
   })
 }
 function extractTicket(str){if(!str)return'';var m=str.match(/[A-Z]+-\d+/);return m?m[0]:''}
@@ -327,7 +327,7 @@ function fetchJiraLive(){
   var cfg=getJiraConfig();if(!cfg.url||!cfg.token||!cfg.project)return;
   jiraLiveLoading[1](true);
   // Fetch all non-Done tickets for kanban + counts
-  jiraFetch('/rest/api/3/search?jql=project='+cfg.project+' AND status!=Done ORDER BY status ASC, updated DESC&maxResults=100&fields=summary,status,assignee,priority,updated').then(function(d){
+  jiraFetch('/rest/api/2/search?jql=project='+cfg.project+' AND status!=Done ORDER BY status ASC, updated DESC&maxResults=100&fields=summary,status,assignee,priority,updated').then(function(d){
     if(!d||!d.issues){jiraLiveLoading[1](false);return}
     var issues=d.issues;jiraOpenCount[1](d.total||issues.length);jiraLiveTickets[1](issues);
     // Build env counts and ticket lists
@@ -342,7 +342,7 @@ function fetchJiraLive(){
     jiraLiveLoading[1](false);
   }).catch(function(){jiraLiveLoading[1](false)});
   // Recent activity
-  jiraFetch('/rest/api/3/search?jql=project='+cfg.project+' ORDER BY updated DESC&maxResults=10&fields=summary,status,updated').then(function(d){
+  jiraFetch('/rest/api/2/search?jql=project='+cfg.project+' ORDER BY updated DESC&maxResults=10&fields=summary,status,updated').then(function(d){
     if(d&&d.issues){jiraRecentActivity[1](d.issues.map(function(iss){return{key:iss.key,summary:iss.fields.summary||'',status:iss.fields.status&&iss.fields.status.name||'',updated:iss.fields.updated||''}}))}
   });
 }
@@ -359,7 +359,7 @@ useEffect(function(){
   }).catch(function(){setLoading(false)});
   // Test Jira connection and fetch live data
   var jc=getJiraConfig();
-  if(jc.url&&jc.token){jiraFetch('/rest/api/3/myself').then(function(u){if(u){jiraConnected[1](true);fetchJiraLive()}})}
+  if(jc.url&&jc.token){jiraFetch('/rest/api/2/myself').then(function(u){if(u){jiraConnected[1](true);fetchJiraLive()}})}
 },[]);
 
 function refresh(){clearCache();setLoading(true);loadData().then(function(res){
@@ -431,7 +431,7 @@ function renderPage(){
   if(page==='prs'){var jiraQ=useState('');var jiraResults=useState([]);var jiraAllOpen=useState([]);var jiraLoading=useState(false);var jiraDdOpen=useState(false);var jiraHlIdx=useState(-1);var ddRef=useRef(null);
   // Load open tickets on mount
   useEffect(function(){var cfg=getJiraConfig();if(!cfg.url||!cfg.project)return;jiraLoading[1](true);
-    jiraFetch('/rest/api/3/search?jql=project='+cfg.project+' AND status!=Done ORDER BY updated DESC&maxResults=50&fields=summary,status,assignee,priority').then(function(d){
+    jiraFetch('/rest/api/2/search?jql=project='+cfg.project+' AND status!=Done ORDER BY updated DESC&maxResults=50&fields=summary,status,assignee,priority').then(function(d){
       if(d&&d.issues)jiraAllOpen[1](d.issues);jiraLoading[1](false)
     }).catch(function(){jiraLoading[1](false)})
   },[]);
@@ -480,7 +480,7 @@ function renderPage(){
   // ── SECURITY ──
   if(page==='security')return html`<div class="fu" data-tour="security-page"><div class="g4" data-tour="severity-cards"><div class="c" style="border-left:4px solid var(--ok);text-align:center"><div style="font-size:9px;color:var(--ts);text-transform:uppercase;letter-spacing:1px">Gitleaks</div><div style="font-size:18px;font-weight:700;color:var(--ok)">Active</div></div><div class="c" style="border-left:4px solid var(--ok);text-align:center"><div style="font-size:9px;color:var(--ts);text-transform:uppercase;letter-spacing:1px">OWASP DC</div><div style="font-size:18px;font-weight:700;color:var(--ok)">Active</div></div><div class="c" style="border-left:4px solid var(--ok);text-align:center"><div style="font-size:9px;color:var(--ts);text-transform:uppercase;letter-spacing:1px">Syft SBOM</div><div style="font-size:18px;font-weight:700;color:var(--ok)">Active</div></div><div class="c" style="border-left:4px solid var(--td);text-align:center"><div style="font-size:9px;color:var(--ts);text-transform:uppercase;letter-spacing:1px">SonarQube</div><div style="font-size:18px;font-weight:700;color:var(--td)">Add secret</div></div></div>
     <div class="c"><div style="font-size:11px;font-weight:600;color:var(--ts);margin-bottom:6px">Security Findings</div><div style="font-size:11px;color:var(--ts);line-height:1.6;margin-bottom:12px">Free tools (Gitleaks, OWASP Dependency-Check, Syft) run on every pipeline. Add SONAR_HOST_URL + SONAR_TOKEN for SAST.</div>
-    ${['Critical vulnerability in dependency X','High severity secret pattern detected','Medium priority code quality issue'].map(function(finding,i){var sev=['critical','high','medium'][i];var sevCol={critical:'var(--er)',high:'var(--wa)',medium:'var(--in)'}[sev];return html`<div key=${i} style="border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin-bottom:6px;display:flex;align-items:center;gap:8px;font-size:11px"><span class="badge" style=${'background:'+sevCol.replace('var(','rgba(').replace(/\)/,',.1)')+';color:'+sevCol}>${sev}</span><span style="flex:1">${finding}</span><button class="bt bs" style="font-size:9px;padding:3px 8px" onClick=${function(){var cfg=getJiraConfig();if(!cfg.url||!cfg.project){toast('Configure Jira in Settings first','warn');return}var priority={critical:'Highest',high:'High',medium:'Medium'}[sev];jiraPost('/rest/api/3/issue',{fields:{project:{key:cfg.project},summary:'[Security] '+finding,issuetype:{name:'Bug'},priority:{name:priority},labels:['security','forgeops-auto']}}).then(function(r){if(r&&r.key)toast('Created '+r.key);else toast('Failed -- check Jira config','err')})}}>Create Jira Bug</button></div>`})}</div>
+    ${['Critical vulnerability in dependency X','High severity secret pattern detected','Medium priority code quality issue'].map(function(finding,i){var sev=['critical','high','medium'][i];var sevCol={critical:'var(--er)',high:'var(--wa)',medium:'var(--in)'}[sev];return html`<div key=${i} style="border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin-bottom:6px;display:flex;align-items:center;gap:8px;font-size:11px"><span class="badge" style=${'background:'+sevCol.replace('var(','rgba(').replace(/\)/,',.1)')+';color:'+sevCol}>${sev}</span><span style="flex:1">${finding}</span><button class="bt bs" style="font-size:9px;padding:3px 8px" onClick=${function(){var cfg=getJiraConfig();if(!cfg.url||!cfg.project){toast('Configure Jira in Settings first','warn');return}var priority={critical:'Highest',high:'High',medium:'Medium'}[sev];jiraPost('/rest/api/2/issue',{fields:{project:{key:cfg.project},summary:'[Security] '+finding,issuetype:{name:'Bug'},priority:{name:priority},labels:['security','forgeops-auto']}}).then(function(r){if(r&&r.key)toast('Created '+r.key);else toast('Failed -- check Jira config','err')})}}>Create Jira Bug</button></div>`})}</div>
   </div>`;
 
   // ── ALM / JIRA ──
@@ -546,7 +546,7 @@ function renderPage(){
   if(page==='settings'){
     var jc=jiraCfg[0];var setJc=jiraCfg[1];var testing=useState(false);var testResult=useState('');
     function testJira(){testing[1](true);testResult[1]('');saveJiraConfig(jc);
-      jiraFetch('/rest/api/3/myself').then(function(u){testing[1](false);if(u){jiraConnected[1](true);testResult[1]('Connected as: '+(u.displayName||u.emailAddress||'OK'))}else{testResult[1]('Connection failed. Check URL, credentials, and proxy URL.')}})
+      jiraFetch('/rest/api/2/myself').then(function(u){testing[1](false);if(u){jiraConnected[1](true);testResult[1]('Connected as: '+(u.displayName||u.emailAddress||'OK'))}else{testResult[1]('Connection failed. Check URL, credentials, and proxy URL.')}})
     }
     return html`<div class="fu" data-tour="integrations">
     <div class="c" style="margin-bottom:16px"><div style="font-weight:600;margin-bottom:4px">Integration Hub</div><div style="font-size:11px;color:var(--ts);margin-bottom:6px">ForgeOps v6.0 -- ${totalRepos} repos across ${projNames.length} projects</div>${user&&html`<div style="font-size:11px;margin-bottom:8px">Connected as: ${user.login}</div>`}<div style="display:flex;gap:6px"><button class="bt bd" onClick=${function(){sessionStorage.removeItem('fg_pat');setUser(null);toast('Disconnected')}} aria-label="Disconnect account">Disconnect</button><a href=${'https://github.com/'+ORG+'/ForgeOps'} target="_blank" rel="noopener noreferrer" class="bt bs" style="font-size:11px">GitHub Repo</a></div></div>
