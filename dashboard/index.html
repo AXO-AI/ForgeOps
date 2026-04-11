@@ -327,7 +327,7 @@ function fetchJiraLive(){
   var cfg=getJiraConfig();if(!cfg.url||!cfg.token||!cfg.project)return;
   jiraLiveLoading[1](true);
   // Fetch all non-Done tickets for kanban + counts
-  jiraFetch('/rest/api/3/search?jql='+encodeURIComponent('project='+cfg.project+' AND status!=Done ORDER BY status ASC, updated DESC')+'&maxResults=100&fields=summary,status,assignee,priority,updated').then(function(d){
+  jiraFetch('/rest/api/3/search?jql=project='+cfg.project+' AND status!=Done ORDER BY status ASC, updated DESC&maxResults=100&fields=summary,status,assignee,priority,updated').then(function(d){
     if(!d||!d.issues){jiraLiveLoading[1](false);return}
     var issues=d.issues;jiraOpenCount[1](d.total||issues.length);jiraLiveTickets[1](issues);
     // Build env counts and ticket lists
@@ -342,7 +342,7 @@ function fetchJiraLive(){
     jiraLiveLoading[1](false);
   }).catch(function(){jiraLiveLoading[1](false)});
   // Recent activity
-  jiraFetch('/rest/api/3/search?jql='+encodeURIComponent('project='+cfg.project+' ORDER BY updated DESC')+'&maxResults=10&fields=summary,status,updated').then(function(d){
+  jiraFetch('/rest/api/3/search?jql=project='+cfg.project+' ORDER BY updated DESC&maxResults=10&fields=summary,status,updated').then(function(d){
     if(d&&d.issues){jiraRecentActivity[1](d.issues.map(function(iss){return{key:iss.key,summary:iss.fields.summary||'',status:iss.fields.status&&iss.fields.status.name||'',updated:iss.fields.updated||''}}))}
   });
 }
@@ -431,7 +431,7 @@ function renderPage(){
   if(page==='prs'){var jiraQ=useState('');var jiraResults=useState([]);var jiraAllOpen=useState([]);var jiraLoading=useState(false);var jiraDdOpen=useState(false);var jiraHlIdx=useState(-1);var ddRef=useRef(null);
   // Load open tickets on mount
   useEffect(function(){var cfg=getJiraConfig();if(!cfg.url||!cfg.project)return;jiraLoading[1](true);
-    jiraFetch('/rest/api/3/search?jql='+encodeURIComponent('project='+cfg.project+' AND status!=Done ORDER BY updated DESC')+'&maxResults=50&fields=summary,status,assignee,priority').then(function(d){
+    jiraFetch('/rest/api/3/search?jql=project='+cfg.project+' AND status!=Done ORDER BY updated DESC&maxResults=50&fields=summary,status,assignee,priority').then(function(d){
       if(d&&d.issues)jiraAllOpen[1](d.issues);jiraLoading[1](false)
     }).catch(function(){jiraLoading[1](false)})
   },[]);
