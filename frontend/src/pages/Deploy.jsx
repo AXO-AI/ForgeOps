@@ -1,18 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getBuildHistory, timeAgo } from '../api';
-import ALMSelector from '../components/ALMSelector';
-import TicketDetailPanel from '../components/TicketDetailPanel';
 
 const ENVIRONMENTS = ['INT', 'QA', 'STAGE', 'PROD'];
 const STORAGE_KEY = 'fg_deploy_history';
 
-const ENVS = [
-  { name: 'INT', label: 'Integration', color: 'var(--info)', preSelectedStatus: 'Ready for Unit Testing' },
-  { name: 'QA', label: 'Quality Assurance', color: 'var(--warn)', preSelectedStatus: 'Ready for SIT' },
-  { name: 'STAGE', label: 'Staging', color: 'var(--primary)', preSelectedStatus: 'Ready for UAT' },
-  { name: 'PROD', label: 'Production', color: 'var(--success)', preSelectedStatus: 'Deployed to Production' },
-];
 
 function loadHistory() {
   try {
@@ -44,8 +36,6 @@ export default function Deploy() {
   const [branch, setBranch] = useState('main');
   const [deploying, setDeploying] = useState(false);
   const [history, setHistory] = useState([]);
-  const [expanded, setExpanded] = useState({});
-  const [detailTicket, setDetailTicket] = useState(null);
 
   useEffect(() => {
     setHistory(loadHistory());
@@ -73,15 +63,12 @@ export default function Deploy() {
     <div>
       <div className="page-header">
         <h1>CI/CD</h1>
-        <p>Deploy builds and track ticket progression across environments</p>
+        <p>Deploy builds and view pipeline history</p>
       </div>
 
       <div className="tabs">
         <button className={`tab-btn${tab === 'deploy' ? ' active' : ''}`} onClick={() => setTab('deploy')}>
           {'\u{1F680}'} Deploy
-        </button>
-        <button className={`tab-btn${tab === 'environments' ? ' active' : ''}`} onClick={() => setTab('environments')}>
-          {'\u{1F30D}'} Environments
         </button>
         <button className={`tab-btn${tab === 'history' ? ' active' : ''}`} onClick={() => setTab('history')}>
           {'\u{1F4CB}'} History
@@ -124,48 +111,6 @@ export default function Deploy() {
               </div>
             ))}
           </div>
-        </>
-      )}
-
-      {tab === 'environments' && (
-        <>
-          <div className="env-grid">
-            {ENVS.map((env) => {
-              const isExpanded = expanded[env.name];
-              return (
-                <div key={env.name} className="env-card" style={{ borderTop: `3px solid ${env.color}` }}>
-                  <div className="env-card-header">
-                    <div>
-                      <div className="env-name" style={{ color: env.color }}>{env.name}</div>
-                      <div className="text-dim text-sm">{env.label}</div>
-                    </div>
-                  </div>
-                  <div className="env-card-body">
-                    <button
-                      className="btn btn-sm w-full mb-2"
-                      onClick={() => setExpanded({ ...expanded, [env.name]: !isExpanded })}
-                    >
-                      {isExpanded ? 'Hide' : 'Show'} Tickets
-                    </button>
-                    {isExpanded && (
-                      <ALMSelector
-                        compact={true}
-                        preSelectedStatus={env.preSelectedStatus}
-                        onTicketSelect={(issue) => setDetailTicket(issue)}
-                      />
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {detailTicket && (
-            <TicketDetailPanel
-              issue={detailTicket}
-              onClose={() => setDetailTicket(null)}
-            />
-          )}
         </>
       )}
 
