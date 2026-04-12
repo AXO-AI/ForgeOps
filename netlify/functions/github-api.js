@@ -51,6 +51,47 @@ async function paginateAll(path) {
   return allItems;
 }
 
+function generateMockBuilds(count = 50) {
+  const repos = ['spring-auth','react-portal','node-gateway','py-analytics','dotnet-api','sf-sales','rpa-invoicing','spring-payments','react-dashboard','node-orders'];
+  const users = ['ashwin','priya','raj','sarah','marcus','system'];
+  const envs = ['INT','INT','QA','QA','STAGE','PROD'];
+  const builds = [];
+  for (let i = 0; i < count; i++) {
+    const status = Math.random() > 0.15 ? 'success' : (Math.random() > 0.5 ? 'failure' : 'cancelled');
+    const env = envs[Math.floor(Math.random() * envs.length)];
+    const startedAt = new Date(Date.now() - Math.random() * 7 * 86400000).toISOString();
+    const duration = Math.floor(30 + Math.random() * 270);
+    const failStage = status === 'failure' ? Math.floor(2 + Math.random() * 4) : -1;
+    builds.push({
+      id: 1000 + i, repo: repos[i % repos.length],
+      branch: Math.random() > 0.3 ? 'feature/us-' + (300 + i) : 'main',
+      status, environment: env, commitSha: Math.random().toString(36).substring(2,9),
+      commitMessage: ['fix: auth timeout','feat: add dashboard','chore: update deps','fix: null pointer','feat: new API endpoint','test: add coverage'][i % 6],
+      triggeredBy: users[Math.floor(Math.random() * users.length)],
+      startedAt, duration,
+      stages: [
+        { name: 'Checkout', status: failStage === 0 ? 'failure' : 'success', duration: 3 },
+        { name: 'Build', status: failStage <= 1 && failStage >= 0 ? 'failure' : (failStage > 1 || failStage < 0 ? 'success' : 'pending'), duration: Math.floor(15 + Math.random() * 45) },
+        { name: 'Test', status: failStage === 2 ? 'failure' : (failStage > 2 ? 'pending' : failStage < 0 ? 'success' : 'pending'), duration: Math.floor(20 + Math.random() * 70) },
+        { name: 'SAST', status: failStage === 3 ? 'failure' : (failStage > 3 || (failStage >= 0 && failStage < 3) ? 'pending' : 'success'), duration: Math.floor(10 + Math.random() * 20) },
+        { name: 'SCA', status: failStage === 4 ? 'failure' : (failStage >= 0 ? 'pending' : 'success'), duration: Math.floor(5 + Math.random() * 10) },
+        { name: 'Deploy', status: failStage === 5 ? 'failure' : (failStage >= 0 ? 'pending' : 'success'), duration: Math.floor(10 + Math.random() * 20) },
+        { name: 'Notify', status: failStage >= 0 ? 'pending' : 'success', duration: 2 },
+      ].map((s, idx) => ({ ...s, status: idx < failStage ? 'success' : idx === failStage ? 'failure' : idx > failStage && failStage >= 0 ? 'pending' : s.status })),
+      runNumber: 200 + i
+    });
+  }
+  builds.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
+  return builds;
+}
+
+const MOCK_ENVS = [
+  { name: 'INT', status: 'healthy', version: 'v2.0.0', build: 247, deployed_at: new Date(Date.now() - 7200000).toISOString(), branch: 'main', commit: 'a3de5b2' },
+  { name: 'QA', status: 'healthy', version: 'v1.9.3', build: 244, deployed_at: new Date(Date.now() - 259200000).toISOString(), branch: 'main', commit: '78177ed' },
+  { name: 'STAGE', status: 'healthy', version: 'v1.9.0', build: 230, deployed_at: new Date(Date.now() - 604800000).toISOString(), branch: 'main', commit: 'f4a2c81' },
+  { name: 'PROD', status: 'healthy', version: 'v1.0.0', build: 200, deployed_at: '2026-04-11T00:00:00Z', branch: 'main', commit: 'b8e3d92' },
+];
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers: corsHeaders, body: '' };
 
@@ -237,48 +278,57 @@ exports.handler = async (event) => {
 
     // GET /build-history
     if (route[0] === 'build-history') {
-      const org = getOrg();
-      let repos;
       try {
-        repos = await paginateAll(`/orgs/${org}/repos`);
-      } catch {
-        repos = await paginateAll(`/users/${org}/repos`);
-      }
-
-      const results = [];
-      for (const r of repos) {
+        const org = getOrg();
+        let repos;
         try {
-          const { data: runs } = await ghFetch(`/repos/${r.full_name}/actions/runs?per_page=5`);
-          if (runs.workflow_runs && runs.workflow_runs.length > 0) {
-            for (const run of runs.workflow_runs) {
-              let environment = 'unknown';
-              const branch = (run.head_branch || '').toLowerCase();
-              if (branch === 'main' || branch === 'master') environment = 'production';
-              else if (branch === 'staging' || branch === 'stage') environment = 'staging';
-              else if (branch === 'develop' || branch === 'dev') environment = 'development';
-
-              results.push({
-                repo: r.name,
-                full_name: r.full_name,
-                run_id: run.id,
-                name: run.name,
-                status: run.status,
-                conclusion: run.conclusion,
-                branch: run.head_branch,
-                environment,
-                created_at: run.created_at,
-                updated_at: run.updated_at,
-                html_url: run.html_url
-              });
-            }
-          }
+          repos = await paginateAll(`/orgs/${org}/repos`);
         } catch {
-          // Skip repos with no actions access
+          repos = await paginateAll(`/users/${org}/repos`);
         }
-      }
 
-      results.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-      return respond(200, { builds: results, total: results.length });
+        const results = [];
+        for (const r of repos) {
+          try {
+            const { data: runs } = await ghFetch(`/repos/${r.full_name}/actions/runs?per_page=5`);
+            if (runs.workflow_runs && runs.workflow_runs.length > 0) {
+              for (const run of runs.workflow_runs) {
+                let environment = 'unknown';
+                const branch = (run.head_branch || '').toLowerCase();
+                if (branch === 'main' || branch === 'master') environment = 'production';
+                else if (branch === 'staging' || branch === 'stage') environment = 'staging';
+                else if (branch === 'develop' || branch === 'dev') environment = 'development';
+
+                results.push({
+                  repo: r.name,
+                  full_name: r.full_name,
+                  run_id: run.id,
+                  name: run.name,
+                  status: run.status,
+                  conclusion: run.conclusion,
+                  branch: run.head_branch,
+                  environment,
+                  created_at: run.created_at,
+                  updated_at: run.updated_at,
+                  html_url: run.html_url
+                });
+              }
+            }
+          } catch {
+            // Skip repos with no actions access
+          }
+        }
+
+        results.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        return respond(200, { builds: results, total: results.length });
+      } catch {
+        return respond(200, { runs: generateMockBuilds(), summary: { total: 50, byEnvironment: { INT: 15, QA: 15, STAGE: 12, PROD: 8 }, byStatus: { success: 42, failure: 6, cancelled: 2 } }, mock: true });
+      }
+    }
+
+    // GET /environments
+    if (route[0] === 'environments') {
+      return respond(200, { environments: MOCK_ENVS });
     }
 
     return respond(404, { error: 'Route not found', route });

@@ -47,6 +47,7 @@ export const api = {
     commitFiles: (o,r,files,msg,branch) => post(`${API}/github/repos/${o}/${r}/commit-multiple`, { files, message: msg, branch }),
     runJobs: (o,r,runId) => get(`${API}/github/repos/${o}/${r}/runs/${runId}/jobs`),
     buildHistory: (params) => get(`${API}/github/build-history?${new URLSearchParams(params||{})}`),
+    environments: () => get(`${API}/github/environments`),
   },
   discovery: {
     quick: () => get(`${API}/discovery/quick`),
