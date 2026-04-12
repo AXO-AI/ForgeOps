@@ -1,39 +1,67 @@
 import { useState, useEffect } from 'react';
-import { getRepos, jiraSearch, displayKey, typeIcon, statusColor } from '../api';
+import { getForgeOpsRepos, jiraSearch, displayKey, typeIcon, statusColor, timeAgo } from '../api';
+
+function StatCard({ label, value, color, icon, subtitle }) {
+  return (
+    <div className="stat-card animate-fade" style={{ borderTop: `3px solid ${color}` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <div className="stat-label">{label}</div>
+          <div className="stat-value" style={{ color, WebkitTextFillColor: color, background: 'none' }}>{value}</div>
+          {subtitle && <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>{subtitle}</div>}
+        </div>
+        <div style={{ fontSize: 28, opacity: 0.3 }}>{icon}</div>
+      </div>
+    </div>
+  );
+}
+
+function ActivityRow({ issue, onClick }) {
+  const status = issue.fields?.status?.name || '';
+  const updated = issue.fields?.updated;
+  return (
+    <div
+      className="ticket-row"
+      onClick={onClick}
+      style={{ borderLeft: `3px solid ${statusColor(status)}`, marginBottom: 2, borderRadius: 6 }}
+    >
+      <span className="ticket-type">{typeIcon(issue)}</span>
+      <span className="ticket-key">{displayKey(issue)}</span>
+      <span className="ticket-summary">{issue.fields?.summary || ''}</span>
+      <span className="badge" style={{ background: `${statusColor(status)}18`, color: statusColor(status) }}>{status}</span>
+      <span className="text-dim text-sm" style={{ flexShrink: 0, minWidth: 50, textAlign: 'right' }}>{timeAgo(updated)}</span>
+    </div>
+  );
+}
 
 export default function Overview() {
-  const [stats, setStats] = useState({ repos: 0, passing: 0, failing: 0, running: 0, openTickets: 0 });
+  const [stats, setStats] = useState({ repos: 0, openTickets: 0, stories: 0, defects: 0 });
   const [recentIssues, setRecentIssues] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const [repoData, jiraData] = await Promise.allSettled([
-          getRepos(),
-          jiraSearch(
-            'project != "" ORDER BY updated DESC',
-            ['summary', 'status', 'issuetype', 'priority', 'updated', 'fixVersions'],
-            15
-          ),
+        const [repoData, recentData, openData] = await Promise.allSettled([
+          getForgeOpsRepos(),
+          jiraSearch('project != "" ORDER BY updated DESC', ['summary', 'status', 'issuetype', 'priority', 'updated', 'fixVersions', 'assignee'], 15),
+          jiraSearch('project != "" AND status != Done', ['summary', 'status', 'issuetype'], 1),
         ]);
 
-        const repos = repoData.status === 'fulfilled' ? (repoData.value?.length || 0) : 0;
-        const issues = jiraData.status === 'fulfilled' ? (jiraData.value?.issues || []) : [];
+        const repos = repoData.status === 'fulfilled' ? (repoData.value?.count || 0) : 0;
+        const issues = recentData.status === 'fulfilled' ? (recentData.value?.issues || []) : [];
+        const openTotal = openData.status === 'fulfilled' ? (openData.value?.total || issues.length) : 0;
 
-        // Derive stats from what we have
-        const openTickets = issues.filter(
-          (i) => !['Done', 'Closed', 'Resolved'].includes(i.fields?.status?.name)
-        ).length;
+        const stories = issues.filter(i => i.fields?.issuetype?.name === 'Story').length;
+        const defects = issues.filter(i => i.fields?.issuetype?.name === 'Bug' || (i.fields?.labels || []).includes('defect')).length;
 
         setStats({
           repos,
-          passing: Math.max(repos - 1, 0),
-          failing: repos > 2 ? 1 : 0,
-          running: repos > 3 ? 1 : 0,
-          openTickets,
+          openTickets: openTotal,
+          stories,
+          defects,
         });
-        setRecentIssues(issues.slice(0, 10));
+        setRecentIssues(issues.slice(0, 12));
       } catch (e) {
         console.error('Overview load error', e);
       }
@@ -43,71 +71,59 @@ export default function Overview() {
   }, []);
 
   if (loading) {
-    return <div className="loading-center"><span className="spinner" /> Loading overview...</div>;
+    return (
+      <div>
+        <div className="page-header"><h1>Overview</h1><p>Loading platform data...</p></div>
+        <div className="stat-grid">
+          {[1,2,3,4,5].map(i => <div key={i} className="stat-card"><div className="skeleton" style={{ height: 16, width: '60%', marginBottom: 8 }} /><div className="skeleton" style={{ height: 32, width: '40%' }} /></div>)}
+        </div>
+        <div className="card"><div className="skeleton" style={{ height: 200 }} /></div>
+      </div>
+    );
   }
 
   return (
     <div>
       <div className="page-header">
-        <h1>Overview</h1>
-        <p>Platform health and recent activity</p>
+        <h1>Command Center</h1>
+        <p>Enterprise DevSecOps platform health and real-time activity</p>
       </div>
 
       <div className="stat-grid">
-        <StatCard label="Repositories" value={stats.repos} color="var(--primary)" />
-        <StatCard label="Passing" value={stats.passing} color="var(--ok)" />
-        <StatCard label="Failing" value={stats.failing} color="var(--err)" />
-        <StatCard label="Running" value={stats.running} color="var(--info)" />
-        <StatCard label="Open Tickets" value={stats.openTickets} color="var(--warn)" />
+        <StatCard label="ForgeOps Repos" value={stats.repos} color="var(--primary)" icon={'\u{1F4E6}'} subtitle="with CI/CD workflows" />
+        <StatCard label="Pipeline Health" value={'\u2014'} color="var(--success)" icon={'\u2705'} subtitle="Run pipeline discovery to see real stats" />
+        <StatCard label="Open Tickets" value={stats.openTickets} color="var(--warn)" icon={'\u{1F4CB}'} subtitle="across all releases" />
+        <StatCard label="Security Score" value={'\u2014'} color="var(--success)" icon={'\u{1F6E1}'} subtitle="Run a scan" />
+        <StatCard label="DORA: Deploy Freq" value={'\u2014'} color="var(--info)" icon={'\u{1F680}'} subtitle="Coming soon" />
       </div>
 
-      <div className="card">
-        <div className="card-header">Recent Jira Activity</div>
+      {/* Quick actions */}
+      <div className="card mb-4 animate-fade" style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.06), rgba(139,92,246,0.06))' }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <a href="/pull-requests" className="btn" style={{ textDecoration: 'none' }}>{'\u{1F500}'} Merge</a>
+          <a href="/deploy" className="btn" style={{ textDecoration: 'none' }}>{'\u{1F680}'} Deploy</a>
+          <a href="/alm-jira" className="btn" style={{ textDecoration: 'none' }}>{'\u{1F4CB}'} Jira Board</a>
+          <a href="/meetings" className="btn" style={{ textDecoration: 'none' }}>{'\u{1F399}'} Analyze Meeting</a>
+          <a href="/security" className="btn" style={{ textDecoration: 'none' }}>{'\u{1F6E1}'} Security Scan</a>
+        </div>
+      </div>
+
+      {/* Activity feed */}
+      <div className="card animate-fade">
+        <div className="card-header">
+          <span style={{ flex: 1 }}>Recent Activity</span>
+          <span className="badge badge-primary">{recentIssues.length} items</span>
+        </div>
         {recentIssues.length === 0 ? (
-          <div className="empty-state">No recent issues</div>
+          <div className="empty-state">No recent activity. Connect Jira in Settings to see tickets here.</div>
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Type</th>
-                <th>Key</th>
-                <th>Summary</th>
-                <th>Status</th>
-                <th>Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentIssues.map((issue) => {
-                const status = issue.fields?.status?.name || '';
-                return (
-                  <tr key={issue.key}>
-                    <td>{typeIcon(issue)}</td>
-                    <td style={{ color: 'var(--primary)', fontWeight: 600 }}>{displayKey(issue)}</td>
-                    <td className="truncate" style={{ maxWidth: 300 }}>{issue.fields?.summary}</td>
-                    <td>
-                      <span className="badge" style={{ background: `${statusColor(status)}22`, color: statusColor(status) }}>
-                        {status}
-                      </span>
-                    </td>
-                    <td className="text-dim text-sm">
-                      {issue.fields?.updated ? new Date(issue.fields.updated).toLocaleDateString() : ''}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div>
+            {recentIssues.map(issue => (
+              <ActivityRow key={issue.key} issue={issue} />
+            ))}
+          </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function StatCard({ label, value, color }) {
-  return (
-    <div className="stat-card">
-      <div className="stat-label">{label}</div>
-      <div className="stat-value" style={{ color }}>{value}</div>
     </div>
   );
 }

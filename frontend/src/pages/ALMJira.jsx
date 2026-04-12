@@ -1,145 +1,187 @@
 import { useState, useEffect } from 'react';
-import { jiraSearch, displayKey, typeIcon, statusColor, priorityColor } from '../api';
-import TicketRow from '../components/TicketRow';
+import { displayKey, typeIcon, statusColor, priorityColor } from '../api';
+import ALMSelector from '../components/ALMSelector';
 import TicketDetailPanel from '../components/TicketDetailPanel';
 
+const API = 'http://localhost:3001/api';
 const BOARD_COLUMNS = ['To Do', 'In Progress', 'In Review', 'Done'];
 
+function classifyColumn(statusName) {
+  const s = (statusName || '').toLowerCase();
+  if (s.includes('progress')) return 'In Progress';
+  if (s.includes('review') || s.includes('test') || s.includes('qa')) return 'In Review';
+  if (s.includes('done') || s.includes('closed') || s.includes('resolved')) return 'Done';
+  return 'To Do';
+}
+
 export default function ALMJira() {
-  const [tab, setTab] = useState('board');
-  const [issues, setIssues] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState('list');
   const [detailTicket, setDetailTicket] = useState(null);
+  const [stats, setStats] = useState({ total: 0, stories: 0, defects: 0, inProgress: 0 });
+  const [boardTickets, setBoardTickets] = useState([]);
+  const [loadingBoard, setLoadingBoard] = useState(false);
 
-  async function loadIssues() {
-    setLoading(true);
-    try {
-      const data = await jiraSearch(
-        'project != "" ORDER BY status ASC, priority DESC',
-        ['summary', 'status', 'issuetype', 'priority', 'assignee', 'fixVersions', 'updated'],
-        200
-      );
-      setIssues(data?.issues || []);
-    } catch (e) {
-      console.error('ALMJira load error', e);
+  // Fetch stats from release-counts
+  useEffect(() => {
+    fetch(`${API}/jira/release-counts`)
+      .then(r => r.ok ? r.json() : {})
+      .then(d => {
+        if (d && typeof d === 'object') {
+          // release-counts may be { "Release 1": 10, "Release 2": 20 } or stats object
+          // Sum all counts for total
+          const values = Object.values(d);
+          const total = values.reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0);
+          setStats(prev => ({ ...prev, total: total || prev.total }));
+        }
+      })
+      .catch(() => {});
+
+    // Also fetch a general search for stat cards
+    fetch(`${API}/jira/tickets?maxResults=200`)
+      .then(r => r.ok ? r.json() : {})
+      .then(data => {
+        const issues = data?.issues || data || [];
+        if (!Array.isArray(issues)) return;
+        const open = issues.filter(i => {
+          const s = (i.fields?.status?.name || '').toLowerCase();
+          return !s.includes('done') && !s.includes('closed') && !s.includes('resolved');
+        }).length;
+        const stories = issues.filter(i => i.fields?.issuetype?.name === 'Story').length;
+        const defects = issues.filter(i => i.fields?.issuetype?.name === 'Bug').length;
+        const inProg = issues.filter(i => (i.fields?.status?.name || '').toLowerCase().includes('progress')).length;
+        setStats({ total: open, stories, defects, inProgress: inProg });
+        setBoardTickets(issues);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Load board tickets when switching to board view
+  useEffect(() => {
+    if (view === 'board' && boardTickets.length === 0) {
+      setLoadingBoard(true);
+      fetch(`${API}/jira/tickets?maxResults=200`)
+        .then(r => r.ok ? r.json() : {})
+        .then(data => {
+          const issues = data?.issues || data || [];
+          setBoardTickets(Array.isArray(issues) ? issues : []);
+        })
+        .catch(() => setBoardTickets([]))
+        .finally(() => setLoadingBoard(false));
     }
-    setLoading(false);
-  }
+  }, [view]);
 
-  useEffect(() => { loadIssues(); }, []);
-
-  const stories = issues.filter((i) => i.fields?.issuetype?.name === 'Story');
-  const defects = issues.filter((i) => i.fields?.issuetype?.name === 'Bug');
-  const tasks = issues.filter((i) => !['Story', 'Bug', 'Epic'].includes(i.fields?.issuetype?.name));
-
-  // Group into kanban columns
+  // Build kanban columns
   const columnMap = {};
-  BOARD_COLUMNS.forEach((c) => (columnMap[c] = []));
-  issues.forEach((issue) => {
-    const status = issue.fields?.status?.name || '';
-    let col = 'To Do';
-    if (status.toLowerCase().includes('progress')) col = 'In Progress';
-    else if (status.toLowerCase().includes('review') || status.toLowerCase().includes('test') || status.toLowerCase().includes('qa')) col = 'In Review';
-    else if (status.toLowerCase().includes('done') || status.toLowerCase().includes('closed') || status.toLowerCase().includes('resolved')) col = 'Done';
+  BOARD_COLUMNS.forEach(c => (columnMap[c] = []));
+  boardTickets.forEach(issue => {
+    const col = classifyColumn(issue.fields?.status?.name);
     if (columnMap[col]) columnMap[col].push(issue);
   });
 
-  // Stats
-  const openCount = issues.filter((i) => !['Done', 'Closed', 'Resolved'].includes(i.fields?.status?.name)).length;
-  const doneCount = issues.length - openCount;
-
-  if (loading) {
-    return <div className="loading-center"><span className="spinner" /> Loading ALM data...</div>;
+  function handleRefresh() {
+    fetch(`${API}/jira/tickets?maxResults=200`)
+      .then(r => r.ok ? r.json() : {})
+      .then(data => {
+        const issues = data?.issues || data || [];
+        setBoardTickets(Array.isArray(issues) ? issues : []);
+      })
+      .catch(() => {});
   }
 
   return (
     <div>
       <div className="page-header">
         <h1>ALM / Jira</h1>
-        <p>Manage stories, defects, and tasks</p>
+        <p>Manage stories, defects, and tasks across releases</p>
       </div>
 
+      {/* Stat cards */}
       <div className="stat-grid">
         <div className="stat-card">
-          <div className="stat-label">Total Tickets</div>
-          <div className="stat-value" style={{ color: 'var(--primary)' }}>{issues.length}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Open</div>
-          <div className="stat-value" style={{ color: 'var(--warn)' }}>{openCount}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Done</div>
-          <div className="stat-value" style={{ color: 'var(--ok)' }}>{doneCount}</div>
+          <div className="stat-label">Total Open</div>
+          <div className="stat-value" style={{ color: 'var(--warn)' }}>{stats.total}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Stories</div>
-          <div className="stat-value" style={{ color: 'var(--info)' }}>{stories.length}</div>
+          <div className="stat-value" style={{ color: 'var(--info)' }}>{stats.stories}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Defects</div>
-          <div className="stat-value" style={{ color: 'var(--err)' }}>{defects.length}</div>
+          <div className="stat-value" style={{ color: 'var(--error)' }}>{stats.defects}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">In Progress</div>
+          <div className="stat-value" style={{ color: 'var(--primary)' }}>{stats.inProgress}</div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="tabs">
-        <button className={`tab-btn${tab === 'board' ? ' active' : ''}`} onClick={() => setTab('board')}>Board</button>
-        <button className={`tab-btn${tab === 'stories' ? ' active' : ''}`} onClick={() => setTab('stories')}>Stories</button>
-        <button className={`tab-btn${tab === 'defects' ? ' active' : ''}`} onClick={() => setTab('defects')}>Defects</button>
+      {/* View toggle */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
+        <button
+          className={`btn btn-sm${view === 'list' ? ' btn-primary' : ''}`}
+          onClick={() => setView('list')}
+        >
+          List view
+        </button>
+        <button
+          className={`btn btn-sm${view === 'board' ? ' btn-primary' : ''}`}
+          onClick={() => setView('board')}
+        >
+          Board view
+        </button>
       </div>
+
+      {/* List view */}
+      {view === 'list' && (
+        <div className="card">
+          <ALMSelector
+            showExpandedDetail={true}
+            onTicketSelect={(issue) => setDetailTicket(issue)}
+          />
+        </div>
+      )}
 
       {/* Board view */}
-      {tab === 'board' && (
-        <div className="kanban-board">
-          {BOARD_COLUMNS.map((col) => (
-            <div key={col} className="kanban-column">
-              <div className="kanban-column-header">
-                {col}
-                <span className="col-count">{columnMap[col].length}</span>
-              </div>
-              {columnMap[col].map((issue) => (
-                <div key={issue.key} className="kanban-card" onClick={() => setDetailTicket(issue)}>
-                  <div className="kc-key">{typeIcon(issue)} {displayKey(issue)}</div>
-                  <div className="kc-summary">{issue.fields?.summary}</div>
-                  <div className="kc-footer">
-                    <span
-                      className="priority-dot"
-                      style={{ width: 8, height: 8, borderRadius: '50%', background: priorityColor(issue.fields?.priority?.name) }}
-                    />
-                    <span className="text-dim text-sm">{issue.fields?.assignee?.displayName || 'Unassigned'}</span>
-                  </div>
+      {view === 'board' && (
+        loadingBoard ? (
+          <div className="loading-center"><span className="spinner" /> Loading board...</div>
+        ) : (
+          <div className="kanban-board">
+            {BOARD_COLUMNS.map(col => (
+              <div key={col} className="kanban-column">
+                <div className="kanban-column-header">
+                  {col}
+                  <span className="col-count">{columnMap[col].length}</span>
                 </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Stories table */}
-      {tab === 'stories' && (
-        <div className="card">
-          {stories.length === 0 ? (
-            <div className="empty-state">No stories found</div>
-          ) : (
-            stories.map((issue) => (
-              <TicketRow key={issue.key} issue={issue} onClick={() => setDetailTicket(issue)} />
-            ))
-          )}
-        </div>
-      )}
-
-      {/* Defects table */}
-      {tab === 'defects' && (
-        <div className="card">
-          {defects.length === 0 ? (
-            <div className="empty-state">No defects found</div>
-          ) : (
-            defects.map((issue) => (
-              <TicketRow key={issue.key} issue={issue} onClick={() => setDetailTicket(issue)} />
-            ))
-          )}
-        </div>
+                {columnMap[col].map(issue => (
+                  <div
+                    key={issue.key}
+                    className="kanban-card"
+                    onClick={() => setDetailTicket(issue)}
+                  >
+                    <div className="kc-key">{typeIcon(issue)} {displayKey(issue)}</div>
+                    <div className="kc-summary">{issue.fields?.summary}</div>
+                    <div className="kc-footer">
+                      <span
+                        className="priority-dot"
+                        style={{
+                          width: 8, height: 8, borderRadius: '50%',
+                          background: priorityColor(issue.fields?.priority?.name),
+                        }}
+                      />
+                      <span className="text-dim text-sm">
+                        {issue.fields?.assignee?.displayName || 'Unassigned'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {columnMap[col].length === 0 && (
+                  <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-dim)', fontSize: 12 }}>No tickets in this column</div>
+                )}
+              </div>
+            ))}
+          </div>
+        )
       )}
 
       {/* Detail panel */}
@@ -147,7 +189,7 @@ export default function ALMJira() {
         <TicketDetailPanel
           issue={detailTicket}
           onClose={() => setDetailTicket(null)}
-          onUpdate={() => loadIssues()}
+          onUpdate={handleRefresh}
         />
       )}
     </div>
