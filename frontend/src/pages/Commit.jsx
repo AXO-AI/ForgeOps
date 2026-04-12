@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
-  getForgeOpsRepos, getBranches, getCommits, getFileTree, getBlob,
+  getForgeOpsRepos, getRepos, getBranches, getCommits, getFileTree, getBlob,
   createBranch, commitMultipleFiles, revertCommit, cherryPick,
   displayKey, typeIcon, timeAgo,
 } from '../api';
@@ -200,14 +200,29 @@ export default function Commit() {
           full: r.full_name,
           name: r.name,
         }));
-        setRepos(list);
         if (list.length > 0) {
+          setRepos(list);
           setSelectedRepo(list[0].full);
           setBranchRepo(list[0].full);
+          setLoadingRepos(false);
+        } else {
+          throw new Error('No ForgeOps repos');
         }
       })
-      .catch(() => setRepos([]))
-      .finally(() => setLoadingRepos(false));
+      .catch(() => {
+        // Fallback to all repos if ForgeOps scan fails or returns empty
+        getRepos().then(data => {
+          const list = (Array.isArray(data) ? data : []).map(r => ({
+            full: r.full_name,
+            name: r.name,
+          }));
+          setRepos(list);
+          if (list.length > 0) {
+            setSelectedRepo(list[0].full);
+            setBranchRepo(list[0].full);
+          }
+        }).catch(() => setRepos([])).finally(() => setLoadingRepos(false));
+      });
   }, []);
 
   /* ── Load branches when repo changes ────────────────────────── */
