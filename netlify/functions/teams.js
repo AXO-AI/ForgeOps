@@ -2,65 +2,53 @@ const fetch = require('node-fetch');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Headers': 'Content-Type',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
 };
 
-function respond(statusCode, body) {
-  return {
-    statusCode,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  };
+function respond(code, data) {
+  return { statusCode: code, headers: { ...corsHeaders, 'Content-Type': 'application/json' }, body: JSON.stringify(data) };
 }
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers: corsHeaders, body: '' };
 
-  const fullPath = event.path || '';
-  const pathParts = fullPath.split('/').filter(Boolean);
-  let segments = [];
-  for (let i = 0; i < pathParts.length; i++) {
-    if (pathParts[i] === 'teams') {
-      segments = pathParts.slice(i + 1);
-      break;
-    }
-  }
   const method = event.httpMethod;
+  const fullPath = event.path || '';
+  const parts = fullPath.split('/').filter(Boolean);
+  let route = [];
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i] === 'teams') { route = parts.slice(i + 1); break; }
+  }
   const body = event.body ? JSON.parse(event.body) : {};
+  const query = event.queryStringParameters || {};
 
   try {
     // POST /notify
-    if (segments[0] === 'notify' && method === 'POST') {
-      const { webhookUrl, card } = body;
-      const url = webhookUrl || process.env.TEAMS_WEBHOOK_URL;
-
-      if (!url) {
-        return respond(400, { error: 'No webhook URL provided. Set TEAMS_WEBHOOK_URL or pass webhookUrl in body.' });
+    if (route[0] === 'notify' && method === 'POST') {
+      const webhookUrl = process.env.TEAMS_WEBHOOK_URL;
+      if (!webhookUrl) {
+        return respond(500, { error: 'TEAMS_WEBHOOK_URL not configured' });
       }
 
-      if (!card) {
-        return respond(400, { error: 'card payload is required' });
-      }
+      const payload = body.card || body;
 
-      const response = await fetch(url, {
+      const res = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(card),
+        body: JSON.stringify(payload)
       });
 
-      const text = await response.text();
-
-      if (!response.ok) {
-        return respond(response.status, { error: text });
+      const text = await res.text();
+      if (!res.ok) {
+        throw new Error(`Teams webhook ${res.status}: ${text}`);
       }
 
-      return respond(200, { success: true, response: text });
+      return respond(200, { success: true, status: res.status, response: text });
     }
 
-    return respond(404, { error: 'Not found' });
+    return respond(404, { error: 'Route not found', route });
   } catch (err) {
-    console.error('Teams function error:', err.message);
     return respond(500, { error: err.message });
   }
 };

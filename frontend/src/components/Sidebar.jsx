@@ -1,94 +1,96 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
+import { BarChart3, Pencil, GitMerge, Rocket, Shield, Mic, Bell, Users, Headphones, Settings } from 'lucide-react';
 
 const sections = [
   {
     label: 'DELIVERY',
     items: [
-      { to: '/overview', icon: '\u{1F4CA}', label: 'Overview' },
-      { to: '/commit', icon: '\u270F\uFE0F', label: 'Commit' },
-      { to: '/pull-requests', icon: '\u{1F500}', label: 'Merge' },
-      { to: '/deploy', icon: '\u{1F680}', label: 'CI/CD' },
+      { to: '/app', icon: BarChart3, text: 'Overview', end: true },
+      { to: '/app/commit', icon: Pencil, text: 'Commit' },
+      { to: '/app/merge', icon: GitMerge, text: 'Merge' },
+      { to: '/app/cicd', icon: Rocket, text: 'CI/CD' },
     ],
   },
   {
     label: 'QUALITY',
     items: [
-      { to: '/security',  icon: '\u{1F6E1}\uFE0F', label: 'Security' },
+      { to: '/app/security', icon: Shield, text: 'Security' },
     ],
   },
   {
     label: 'INTELLIGENCE',
     items: [
-      { to: '/meetings', icon: '\u{1F399}\uFE0F', label: 'Meetings' },
+      { to: '/app/meetings', icon: Mic, text: 'Meetings' },
     ],
   },
   {
     label: 'OPERATIONS',
     items: [
-      { to: '/notifications', icon: '\u{1F514}', label: 'Notifications' },
-      { to: '/team',          icon: '\u{1F465}', label: 'Team' },
-      { to: '/support',       icon: '\u{1F3AB}', label: 'Support' },
-      { to: '/settings',      icon: '\u2699\uFE0F', label: 'Settings' },
+      { to: '/app/notifications', icon: Bell, text: 'Notifications' },
+      { to: '/app/team', icon: Users, text: 'Team' },
+      { to: '/app/support', icon: Headphones, text: 'Support' },
+      { to: '/app/settings', icon: Settings, text: 'Settings' },
     ],
   },
 ];
 
 export default function Sidebar() {
-  const navigate = useNavigate();
-
-  const handleLogoClick = () => {
-    navigate('/');
-    window.location.reload();
-  };
-
   return (
-    <aside className="sidebar">
-      <div className="sidebar-logo" onClick={handleLogoClick} style={{ cursor: 'pointer' }}>
-        <span className="logo-icon">
-          <svg width="18" height="18" viewBox="0 0 40 40" fill="none">
-            <path d="M22 6L10 24h8l-3 12L30 16h-8l3-10z" fill="white" opacity="0.95"/>
-            <path d="M22 6L10 24h8l-3 12L30 16h-8l3-10z" fill="url(#bolt-glow)" opacity="0.3"/>
-            <defs>
-              <linearGradient id="bolt-glow" x1="10" y1="6" x2="30" y2="36">
-                <stop offset="0%" stopColor="white"/>
-                <stop offset="100%" stopColor="white" stopOpacity="0"/>
-              </linearGradient>
-            </defs>
-          </svg>
+    <aside
+      className="flex flex-col h-screen shrink-0"
+      style={{ width: 220, background: 'var(--bg-secondary)', borderRight: '1px solid var(--border)' }}
+    >
+      {/* Logo */}
+      <div className="flex items-center gap-2 px-5 py-5">
+        <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" rx="6" fill="var(--accent)" />
+          <path d="M16 6L9 18h5l-2 8L21 14h-5l2-8z" fill="white" />
+        </svg>
+        <span className="font-bold text-lg" style={{ color: 'var(--text-primary)' }}>ForgeOps</span>
+        <span
+          className="text-xs px-1.5 py-0.5 rounded font-medium"
+          style={{ background: 'rgba(127,119,221,0.15)', color: 'var(--accent)' }}
+        >
+          v7.0
         </span>
-        <span style={{
-          background: 'linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text',
-        }}>
-          ForgeOps
-        </span>
-        <span style={{ fontSize: 9, color: 'var(--text-dim)', fontWeight: 500, marginLeft: 'auto', background: 'var(--surface)', padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)' }}>v7.0</span>
       </div>
 
-      {sections.map((section) => (
-        <div key={section.label}>
-          <div className="sidebar-section">{section.label}</div>
-          <ul className="sidebar-nav">
-            {section.items.map((item) => (
-              <li key={item.to}>
-                <NavLink
-                  to={item.to}
-                  className={({ isActive }) => isActive ? 'active' : ''}
-                  end={item.to === '/overview'}
-                >
-                  <span className="nav-icon">{item.icon}</span>
-                  {item.label}
-                </NavLink>
-              </li>
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto px-3 py-2">
+        {sections.map((sec) => (
+          <div key={sec.label} className="mb-4">
+            <div
+              className="text-[10px] font-semibold tracking-wider px-2 mb-1.5"
+              style={{ color: 'var(--text-tertiary)' }}
+            >
+              {sec.label}
+            </div>
+            {sec.items.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className="flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm no-underline transition-colors mb-0.5"
+                style={({ isActive }) => ({
+                  color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
+                  background: isActive ? 'rgba(127,119,221,0.08)' : 'transparent',
+                  borderLeft: isActive ? '2px solid var(--accent)' : '2px solid transparent',
+                })}
+              >
+                <item.icon size={16} />
+                {item.text}
+              </NavLink>
             ))}
-          </ul>
-        </div>
-      ))}
+          </div>
+        ))}
+      </nav>
 
-      <div style={{ marginTop: 'auto', padding: '14px 16px', borderTop: '1px solid var(--border)', fontSize: 10, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'var(--success)', animation: 'pulse 2s infinite' }} />
+      {/* Footer */}
+      <div
+        className="flex items-center gap-2 px-5 py-4 text-xs"
+        style={{ borderTop: '1px solid var(--border)', color: 'var(--text-tertiary)' }}
+      >
+        <span className="w-2 h-2 rounded-full" style={{ background: 'var(--success)' }} />
         All systems operational
       </div>
     </aside>

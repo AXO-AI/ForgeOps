@@ -1,224 +1,193 @@
 import { useState, useEffect } from 'react';
-import { analyzeTranscript } from '../api';
+import { Loader2, Mic, Sparkles, Clock, ListChecks, MessageSquare, Lightbulb, Trash2 } from 'lucide-react';
+import { api } from '../api';
 
-const STORAGE_KEY = 'forgeops-meeting-history';
-
-function loadHistory() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-  } catch { return []; }
-}
-
-function saveHistory(history) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(0, 20)));
-}
+const STORAGE_KEY = 'forgeops_meeting_history';
 
 export default function Meetings() {
   const [transcript, setTranscript] = useState('');
-  const [analysis, setAnalysis] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [analyzing, setAnalyzing] = useState(false);
+  const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
-  const [selectedHistory, setSelectedHistory] = useState(null);
-  const [toast, setToast] = useState(null);
 
   useEffect(() => {
-    setHistory(loadHistory());
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      setHistory(saved);
+    } catch {
+      setHistory([]);
+    }
   }, []);
 
-  const handleAnalyze = async () => {
-    if (!transcript.trim()) return;
-    setLoading(true);
-    setError('');
-    setAnalysis(null);
+  const analyze = async () => {
+    if (!transcript.trim() || analyzing) return;
+    setAnalyzing(true);
+    setResult(null);
     try {
-      const result = await analyzeTranscript({ transcript });
-      setAnalysis(result);
+      const res = await api.ai.analyzeTranscript({ transcript: transcript.trim() });
+      const analysis = res || { summary: 'Analysis unavailable', actionItems: [], decisions: [], insights: [] };
+      setResult(analysis);
+
       const entry = {
         id: Date.now(),
         date: new Date().toISOString(),
-        preview: transcript.slice(0, 100) + (transcript.length > 100 ? '...' : ''),
-        transcript,
-        result,
+        preview: transcript.trim().slice(0, 80),
+        result: analysis,
       };
       const updated = [entry, ...history].slice(0, 20);
       setHistory(updated);
-      saveHistory(updated);
-      setToast('Transcript analyzed successfully');
-      setTimeout(() => setToast(null), 3000);
-    } catch (e) {
-      setError('Failed to analyze transcript. Check that the AI service is configured in Settings.');
-      console.error(e);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    } catch {
+      setResult({ summary: 'Analysis failed. Please try again.', actionItems: [], decisions: [], insights: [] });
     }
-    setLoading(false);
+    setAnalyzing(false);
   };
 
-  const loadFromHistory = (entry) => {
-    setSelectedHistory(entry.id);
-    setTranscript(entry.transcript);
-    setAnalysis(entry.result);
+  const removeEntry = (id) => {
+    const updated = history.filter((h) => h.id !== id);
+    setHistory(updated);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
   };
 
-  const clearHistory = () => {
-    setHistory([]);
-    saveHistory([]);
-  };
-
-  const renderAnalysis = (data) => {
-    if (!data) return null;
-    if (typeof data === 'string') {
-      return <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.7 }}>{data}</div>;
-    }
-    return (
-      <div style={{ fontSize: 13, lineHeight: 1.7 }}>
-        {data.summary && (
-          <div className="mb-4">
-            <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 14, color: 'var(--primary)' }}>Summary</div>
-            <p className="text-dim">{data.summary}</p>
+  const renderResult = (r) => (
+    <div className="space-y-4">
+      {r.summary && (
+        <div>
+          <div className="flex items-center gap-2 text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+            <MessageSquare size={14} style={{ color: 'var(--accent)' }} /> Summary
           </div>
-        )}
-        {data?.actionItems && data.actionItems.length > 0 && (
-          <div className="mb-4">
-            <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 14, color: 'var(--primary)' }}>Action Items</div>
-            <ul style={{ paddingLeft: 20 }}>
-              {data.actionItems.map((item, i) => (
-                <li key={i} className="text-dim" style={{ marginBottom: 6, lineHeight: 1.6 }}>
-                  {item}
-                </li>
-              ))}
-            </ul>
+          <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{r.summary}</p>
+        </div>
+      )}
+      {r.actionItems?.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+            <ListChecks size={14} style={{ color: 'var(--success)' }} /> Action Items
           </div>
-        )}
-        {data?.decisions && data.decisions.length > 0 && (
-          <div className="mb-4">
-            <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 14, color: 'var(--primary)' }}>Decisions</div>
-            <ul style={{ paddingLeft: 20 }}>
-              {data.decisions?.map((d, i) => (
-                <li key={i} className="text-dim" style={{ marginBottom: 6, lineHeight: 1.6 }}>
-                  {d}
-                </li>
-              ))}
-            </ul>
+          <ul className="space-y-1.5 text-sm pl-0 list-none">
+            {r.actionItems.map((a, i) => (
+              <li key={i} className="flex items-start gap-2" style={{ color: 'var(--text-secondary)' }}>
+                <span className="mt-1.5 w-1.5 h-1.5 rounded-full shrink-0" style={{ background: 'var(--success)' }} />
+                {typeof a === 'string' ? a : a.description || a.text || JSON.stringify(a)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {r.decisions?.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+            <Lightbulb size={14} style={{ color: 'var(--warning)' }} /> Decisions
           </div>
-        )}
-        {data?.risks && data.risks.length > 0 && (
-          <div className="mb-4">
-            <div style={{ fontWeight: 700, marginBottom: 8, fontSize: 14, color: 'var(--warn)' }}>Risks / Blockers</div>
-            <ul style={{ paddingLeft: 20 }}>
-              {data.risks?.map((r, i) => (
-                <li key={i} className="text-dim" style={{ marginBottom: 6 }}>{r}</li>
-              ))}
-            </ul>
+          <ul className="space-y-1.5 text-sm pl-0 list-none">
+            {r.decisions.map((d, i) => (
+              <li key={i} className="flex items-start gap-2" style={{ color: 'var(--text-secondary)' }}>
+                <span className="mt-1.5 w-1.5 h-1.5 rounded-full shrink-0" style={{ background: 'var(--warning)' }} />
+                {typeof d === 'string' ? d : d.description || d.text || JSON.stringify(d)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {r.insights?.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+            <Sparkles size={14} style={{ color: 'var(--info)' }} /> Insights
           </div>
-        )}
-        {!data.summary && !data.actionItems && (
-          <pre style={{ fontSize: 12, background: 'var(--surface)', padding: 16, borderRadius: 8, overflow: 'auto' }}>
-            {JSON.stringify(data, null, 2)}
-          </pre>
-        )}
-      </div>
-    );
-  };
+          <ul className="space-y-1.5 text-sm pl-0 list-none">
+            {r.insights.map((ins, i) => (
+              <li key={i} className="flex items-start gap-2" style={{ color: 'var(--text-secondary)' }}>
+                <span className="mt-1.5 w-1.5 h-1.5 rounded-full shrink-0" style={{ background: 'var(--info)' }} />
+                {typeof ins === 'string' ? ins : ins.description || ins.text || JSON.stringify(ins)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div>
-      {toast && <div className="toast toast-success">{toast}</div>}
+      <h1 className="text-xl font-bold mb-6" style={{ color: 'var(--text-primary)' }}>Meetings</h1>
 
-      <div className="page-header">
-        <h1>Meeting Intelligence</h1>
-        <p>AI-powered meeting transcript analysis &mdash; extract action items, decisions, and risks</p>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: history.length > 0 ? '1fr 300px' : '1fr', gap: 20 }}>
-        {/* Main Content */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Input */}
         <div>
-          {/* Input Card */}
-          <div className="card mb-4">
-            <div className="card-header">Paste Transcript</div>
+          <div className="rounded-lg overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <div className="px-4 py-3 text-sm font-semibold flex items-center gap-2" style={{ borderBottom: '1px solid var(--border)' }}>
+              <Mic size={14} style={{ color: 'var(--accent)' }} /> Transcript
+            </div>
             <textarea
+              className="w-full h-64 p-4 text-sm resize-none border-none outline-none"
+              style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}
+              placeholder="Paste your meeting transcript here..."
               value={transcript}
               onChange={(e) => setTranscript(e.target.value)}
-              placeholder="Paste your meeting transcript here. The AI will extract action items, decisions, risks, and a summary..."
-              style={{ minHeight: 200 }}
             />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12 }}>
+            <div className="px-4 py-3" style={{ borderTop: '1px solid var(--border)' }}>
               <button
-                className="btn btn-primary"
-                onClick={handleAnalyze}
-                disabled={loading || !transcript.trim()}
+                onClick={analyze}
+                disabled={analyzing || !transcript.trim()}
+                className="px-5 py-2 rounded-lg text-sm font-medium border-none cursor-pointer flex items-center gap-2"
+                style={{ background: 'var(--accent)', color: 'white', opacity: analyzing || !transcript.trim() ? 0.5 : 1 }}
               >
-                {loading ? (
-                  <><span className="spinner" style={{ width: 14, height: 14 }} /> Analyzing...</>
-                ) : (
-                  'Analyze with AI'
-                )}
+                {analyzing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                Analyze with AI
               </button>
-              {transcript.trim() && (
-                <span className="text-dim text-sm">{transcript.split(/\s+/).length} words</span>
-              )}
             </div>
-            {error && (
-              <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8, color: 'var(--error)', fontSize: 13 }}>
-                {error}
-              </div>
-            )}
           </div>
-
-          {/* Results Card */}
-          {analysis ? (
-            <div className="card animate-fade">
-              <div className="card-header">
-                <span style={{ flex: 1 }}>Analysis Results</span>
-                <span className="badge badge-ok">Complete</span>
-              </div>
-              {renderAnalysis(analysis)}
-            </div>
-          ) : !loading && (
-            <div className="card">
-              <div className="empty-state-box">
-                <div className="empty-icon">&#x1F399;&#xFE0F;</div>
-                <div className="empty-title">No analysis yet</div>
-                <div className="empty-desc">Paste a meeting transcript above and click &ldquo;Analyze with AI&rdquo; to extract action items, decisions, and a summary.</div>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* History Sidebar */}
-        {history.length > 0 && (
-          <div>
-            <div className="card" style={{ position: 'sticky', top: 20 }}>
-              <div className="card-header">
-                <span style={{ flex: 1 }}>History</span>
-                <button className="btn btn-sm" onClick={clearHistory}>Clear</button>
-              </div>
-              <div style={{ maxHeight: 500, overflowY: 'auto' }}>
-                {history.map(entry => (
-                  <div
-                    key={entry.id}
-                    onClick={() => loadFromHistory(entry)}
-                    style={{
-                      padding: '10px 12px',
-                      borderBottom: '1px solid var(--border)',
-                      cursor: 'pointer',
-                      transition: 'background 0.15s',
-                      background: selectedHistory === entry.id ? 'var(--primary-bg)' : 'transparent',
-                      borderLeft: selectedHistory === entry.id ? '2px solid var(--primary)' : '2px solid transparent',
-                    }}
-                  >
-                    <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 4, fontFamily: "'JetBrains Mono', monospace" }}>
-                      {new Date(entry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.5 }} className="truncate">
-                      {entry.preview}
-                    </div>
-                  </div>
-                ))}
-              </div>
+        {/* Results */}
+        <div>
+          <div className="rounded-lg p-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <div className="text-sm font-semibold mb-4 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+              <Sparkles size={14} style={{ color: 'var(--accent)' }} /> Analysis Results
             </div>
+            {!result ? (
+              <div className="py-8 text-center text-sm" style={{ color: 'var(--text-tertiary)' }}>
+                Paste a transcript and click "Analyze with AI" to get started
+              </div>
+            ) : (
+              renderResult(result)
+            )}
           </div>
-        )}
+        </div>
       </div>
+
+      {/* History */}
+      {history.length > 0 && (
+        <div className="mt-8">
+          <div className="text-sm font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+            <Clock size={14} style={{ color: 'var(--text-tertiary)' }} /> History
+          </div>
+          <div className="space-y-2">
+            {history.map((h) => (
+              <div
+                key={h.id}
+                className="rounded-lg p-4 cursor-pointer transition-colors"
+                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
+                onClick={() => setResult(h.result)}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                    {new Date(h.date).toLocaleDateString()}
+                  </span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); removeEntry(h.id); }}
+                    className="bg-transparent border-none cursor-pointer p-1"
+                    style={{ color: 'var(--text-tertiary)' }}
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+                <div className="text-sm truncate" style={{ color: 'var(--text-secondary)' }}>{h.preview}...</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
