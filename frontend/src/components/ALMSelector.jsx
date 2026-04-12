@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { displayKey, typeIcon, statusColor, priorityColor, timeAgo } from '../api';
 
-const API = '/api';
+const API_JIRA = '/.netlify/functions/jira';
 
 export default function ALMSelector({
   onTicketSelect,
@@ -27,12 +27,12 @@ export default function ALMSelector({
 
   // Fetch releases and release counts on mount
   useEffect(() => {
-    fetch(`${API}/jira/versions`)
+    fetch(`${API_JIRA}/versions`)
       .then(r => r.ok ? r.json() : [])
       .then(d => setReleases(Array.isArray(d) ? d.sort((a, b) => (a.name || '').localeCompare(b.name || '')) : []))
       .catch(() => setReleases([]));
 
-    fetch(`${API}/jira/release-counts`)
+    fetch(`${API_JIRA}/release-counts`)
       .then(r => r.ok ? r.json() : {})
       .then(d => setReleaseCounts(d || {}))
       .catch(() => setReleaseCounts({}));
@@ -52,7 +52,7 @@ export default function ALMSelector({
       if (selectedStatus && selectedStatus !== 'all') params.set('status', selectedStatus);
       params.set('maxResults', '100');
 
-      const res = await fetch(`${API}/jira/tickets?${params}`);
+      const res = await fetch(`${API_JIRA}/tickets?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       const issues = data?.issues || data || [];
