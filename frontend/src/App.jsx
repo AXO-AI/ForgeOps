@@ -11,6 +11,7 @@ import Notifications from './pages/Notifications';
 import Team from './pages/Team';
 import Support from './pages/Support';
 import Settings from './pages/Settings';
+import Pipelines from './pages/Pipelines';
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="commit" element={<Commit />} />
           <Route path="merge" element={<Merge />} />
           <Route path="cicd" element={<CiCd />} />
+          <Route path="pipelines" element={<Pipelines />} />
           <Route path="security" element={<Security />} />
           <Route path="meetings" element={<Meetings />} />
           <Route path="notifications" element={<Notifications />} />

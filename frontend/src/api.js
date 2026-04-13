@@ -56,6 +56,8 @@ export const api = {
     runJobs: (o,r,runId) => get(`${API}/github/repos/${o}/${r}/runs/${runId}/jobs`),
     buildHistory: (params) => get(`${API}/github/build-history?${new URLSearchParams(params||{})}`),
     environments: () => get(`${API}/github/environments`),
+    getFileContent: (o,r,path,ref) => get(`${API}/github/repos/${o}/${r}/contents/${path}${ref ? '?ref='+encodeURIComponent(ref) : ''}`),
+    createPR: (o,r,title,head,base,body,draft) => post(`${API}/github/repos/${o}/${r}/pulls`, { title, head, base, body, draft }),
   },
   discovery: {
     quick: () => get(`${API}/discovery/quick`),

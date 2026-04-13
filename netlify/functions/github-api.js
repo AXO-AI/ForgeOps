@@ -451,6 +451,21 @@ exports.handler = async (event) => {
       }
     }
 
+    // GET /repos/:owner/:repo/contents/:path
+    if (route[0] === 'repos' && route[3] === 'contents' && method === 'GET') {
+      const filePath = route.slice(4).join('/');
+      if (!filePath) return respond(400, { error: 'File path required' });
+      try {
+        const { data } = await ghFetch(`/repos/${owner}/${repo}/contents/${filePath}${query.ref ? '?ref=' + encodeURIComponent(query.ref) : ''}`);
+        if (data.encoding === 'base64' && data.content) {
+          data.decoded_content = Buffer.from(data.content, 'base64').toString('utf-8');
+        }
+        return respond(200, data);
+      } catch {
+        return respond(404, { error: 'File not found' });
+      }
+    }
+
     // PUT /repos/:owner/:repo/contents/:path
     if (route[0] === 'repos' && route[3] === 'contents' && method === 'PUT') {
       const filePath = route.slice(4).join('/');

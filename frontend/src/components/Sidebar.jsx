@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { BarChart3, Pencil, GitMerge, Rocket, Shield, Mic, Bell, Users, Headphones, Settings } from 'lucide-react';
+import { BarChart3, Pencil, GitMerge, Rocket, Layers, Shield, Mic, Bell, Users, Headphones, Settings } from 'lucide-react';
 
 const sections = [
   {
@@ -9,6 +9,7 @@ const sections = [
       { to: '/app/commit', icon: Pencil, text: 'Commit' },
       { to: '/app/merge', icon: GitMerge, text: 'Merge' },
       { to: '/app/cicd', icon: Rocket, text: 'CI/CD' },
+      { to: '/app/pipelines', icon: Layers, text: 'Pipelines' },
     ],
   },
   {
