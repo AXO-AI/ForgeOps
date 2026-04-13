@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Settings as SettingsIcon, Save, CheckCircle2, Shield, Layers } from 'lucide-react';
 import { ENV_PROFILES, MOCK_REPO_PROFILES, getRepoProfile, setRepoProfile } from '../data/envProfiles';
 import EnvFlow from '../components/EnvFlow';
+import { api } from '../api';
 
 const STORAGE_KEY = 'forgeops_settings';
 
@@ -18,8 +19,6 @@ const defaultSettings = {
   scaLicenseCheck: true,
 };
 
-const ALL_REPO_NAMES = Object.keys(MOCK_REPO_PROFILES);
-
 export default function Settings() {
   const [settings, setSettings] = useState(defaultSettings);
   const [saved, setSaved] = useState(false);
@@ -29,6 +28,7 @@ export default function Settings() {
   const [assignRepo, setAssignRepo] = useState('');
   const [assignProfile, setAssignProfile] = useState('standard');
   const [assignments, setAssignments] = useState({});
+  const [allRepoNames, setAllRepoNames] = useState(Object.keys(MOCK_REPO_PROFILES));
 
   useEffect(() => {
     try {
@@ -37,12 +37,24 @@ export default function Settings() {
     } catch {
       setSettings(defaultSettings);
     }
-    // Load profile assignments
-    const a = {};
-    ALL_REPO_NAMES.forEach(name => {
-      a[name] = getRepoProfile(name).id;
-    });
-    setAssignments(a);
+
+    // Load real repos from API, then build assignment map
+    (async () => {
+      try {
+        const r = await api.github.repos();
+        const list = Array.isArray(r) ? r : [];
+        if (list.length > 0) {
+          setAllRepoNames(list.map(repo => repo.name || repo.full_name?.split('/').pop() || '').filter(Boolean));
+        }
+      } catch {}
+
+      const a = {};
+      const names = allRepoNames.length > 0 ? allRepoNames : Object.keys(MOCK_REPO_PROFILES);
+      names.forEach(name => {
+        a[name] = getRepoProfile(name).id;
+      });
+      setAssignments(a);
+    })();
   }, []);
 
   const update = (key, value) => {
@@ -227,7 +239,7 @@ export default function Settings() {
                 style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
                 value={assignRepo} onChange={e => setAssignRepo(e.target.value)}>
                 <option value="">Select repository...</option>
-                {ALL_REPO_NAMES.map(n => <option key={n} value={n}>{n}</option>)}
+                {allRepoNames.map(n => <option key={n} value={n}>{n}</option>)}
               </select>
               <select className="px-3 py-2 rounded-lg text-sm"
                 style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}

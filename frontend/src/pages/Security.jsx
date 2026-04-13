@@ -14,9 +14,8 @@ export default function Security() {
   useEffect(() => {
     async function load() {
       try {
-        const [r, c] = await Promise.all([api.discovery.forgeopsRepos(), api.sca.config()]);
-        const list = r?.repos || r || [];
-        setRepos(Array.isArray(list) ? list : []);
+        const [r, c] = await Promise.all([api.github.repos(), api.sca.config()]);
+        setRepos(Array.isArray(r) ? r : r?.repos || []);
         setConfig(c);
       } catch {
         // silent

@@ -51,38 +51,13 @@ function mockLogs(b) {
   return lines;
 }
 
-/* ── mock approvals ── */
-const MOCK_APPROVALS = [
-  { role: 'Dev Lead', name: 'Ashwin B.', status: 'approved', at: new Date(Date.now() - 86400000).toISOString() },
-  { role: 'QA Lead', name: 'Priya K.', status: 'approved', at: new Date(Date.now() - 43200000).toISOString() },
+/* ── default approval roles ── */
+const DEFAULT_APPROVALS = [
+  { role: 'Dev Lead', name: 'Ashwin B.', status: 'pending', at: null },
+  { role: 'QA Lead', name: 'Priya K.', status: 'pending', at: null },
   { role: 'Business Owner', name: 'Sarah M.', status: 'pending', at: null },
   { role: 'VP Engineering', name: 'Marcus T.', status: 'pending', at: null },
 ];
-
-/* ── mock deploy history ── */
-function mockDeployHistory() {
-  const types = ['Deploy', 'Promote', 'Release', 'Rollback'];
-  const envs = ['INT', 'QA', 'STAGE', 'PROD'];
-  const users = ['ashwin', 'priya', 'raj', 'system', 'dev-lead'];
-  const items = [];
-  for (let i = 0; i < 30; i++) {
-    const s = Math.random() > 0.1 ? 'success' : 'failure';
-    items.push({
-      id: i, time: new Date(Date.now() - i * 8 * 3600000).toISOString(),
-      env: envs[Math.floor(Math.random() * envs.length)],
-      type: types[Math.floor(Math.random() * types.length)],
-      release: Math.random() > 0.5 ? 'Release 1.0' : `feature/us-${200 + i}`,
-      files: Math.floor(Math.random() * 20) + 1,
-      status: s, by: users[Math.floor(Math.random() * users.length)],
-      duration: Math.floor(30 + Math.random() * 270),
-      stages: ['Checkout', 'Build', 'Test', 'SAST', 'SCA', 'Deploy', 'Notify'].map((n, idx) => {
-        const fail = s === 'failure' && idx === Math.floor(Math.random() * 5) + 1;
-        return { name: n, status: fail ? 'failure' : idx > 4 && s === 'failure' ? 'pending' : 'success', duration: Math.floor(5 + Math.random() * 40) };
-      }),
-    });
-  }
-  return items;
-}
 
 /* ═══ COMPONENT ═══ */
 
@@ -142,7 +117,7 @@ export default function CiCd() {
           {tab === 'deploy' && <DeployTab repos={repos} environments={environments} />}
           {tab === 'compare' && <CompareTab repos={repos} environments={environments} />}
           {tab === 'approvals' && <ApprovalsTab />}
-          {tab === 'history' && <HistoryTab />}
+          {tab === 'history' && <HistoryTab builds={builds} />}
         </>
       )}
     </div>
@@ -197,11 +172,29 @@ function BuildsTab({ builds, repos }) {
 
   const repoNames = useMemo(() => [...new Set(builds.map(b => b.repo).filter(Boolean))].sort(), [builds]);
 
-  const toggleRow = (id) => {
+  const toggleRow = async (id) => {
     if (expandedId === id) { setExpandedId(null); return; }
     setExpandedId(id);
     setExpandedSub('stages');
     const b = builds.find(x => (x.id || x.run_id) === id);
+    // Try real job logs from GitHub Actions API
+    try {
+      const owner = b?.full_name?.split('/')[0] || b?.owner || '';
+      const repo = b?.full_name?.split('/')[1] || b?.repo || '';
+      const runId = b?.run_id || b?.id;
+      if (owner && repo && runId) {
+        const res = await api.github.runJobs(owner, repo, runId);
+        const jobs = res?.jobs || [];
+        if (jobs.length > 0) {
+          setLogData(jobs.map(j => ({
+            time: timeAgo(j.started_at),
+            level: j.conclusion === 'success' ? 'INFO' : j.conclusion === 'failure' ? 'ERROR' : 'WARN',
+            message: `[${j.name}] ${j.conclusion || j.status || 'running'}`,
+          })));
+          return;
+        }
+      }
+    } catch {}
     setLogData(mockLogs(b));
   };
 
@@ -631,9 +624,11 @@ function CompareTab({ repos, environments }) {
 /* ═══════════════════════════════════════════════════════════ */
 
 function ApprovalsTab() {
-  const [approvals, setApprovals] = useState(MOCK_APPROVALS);
+  const [approvals, setApprovals] = useState(DEFAULT_APPROVALS);
   const [versions, setVersions] = useState([]);
   const [selectedRelease, setSelectedRelease] = useState('');
+  const [ticketCount, setTicketCount] = useState(0);
+  const [releaseLoading, setReleaseLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -644,6 +639,19 @@ function ApprovalsTab() {
       } catch {}
     })();
   }, []);
+
+  // Load real ticket count for selected release
+  useEffect(() => {
+    if (!selectedRelease) { setTicketCount(0); return; }
+    (async () => {
+      setReleaseLoading(true);
+      try {
+        const res = await api.jira.searchAll(`fixVersion = "${selectedRelease}" ORDER BY priority DESC`);
+        setTicketCount(res?.total || res?.issues?.length || 0);
+      } catch { setTicketCount(0); }
+      setReleaseLoading(false);
+    })();
+  }, [selectedRelease]);
 
   const approvedCount = approvals.filter(a => a.status === 'approved').length;
   const totalCount = approvals.length;
@@ -681,7 +689,7 @@ function ApprovalsTab() {
         <div className="grid grid-cols-2 gap-3 p-4" style={{ borderBottom: '1px solid var(--border)' }}>
           <div className="rounded-lg p-3" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
             <div className="text-xs font-medium mb-1" style={{ color: 'var(--text-tertiary)' }}>Jira</div>
-            <div className="text-sm" style={{ color: 'var(--text-primary)' }}>65 tickets in release</div>
+            <div className="text-sm" style={{ color: 'var(--text-primary)' }}>{releaseLoading ? '...' : ticketCount} tickets in release</div>
           </div>
           <div className="rounded-lg p-3" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
             <div className="text-xs font-medium mb-1" style={{ color: 'var(--text-tertiary)' }}>Change Management</div>
@@ -727,11 +735,38 @@ function ApprovalsTab() {
 /* TAB 5: HISTORY                                             */
 /* ═══════════════════════════════════════════════════════════ */
 
-function HistoryTab() {
-  const [items] = useState(() => mockDeployHistory());
+function HistoryTab({ builds }) {
   const [expandedId, setExpandedId] = useState(null);
 
   const fmtDuration = (s) => { if (!s) return '--'; const m = Math.floor(s / 60); const sec = s % 60; return `${m}:${String(sec).padStart(2, '0')}`; };
+
+  // Map real build data to history rows
+  const items = useMemo(() => {
+    return builds.map((b, i) => {
+      const status = b.conclusion || b.status || 'unknown';
+      const branch = b.branch || b.head_branch || 'main';
+      let env = b.environment || 'unknown';
+      if (env === 'unknown' || env === 'production') {
+        if (branch === 'main' || branch === 'master') env = 'PROD';
+        else if (branch === 'staging' || branch === 'stage') env = 'STAGE';
+        else if (branch === 'qa') env = 'QA';
+        else if (branch === 'int' || branch === 'develop') env = 'INT';
+        else env = 'DEV';
+      }
+      return {
+        id: b.id || b.run_id || i,
+        time: b.startedAt || b.created_at || b.updated_at,
+        env,
+        type: branch === 'main' ? 'Release' : branch.startsWith('feature/') ? 'Deploy' : 'Promote',
+        release: branch,
+        repo: b.repo || b.name || '--',
+        status,
+        by: b.triggeredBy || b.actor?.login || '--',
+        duration: b.duration || 0,
+        stages: b.stages || [],
+      };
+    });
+  }, [builds]);
 
   const typeColor = (t) => {
     if (t === 'Deploy') return 'var(--success)';
@@ -743,6 +778,9 @@ function HistoryTab() {
 
   return (
     <div>
+      {items.length === 0 ? (
+        <div className="text-center py-12 text-sm" style={{ color: 'var(--text-tertiary)' }}>No deployment history available</div>
+      ) : (
       <div className="rounded-lg overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
         {/* header */}
         <div className="flex items-center px-4 py-2.5" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
@@ -750,23 +788,23 @@ function HistoryTab() {
           <span className="text-xs font-medium" style={{ color: 'var(--text-tertiary)', flex: 1, minWidth: 80 }}>Time</span>
           <span className="text-xs font-medium" style={{ color: 'var(--text-tertiary)', width: 60 }}>Env</span>
           <span className="text-xs font-medium" style={{ color: 'var(--text-tertiary)', width: 80 }}>Type</span>
-          <span className="text-xs font-medium hidden md:block" style={{ color: 'var(--text-tertiary)', flex: 1, minWidth: 120 }}>Release / Branch</span>
-          <span className="text-xs font-medium hidden lg:block" style={{ color: 'var(--text-tertiary)', width: 50 }}>Files</span>
+          <span className="text-xs font-medium hidden md:block" style={{ color: 'var(--text-tertiary)', width: 100 }}>Repo</span>
+          <span className="text-xs font-medium hidden md:block" style={{ color: 'var(--text-tertiary)', flex: 1, minWidth: 100 }}>Branch</span>
           <span className="text-xs font-medium" style={{ color: 'var(--text-tertiary)', width: 60 }}>Status</span>
           <span className="text-xs font-medium hidden lg:block" style={{ color: 'var(--text-tertiary)', width: 70 }}>By</span>
         </div>
 
-        {items.map(it => {
+        {items.slice(0, 50).map(it => {
           const isExp = expandedId === it.id;
           return (
             <div key={it.id} style={{ borderBottom: '1px solid var(--border)' }}>
               <div className="flex items-center px-4 py-2.5 cursor-pointer hover:bg-[var(--bg-secondary)] transition-colors" onClick={() => setExpandedId(isExp ? null : it.id)}>
                 <span style={{ width: 30 }}>{isExp ? <ChevronDown size={14} style={{ color: 'var(--text-tertiary)' }} /> : <ChevronRight size={14} style={{ color: 'var(--text-tertiary)' }} />}</span>
-                <span className="text-xs" style={{ color: 'var(--text-secondary)', flex: 1, minWidth: 80 }}>{new Date(it.time).toLocaleString()}</span>
+                <span className="text-xs" style={{ color: 'var(--text-secondary)', flex: 1, minWidth: 80 }}>{it.time ? new Date(it.time).toLocaleString() : '--'}</span>
                 <span className="text-xs font-medium" style={{ color: 'var(--text-primary)', width: 60 }}>{it.env}</span>
                 <span className="text-xs font-medium" style={{ color: typeColor(it.type), width: 80 }}>{it.type}</span>
-                <span className="text-xs font-mono truncate hidden md:block" style={{ color: 'var(--text-secondary)', flex: 1, minWidth: 120 }}>{it.release}</span>
-                <span className="text-xs hidden lg:block" style={{ color: 'var(--text-tertiary)', width: 50 }}>{it.files}</span>
+                <span className="text-xs truncate hidden md:block" style={{ color: 'var(--info)', width: 100 }}>{it.repo}</span>
+                <span className="text-xs font-mono truncate hidden md:block" style={{ color: 'var(--text-secondary)', flex: 1, minWidth: 100 }}>{it.release}</span>
                 <span style={{ width: 60 }}>
                   <span className="w-2 h-2 rounded-full inline-block" style={{ background: stageColor(it.status) }} />
                 </span>
@@ -775,31 +813,33 @@ function HistoryTab() {
 
               {isExp && (
                 <div className="px-6 py-4 space-y-3" style={{ background: 'var(--bg-secondary)' }}>
-                  <div>
-                    <div className="text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Pipeline Stages</div>
-                    <div className="flex flex-wrap gap-2">
-                      {(it.stages || []).map((s, i) => (
-                        <div key={i} className="rounded px-2.5 py-1.5 text-center" style={{
-                          background: 'var(--bg-card)', border: `1px solid ${stageColor(s.status)}`, minWidth: 70
-                        }}>
-                          <div className="text-[10px] font-medium" style={{ color: stageColor(s.status) }}>{s.name}</div>
-                          <div className="text-[9px]" style={{ color: 'var(--text-tertiary)' }}>{s.duration}s</div>
-                        </div>
-                      ))}
+                  {it.stages.length > 0 && (
+                    <div>
+                      <div className="text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>Pipeline Stages</div>
+                      <div className="flex flex-wrap gap-2">
+                        {it.stages.map((s, i) => (
+                          <div key={i} className="rounded px-2.5 py-1.5 text-center" style={{
+                            background: 'var(--bg-card)', border: `1px solid ${stageColor(s.status)}`, minWidth: 70
+                          }}>
+                            <div className="text-[10px] font-medium" style={{ color: stageColor(s.status) }}>{s.name}</div>
+                            <div className="text-[9px]" style={{ color: 'var(--text-tertiary)' }}>{s.duration}s</div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
                   <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--text-tertiary)' }}>
                     <span>Duration: {fmtDuration(it.duration)}</span>
-                    <span>Files: {it.files}</span>
                     <span>Triggered by: {it.by}</span>
                   </div>
-                  <LogViewer logs={mockLogs({ repo: it.release, branch: it.env, stages: it.stages, runNumber: it.id, conclusion: it.status })} />
+                  <LogViewer logs={mockLogs({ repo: it.repo, branch: it.release, stages: it.stages, runNumber: it.id, conclusion: it.status })} />
                 </div>
               )}
             </div>
           );
         })}
       </div>
+      )}
 
       {/* footer */}
       <div className="flex items-center justify-between mt-4">
