@@ -313,10 +313,13 @@ exports.handler = async (event) => {
       const head = query.head || 'develop';
       try {
         const { data } = await ghFetch(`/repos/${owner}/${repo}/compare/${base}...${head}`);
-        setCache(cacheKey, data);
         return respond(200, data);
-      } catch {
-        return respond(200, { status: 'identical', ahead_by: 0, behind_by: 0, commits: [], files: [] });
+      } catch (err) {
+        const msg = err.message || '';
+        if (msg.includes('404')) {
+          return respond(404, { error: 'Branch not found', status: 'error', commits: [], files: [] });
+        }
+        return respond(500, { error: msg, status: 'error', commits: [], files: [] });
       }
     }
 
@@ -355,11 +358,46 @@ exports.handler = async (event) => {
 
     // POST /repos/:owner/:repo/merge
     if (route[0] === 'repos' && route[3] === 'merge' && method === 'POST') {
-      const { data } = await ghFetch(`/repos/${owner}/${repo}/merges`, {
+      const mergeBody = {
+        base: body.base,
+        head: body.head,
+        commit_message: body.commit_message || `Merge ${body.head} into ${body.base} via ForgeOps`
+      };
+
+      // Call GitHub merge API directly to handle conflict responses
+      let authToken = null;
+      try { authToken = await getInstallationToken(); } catch {}
+      if (!authToken) authToken = getToken();
+      const headers = { 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' };
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
+      const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/merges`, {
         method: 'POST',
-        body: JSON.stringify(body)
+        headers,
+        body: JSON.stringify(mergeBody)
       });
-      return respond(200, data);
+
+      const remaining = res.headers.get('x-ratelimit-remaining');
+      const limit = res.headers.get('x-ratelimit-limit');
+      if (remaining) console.log('GitHub API: ' + remaining + '/' + limit + ' remaining');
+
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = text; }
+
+      if (res.status === 201) {
+        return respond(200, { success: true, sha: data?.sha, commit: data, message: `Merged ${body.head} into ${body.base}` });
+      }
+      if (res.status === 204) {
+        return respond(200, { success: true, message: 'Nothing to merge — branches are identical' });
+      }
+      if (res.status === 409) {
+        return respond(409, { success: false, conflict: true, message: 'Merge conflict — resolve manually in GitHub', details: data });
+      }
+      if (res.status === 404) {
+        return respond(404, { success: false, message: 'Branch not found', details: data });
+      }
+      return respond(res.status, { success: false, message: `GitHub API error ${res.status}`, details: data });
     }
 
     // GET /repos/:owner/:repo/tree

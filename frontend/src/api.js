@@ -15,6 +15,12 @@ async function put(url, data) {
   catch { return null; }
 }
 
+async function postRaw(url, data) {
+  const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
+  const json = await r.json();
+  return { status: r.status, ok: r.ok, data: json };
+}
+
 export const api = {
   health: () => get(`${API}/health`),
   jira: {
@@ -38,7 +44,7 @@ export const api = {
     commits: (o,r,b) => get(`${API}/github/repos/${o}/${r}/commits${b?'?branch='+encodeURIComponent(b):''}`),
     compare: (o,r,base,head) => get(`${API}/github/repos/${o}/${r}/compare?base=${encodeURIComponent(base)}&head=${encodeURIComponent(head)}`),
     pulls: (o,r) => get(`${API}/github/repos/${o}/${r}/pulls`),
-    merge: (o,r,base,head,msg) => post(`${API}/github/repos/${o}/${r}/merge`, { base, head, commit_message: msg }),
+    merge: (o,r,base,head,msg) => postRaw(`${API}/github/repos/${o}/${r}/merge`, { base, head, commit_message: msg }),
     runs: (o,r) => get(`${API}/github/repos/${o}/${r}/runs`),
     tree: (o,r,ref) => get(`${API}/github/repos/${o}/${r}/tree?ref=${encodeURIComponent(ref)}`),
     blob: (o,r,sha) => get(`${API}/github/repos/${o}/${r}/blob/${sha}`),

@@ -4,6 +4,12 @@ import { api, timeAgo } from '../api';
 import DiffViewer from '../components/DiffViewer';
 import LogViewer from '../components/LogViewer';
 
+const MOCK_REPOS_FALLBACK = [
+  { name: 'ForgeOps', full_name: 'askboppana/ForgeOps' },
+  { name: 'admin-dashboard-web', full_name: 'askboppana/admin-dashboard-web' },
+  { name: 'auth-service', full_name: 'askboppana/auth-service' },
+];
+
 export default function Merge() {
   const [repos, setRepos] = useState([]);
   const [selectedRepo, setSelectedRepo] = useState('');
@@ -14,6 +20,7 @@ export default function Merge() {
 
   const [commits, setCommits] = useState([]);
   const [diff, setDiff] = useState(null);
+  const [compareError, setCompareError] = useState(null);
   const [scaResult, setScaResult] = useState(null);
   const [scaLoading, setScaLoading] = useState(false);
   const [merging, setMerging] = useState(false);
@@ -23,11 +30,11 @@ export default function Merge() {
   useEffect(() => {
     async function loadRepos() {
       try {
-        const r = await api.discovery.forgeopsRepos();
-        const list = r?.repos || r || [];
-        setRepos(Array.isArray(list) ? list : []);
+        const r = await api.github.repos();
+        const list = Array.isArray(r) ? r : r?.repos || [];
+        setRepos(list.length > 0 ? list : MOCK_REPOS_FALLBACK);
       } catch {
-        // silent
+        setRepos(MOCK_REPOS_FALLBACK);
       }
     }
     loadRepos();
@@ -54,14 +61,25 @@ export default function Merge() {
     setCommits([]);
     setScaResult(null);
     setMergeResult(null);
-    setActivityLog([]);
+    setCompareError(null);
     try {
       const [owner, repo] = selectedRepo.split('/');
       const res = await api.github.compare(owner, repo, baseBranch, headBranch);
-      setCommits(res?.commits || []);
-      setDiff(res);
-      addLog('INFO', `Compared ${headBranch} against ${baseBranch}: ${res?.files?.length || 0} files changed`);
+      if (res?.error) {
+        setCompareError(res.error);
+        addLog('ERROR', `Compare failed: ${res.error}`);
+      } else {
+        setCommits(res?.commits || []);
+        setDiff(res);
+        const aheadBy = res?.ahead_by || 0;
+        const filesChanged = res?.files?.length || 0;
+        addLog('INFO', `Compared ${headBranch} against ${baseBranch}: ${aheadBy} commit(s), ${filesChanged} file(s) changed`);
+        if (aheadBy === 0) {
+          addLog('INFO', 'Branches are identical — nothing to merge');
+        }
+      }
     } catch {
+      setCompareError('Failed to load comparison');
       addLog('ERROR', 'Failed to load comparison');
     }
     setLoading(false);
@@ -85,18 +103,35 @@ export default function Merge() {
   const doMerge = async () => {
     if (!selectedRepo || !baseBranch || !headBranch) return;
     setMerging(true);
+    setMergeResult(null);
     try {
       const [owner, repo] = selectedRepo.split('/');
-      const msg = `Merge ${headBranch} into ${baseBranch}`;
+      const msg = `Merge ${headBranch} into ${baseBranch} via ForgeOps`;
       const res = await api.github.merge(owner, repo, baseBranch, headBranch, msg);
-      if (res) {
-        setMergeResult({ success: true, msg: 'Merge completed successfully' });
-        addLog('INFO', `Merged ${headBranch} into ${baseBranch}`);
+      const d = res?.data;
+
+      if (d?.success) {
+        const sha = d.sha ? d.sha.substring(0, 7) : '';
+        setMergeResult({
+          success: true,
+          msg: d.message || `Merged ${headBranch} into ${baseBranch}`,
+          sha: d.sha || '',
+          shortSha: sha
+        });
+        addLog('INFO', `Merged ${headBranch} into ${baseBranch}${sha ? ` (${sha})` : ''}`);
+      } else if (d?.conflict) {
+        setMergeResult({
+          success: false,
+          conflict: true,
+          msg: d.message || 'Merge conflict — resolve manually in GitHub'
+        });
+        addLog('ERROR', 'Merge conflict detected');
       } else {
-        setMergeResult({ success: false, msg: 'Merge failed' });
-        addLog('ERROR', 'Merge failed');
+        const errMsg = d?.message || 'Merge failed';
+        setMergeResult({ success: false, msg: errMsg });
+        addLog('ERROR', errMsg);
       }
-    } catch {
+    } catch (err) {
       setMergeResult({ success: false, msg: 'Error during merge' });
       addLog('ERROR', 'Merge error');
     }
@@ -106,9 +141,6 @@ export default function Merge() {
   const addLog = (level, message) => {
     setActivityLog((prev) => [...prev, { time: new Date().toLocaleTimeString(), level, message }]);
   };
-
-  const owner = selectedRepo?.split('/')[0];
-  const repo = selectedRepo?.split('/')[1];
 
   return (
     <div>
@@ -120,7 +152,7 @@ export default function Merge() {
           className="px-3 py-2 rounded-lg text-sm"
           style={{ background: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
           value={selectedRepo}
-          onChange={(e) => { setSelectedRepo(e.target.value); setHeadBranch(''); setDiff(null); }}
+          onChange={(e) => { setSelectedRepo(e.target.value); setHeadBranch(''); setDiff(null); setCompareError(null); setMergeResult(null); }}
         >
           <option value="">Select repository...</option>
           {repos.map((r) => {
@@ -161,12 +193,19 @@ export default function Merge() {
         </button>
       </div>
 
+      {/* Compare error */}
+      {compareError && (
+        <div className="rounded-lg p-3 mb-6 text-sm" style={{ background: 'rgba(248,81,73,0.1)', color: 'var(--danger)', border: '1px solid var(--danger)' }}>
+          {compareError}
+        </div>
+      )}
+
       {/* Commits */}
       {commits.length > 0 && (
         <div className="rounded-lg overflow-hidden mb-6" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
           <div className="px-4 py-3 text-sm font-semibold flex items-center gap-2" style={{ borderBottom: '1px solid var(--border)' }}>
             <GitCommit size={14} style={{ color: 'var(--accent)' }} />
-            {commits.length} Commit{commits.length !== 1 ? 's' : ''}
+            {commits.length} Commit{commits.length !== 1 ? 's' : ''} — {diff?.ahead_by || 0} ahead, {diff?.behind_by || 0} behind
           </div>
           {commits.slice(0, 20).map((c, i) => (
             <div key={i} className="flex items-center gap-3 px-4 py-2 text-sm" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -178,16 +217,26 @@ export default function Merge() {
         </div>
       )}
 
+      {/* Identical branches message */}
+      {diff && (diff.ahead_by === 0 || diff.status === 'identical') && !compareError && (
+        <div className="rounded-lg p-3 mb-6 text-sm flex items-center gap-2" style={{ background: 'rgba(63,185,80,0.1)', color: 'var(--success)', border: '1px solid var(--success)' }}>
+          <CheckCircle2 size={14} />
+          Branches are identical — nothing to merge
+        </div>
+      )}
+
       {/* Diff */}
-      {diff?.files && (
+      {diff?.files && diff.files.length > 0 && (
         <div className="mb-6">
-          <div className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>Changed Files</div>
+          <div className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
+            {diff.files.length} Changed File{diff.files.length !== 1 ? 's' : ''}
+          </div>
           <DiffViewer files={diff.files} />
         </div>
       )}
 
       {/* Actions */}
-      {diff && (
+      {diff && diff.ahead_by > 0 && !mergeResult?.success && (
         <div className="flex gap-3 mb-6">
           <button
             onClick={runSca}
@@ -205,7 +254,7 @@ export default function Merge() {
             style={{ background: 'var(--success)', color: 'white', opacity: merging ? 0.6 : 1 }}
           >
             {merging ? <Loader2 size={14} className="animate-spin" /> : <GitMerge size={14} />}
-            Merge
+            Merge {headBranch} into {baseBranch}
           </button>
         </div>
       )}
@@ -239,12 +288,26 @@ export default function Merge() {
 
       {/* Merge result */}
       {mergeResult && (
-        <div className="rounded-lg p-3 mb-6 text-sm" style={{
+        <div className="rounded-lg p-4 mb-6 text-sm" style={{
           background: mergeResult.success ? 'rgba(63,185,80,0.1)' : 'rgba(248,81,73,0.1)',
           color: mergeResult.success ? 'var(--success)' : 'var(--danger)',
           border: `1px solid ${mergeResult.success ? 'var(--success)' : 'var(--danger)'}`,
         }}>
-          {mergeResult.msg}
+          <div className="flex items-center gap-2 mb-1">
+            {mergeResult.success ? <CheckCircle2 size={16} /> : mergeResult.conflict ? <AlertTriangle size={16} /> : <XCircle size={16} />}
+            <span className="font-semibold">{mergeResult.success ? 'Merge Successful' : mergeResult.conflict ? 'Merge Conflict' : 'Merge Failed'}</span>
+          </div>
+          <div>{mergeResult.msg}</div>
+          {mergeResult.sha && (
+            <div className="mt-2 font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>
+              Commit: {mergeResult.sha}
+            </div>
+          )}
+          {mergeResult.conflict && (
+            <div className="mt-2 text-xs" style={{ color: 'var(--text-tertiary)' }}>
+              Open the repository in GitHub to resolve conflicts and complete the merge.
+            </div>
+          )}
         </div>
       )}
 
