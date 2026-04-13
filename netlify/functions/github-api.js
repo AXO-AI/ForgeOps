@@ -11,7 +11,29 @@ function respond(code, data) {
   return { statusCode: code, headers: { ...corsHeaders, 'Content-Type': 'application/json' }, body: JSON.stringify(data) };
 }
 
-// ── GitHub App JWT generation (pure Node.js crypto, no dependencies) ──
+// ── Env var accessors (read at call time, not module load) ──
+
+function getToken() {
+  return process.env.GITHUB_TOKEN;
+}
+
+function getOrg() {
+  return process.env.GITHUB_ORG;
+}
+
+function getAppId() {
+  return process.env.GITHUB_APP_ID;
+}
+
+function getPrivateKey() {
+  return (process.env.GITHUB_APP_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+}
+
+function getInstallationId() {
+  return process.env.GITHUB_APP_INSTALLATION_ID;
+}
+
+// ── GitHub App JWT generation (pure Node.js crypto) ──
 
 function generateJWT(appId, privateKey) {
   const now = Math.floor(Date.now() / 1000);
@@ -33,69 +55,48 @@ function generateJWT(appId, privateKey) {
 let cachedInstallToken = null;
 let tokenExpiry = 0;
 
-async function getInstallationToken(appId, privateKey, installationId) {
+async function getInstallationToken() {
+  const appId = getAppId();
+  const privateKey = getPrivateKey();
+  const installationId = getInstallationId();
+
+  if (!appId || !privateKey || !installationId) return null;
+
   if (cachedInstallToken && Date.now() < tokenExpiry) {
     return cachedInstallToken;
   }
 
-  const jwt = generateJWT(appId, privateKey);
-  const res = await fetch(
-    'https://api.github.com/app/installations/' + installationId + '/access_tokens',
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + jwt,
-        'Accept': 'application/vnd.github+json',
-        'User-Agent': 'ForgeOps-DevSecOps'
+  try {
+    const jwt = generateJWT(appId, privateKey);
+    const res = await fetch(
+      'https://api.github.com/app/installations/' + installationId + '/access_tokens',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + jwt,
+          'Accept': 'application/vnd.github+json',
+          'User-Agent': 'ForgeOps-DevSecOps'
+        }
       }
-    }
-  );
+    );
 
-  if (!res.ok) {
-    const err = await res.text();
-    console.error('Failed to get installation token:', res.status, err);
+    if (!res.ok) {
+      console.error('GitHub App token error:', res.status);
+      return null;
+    }
+
+    const data = await res.json();
+    cachedInstallToken = data.token;
+    tokenExpiry = Date.now() + (55 * 60 * 1000);
+    return cachedInstallToken;
+  } catch (err) {
+    console.error('GitHub App auth failed:', err.message);
     return null;
   }
-
-  const data = await res.json();
-  cachedInstallToken = data.token;
-  tokenExpiry = Date.now() + (55 * 60 * 1000); // refresh 5 min before expiry
-  return cachedInstallToken;
-}
-
-// ── Auth header resolution: GitHub App → PAT → unauthenticated ──
-
-const APP_ID = process.env.GITHUB_APP_ID;
-const PRIVATE_KEY = (process.env.GITHUB_APP_PRIVATE_KEY || '').replace(/\\n/g, '\n');
-const INSTALLATION_ID = process.env.GITHUB_APP_INSTALLATION_ID;
-const PAT_TOKEN = process.env.GITHUB_TOKEN;
-
-async function getAuthHeaders() {
-  if (APP_ID && PRIVATE_KEY && INSTALLATION_ID) {
-    const token = await getInstallationToken(APP_ID, PRIVATE_KEY, INSTALLATION_ID);
-    if (token) {
-      return {
-        'Authorization': 'token ' + token,
-        'Accept': 'application/vnd.github+json',
-        'User-Agent': 'ForgeOps-DevSecOps'
-      };
-    }
-  }
-  if (PAT_TOKEN) {
-    return {
-      'Authorization': 'token ' + PAT_TOKEN,
-      'Accept': 'application/vnd.github+json',
-      'User-Agent': 'ForgeOps'
-    };
-  }
-  return { 'Accept': 'application/vnd.github+json', 'User-Agent': 'ForgeOps' };
-}
-
-function getOrg() {
-  return process.env.GITHUB_ORG;
 }
 
 // ── In-memory cache ──
+
 const cache = {};
 const CACHE_TTL = 5 * 60 * 1000;
 
@@ -109,6 +110,7 @@ function setCache(key, data) {
 }
 
 // ── Mock data ──
+
 const MOCK_REPOS = [
   { name: 'ForgeOps', full_name: 'askboppana/ForgeOps', language: 'JavaScript', default_branch: 'main', updated_at: new Date().toISOString() },
   { name: 'admin-dashboard-web', full_name: 'askboppana/admin-dashboard-web', language: 'Python', default_branch: 'main', updated_at: new Date().toISOString() },
@@ -141,23 +143,19 @@ function generateMockBuilds(count = 50) {
     const failStage = status === 'failure' ? Math.floor(Math.random() * 5) + 1 : -1;
     const stages = ['Checkout', 'Build', 'Test', 'SAST', 'SCA', 'Deploy', 'Notify'].map((name, idx) => ({
       name,
-      status: status === 'failure' && idx === failStage ? 'failure' : idx > failStage && status === 'failure' ? 'pending' : idx < failStage || failStage < 0 ? 'success' : 'success',
+      status: status === 'failure' && idx === failStage ? 'failure' : idx > failStage && status === 'failure' ? 'pending' : 'success',
       duration: Math.floor(Math.random() * 60) + 5
     }));
     const duration = stages.reduce((a, s) => a + s.duration, 0);
     builds.push({
-      id: 'run-' + (1000 + i),
-      run_id: 1000 + i,
+      id: 'run-' + (1000 + i), run_id: 1000 + i,
       repo: repos[i % repos.length],
       branch: Math.random() > 0.5 ? 'main' : 'feature/us-' + (200 + i),
-      status, conclusion: status,
-      environment: env,
+      status, conclusion: status, environment: env,
       commitSha: Math.random().toString(36).substring(2, 9),
       commitMessage: ['fix: auth timeout', 'feat: add dashboard', 'chore: update deps', 'fix: null pointer', 'feat: new API endpoint', 'test: add coverage'][i % 6],
       triggeredBy: users[Math.floor(Math.random() * users.length)],
-      startedAt,
-      duration,
-      stages,
+      startedAt, duration, stages,
       runNumber: 200 + i,
       jira_tickets: ['US-' + (200 + Math.floor(Math.random() * 100))]
     });
@@ -175,21 +173,32 @@ function getMockEnvironments() {
   ];
 }
 
-// ── GitHub API fetch with auth + rate limit logging ──
+// ── GitHub API fetch — matches discovery.js auth pattern exactly ──
 
 async function ghFetch(path, options = {}) {
   const url = path.startsWith('http') ? path : `https://api.github.com${path}`;
-  const authHeaders = await getAuthHeaders();
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      ...authHeaders,
-      'Content-Type': 'application/json',
-      ...(options.headers || {})
-    }
-  });
 
-  // Log rate limit info
+  // Try GitHub App first, fall back to PAT
+  let authToken = null;
+  try {
+    authToken = await getInstallationToken();
+  } catch {
+    // GitHub App failed, will try PAT
+  }
+  if (!authToken) authToken = getToken();
+
+  const headers = {
+    'Accept': 'application/vnd.github.v3+json',
+    'Content-Type': 'application/json',
+    ...(options.headers || {})
+  };
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+
+  const res = await fetch(url, { ...options, headers });
+
+  // Log rate limit
   const remaining = res.headers.get('x-ratelimit-remaining');
   const limit = res.headers.get('x-ratelimit-limit');
   if (remaining) console.log('GitHub API: ' + remaining + '/' + limit + ' remaining');
@@ -245,18 +254,19 @@ exports.handler = async (event) => {
     // GET /repos — list all org repos
     if (route[0] === 'repos' && route.length === 1) {
       const org = getOrg();
-      let repos;
+      let repos = [];
       try {
         repos = await paginateAll(`/orgs/${org}/repos`);
       } catch {
         try {
           repos = await paginateAll(`/users/${org}/repos`);
         } catch {
-          return respond(200, MOCK_REPOS);
+          // Both failed — use mocks
         }
       }
-      setCache(cacheKey, repos);
-      return respond(200, repos);
+      const result = repos.length > 0 ? repos : MOCK_REPOS;
+      setCache(cacheKey, result);
+      return respond(200, result);
     }
 
     // GET /repos/:owner/:repo/branches
@@ -277,7 +287,7 @@ exports.handler = async (event) => {
       const { data: refData } = await ghFetch(`/repos/${owner}/${repo}/git/ref/heads/${baseBranch}`);
       const sha = refData?.object?.sha;
       if (!sha) return respond(404, { error: `Base branch "${baseBranch}" not found` });
-      const { data } = await ghFetch(`/repos/${owner}/${repo}/git/refs`, {
+      await ghFetch(`/repos/${owner}/${repo}/git/refs`, {
         method: 'POST',
         body: JSON.stringify({ ref: `refs/heads/${newBranch}`, sha })
       });
@@ -364,14 +374,19 @@ exports.handler = async (event) => {
       }
     }
 
-    // GET /repos/:owner/:repo/blob
+    // GET /repos/:owner/:repo/blob (SHA from path or query)
     if (route[0] === 'repos' && route[3] === 'blob') {
-      const sha = query.sha;
-      const { data } = await ghFetch(`/repos/${owner}/${repo}/git/blobs/${sha}`);
-      if (data.encoding === 'base64' && data.content) {
-        data.decoded_content = Buffer.from(data.content, 'base64').toString('utf-8');
+      const sha = route[4] || query.sha;
+      if (!sha) return respond(400, { error: 'SHA required' });
+      try {
+        const { data } = await ghFetch(`/repos/${owner}/${repo}/git/blobs/${sha}`);
+        if (data.encoding === 'base64' && data.content) {
+          data.decoded_content = Buffer.from(data.content, 'base64').toString('utf-8');
+        }
+        return respond(200, data);
+      } catch {
+        return respond(200, { content: '', decoded_content: '' });
       }
-      return respond(200, data);
     }
 
     // GET /repos/:owner/:repo/readme
@@ -437,11 +452,19 @@ exports.handler = async (event) => {
     if (route[0] === 'build-history') {
       try {
         const org = getOrg();
-        let repos;
+        let repos = [];
         try {
           repos = await paginateAll(`/orgs/${org}/repos`);
         } catch {
-          repos = await paginateAll(`/users/${org}/repos`);
+          try {
+            repos = await paginateAll(`/users/${org}/repos`);
+          } catch {
+            // Both failed
+          }
+        }
+
+        if (repos.length === 0) {
+          return respond(200, { builds: generateMockBuilds(), total: 50, mock: true });
         }
 
         const results = [];
@@ -471,12 +494,11 @@ exports.handler = async (event) => {
         }
 
         results.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-        const data = { builds: results, total: results.length };
+        const data = { builds: results.length > 0 ? results : generateMockBuilds(), total: results.length || 50 };
         setCache(cacheKey, data);
         return respond(200, data);
       } catch {
-        const mockBuilds = generateMockBuilds();
-        return respond(200, { builds: mockBuilds, total: mockBuilds.length, mock: true });
+        return respond(200, { builds: generateMockBuilds(), total: 50, mock: true });
       }
     }
 
@@ -487,7 +509,7 @@ exports.handler = async (event) => {
 
     return respond(404, { error: 'Route not found', route });
   } catch (err) {
-    // Rate limit or other error — return mock data where possible
+    console.error('GitHub API handler error:', err.message);
     if (route[0] === 'repos' && route.length === 1) return respond(200, MOCK_REPOS);
     if (route[3] === 'branches') return respond(200, MOCK_BRANCHES.map(b => ({ name: b })));
     if (route[3] === 'runs' || route[0] === 'build-history') return respond(200, { builds: generateMockBuilds(), mock: true });
