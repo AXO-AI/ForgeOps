@@ -1,4 +1,5 @@
 const fetch = require('node-fetch');
+const crypto = require('crypto');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,8 +11,84 @@ function respond(code, data) {
   return { statusCode: code, headers: { ...corsHeaders, 'Content-Type': 'application/json' }, body: JSON.stringify(data) };
 }
 
-function getToken() {
-  return process.env.GITHUB_TOKEN;
+// ── GitHub App JWT generation (pure Node.js crypto, no dependencies) ──
+
+function generateJWT(appId, privateKey) {
+  const now = Math.floor(Date.now() / 1000);
+  const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({
+    iat: now - 60,
+    exp: now + (10 * 60),
+    iss: appId
+  })).toString('base64url');
+
+  const signature = crypto.sign('SHA256', Buffer.from(header + '.' + payload), {
+    key: privateKey,
+    padding: crypto.constants.RSA_PKCS1_V1_5
+  }).toString('base64url');
+
+  return header + '.' + payload + '.' + signature;
+}
+
+let cachedInstallToken = null;
+let tokenExpiry = 0;
+
+async function getInstallationToken(appId, privateKey, installationId) {
+  if (cachedInstallToken && Date.now() < tokenExpiry) {
+    return cachedInstallToken;
+  }
+
+  const jwt = generateJWT(appId, privateKey);
+  const res = await fetch(
+    'https://api.github.com/app/installations/' + installationId + '/access_tokens',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + jwt,
+        'Accept': 'application/vnd.github+json',
+        'User-Agent': 'ForgeOps-DevSecOps'
+      }
+    }
+  );
+
+  if (!res.ok) {
+    const err = await res.text();
+    console.error('Failed to get installation token:', res.status, err);
+    return null;
+  }
+
+  const data = await res.json();
+  cachedInstallToken = data.token;
+  tokenExpiry = Date.now() + (55 * 60 * 1000); // refresh 5 min before expiry
+  return cachedInstallToken;
+}
+
+// ── Auth header resolution: GitHub App → PAT → unauthenticated ──
+
+const APP_ID = process.env.GITHUB_APP_ID;
+const PRIVATE_KEY = (process.env.GITHUB_APP_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+const INSTALLATION_ID = process.env.GITHUB_APP_INSTALLATION_ID;
+const PAT_TOKEN = process.env.GITHUB_TOKEN;
+
+async function getAuthHeaders() {
+  if (APP_ID && PRIVATE_KEY && INSTALLATION_ID) {
+    const token = await getInstallationToken(APP_ID, PRIVATE_KEY, INSTALLATION_ID);
+    if (token) {
+      return {
+        'Authorization': 'token ' + token,
+        'Accept': 'application/vnd.github+json',
+        'User-Agent': 'ForgeOps-DevSecOps'
+      };
+    }
+  }
+  if (PAT_TOKEN) {
+    return {
+      'Authorization': 'token ' + PAT_TOKEN,
+      'Accept': 'application/vnd.github+json',
+      'User-Agent': 'ForgeOps'
+    };
+  }
+  return { 'Accept': 'application/vnd.github+json', 'User-Agent': 'ForgeOps' };
 }
 
 function getOrg() {
@@ -98,17 +175,25 @@ function getMockEnvironments() {
   ];
 }
 
+// ── GitHub API fetch with auth + rate limit logging ──
+
 async function ghFetch(path, options = {}) {
   const url = path.startsWith('http') ? path : `https://api.github.com${path}`;
+  const authHeaders = await getAuthHeaders();
   const res = await fetch(url, {
     ...options,
     headers: {
-      'Authorization': `Bearer ${getToken()}`,
-      'Accept': 'application/vnd.github.v3+json',
+      ...authHeaders,
       'Content-Type': 'application/json',
       ...(options.headers || {})
     }
   });
+
+  // Log rate limit info
+  const remaining = res.headers.get('x-ratelimit-remaining');
+  const limit = res.headers.get('x-ratelimit-limit');
+  if (remaining) console.log('GitHub API: ' + remaining + '/' + limit + ' remaining');
+
   const text = await res.text();
   let data;
   try { data = JSON.parse(text); } catch { data = text; }
